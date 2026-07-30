@@ -1,11 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "//": [
-    "ENGINEERING_GUIDE §2 requires noUncheckedIndexedAccess and exactOptionalPropertyTypes",
-    "everywhere. Both are on here, so every package gets them and anything new is strict",
-    "by default. apps/studio switches them off: it reported 163 errors against v1 code, and",
-    "turning them on there is its own milestone (docs/AUDIT.md D11) rather than a change",
-    "bolted onto an unrelated one. Do not add another exception without a line here."
+    "ENGINEERING_GUIDE §2: strict everywhere, including noUncheckedIndexedAccess and",
+    "exactOptionalPropertyTypes. Every workspace project inherits this and none overrides",
+    "it — keep it that way. An exemption here is how a codebase quietly stops being strict."
   ],
   "compilerOptions": {
     "target": "ES2022",

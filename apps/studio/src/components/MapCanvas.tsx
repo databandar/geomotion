@@ -350,8 +350,8 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     let target: DragTarget | null = null;
 
     if (layer.type === 'route') {
-      for (let i = 0; i < layer.coords.length; i++) {
-        const p = map.project(layer.coords[i]);
+      for (const [i, coord] of layer.coords.entries()) {
+        const p = map.project(coord);
         if (Math.hypot(p.x - pt.x, p.y - pt.y) < 10) {
           target = { kind: 'vertex', layerId: layer.id, index: i };
           break;

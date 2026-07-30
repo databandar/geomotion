@@ -152,8 +152,9 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
 
   const path = measure(buildPath(layer.coords, layer.curve));
   const km = path.length / 1000;
-  const straight =
-    layer.coords.length >= 2 ? haversine(layer.coords[0], layer.coords[layer.coords.length - 1]) / 1000 : 0;
+  const firstCoord = layer.coords[0];
+  const lastCoord = layer.coords[layer.coords.length - 1];
+  const straight = firstCoord && lastCoord ? haversine(firstCoord, lastCoord) / 1000 : 0;
 
   const set = (patch: Partial<RouteLayer>, key?: string) => update<RouteLayer>(layer.id, patch, key);
 
@@ -224,11 +225,17 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
             onClick={() => {
               const map = host?.map;
               if (!map || layer.coords.length < 2) return;
-              const b = layer.coords.reduce(
+              const b = layer.coords.reduce<[number, number, number, number]>(
                 (acc, c) => [Math.min(acc[0], c[0]), Math.min(acc[1], c[1]), Math.max(acc[2], c[0]), Math.max(acc[3], c[1])],
                 [180, 90, -180, -90],
               );
-              map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 80, duration: 600 });
+              map.fitBounds(
+                [
+                  [b[0], b[1]],
+                  [b[2], b[3]],
+                ],
+                { padding: 80, duration: 600 },
+              );
             }}
           >
             Frame route
@@ -585,7 +592,9 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
       for (const line of text.split(/\r?\n/)) {
         if (!line.trim()) continue;
         const m = line.match(/^\s*"?(.+?)"?\s*[,;\t]\s*"?(-?[\d.]+)"?\s*$/);
-        if (m && isFinite(parseFloat(m[2]))) parsed[m[1].trim()] = parseFloat(m[2]);
+        const name = m?.[1];
+        const raw = m?.[2];
+        if (name && raw && isFinite(parseFloat(raw))) parsed[name.trim()] = parseFloat(raw);
       }
     }
 
@@ -872,6 +881,7 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
             <div className="stop-list">
               {set.order.map((ri, i) => {
                 const r = set.regions[ri];
+                if (!r) return null;
                 return (
                   <button
                     key={r.id}
@@ -1118,9 +1128,12 @@ function CompositionInspector() {
           value={`${project.width}x${project.height}`}
           onChange={(v) => {
             const [w, h] = v.split('x').map(Number);
+            // The value comes from a fixed list, but parsing it unchecked would put
+            // NaN straight into the document's width and height.
+            if (!Number.isFinite(w) || !Number.isFinite(h)) return;
             patch((p) => {
-              p.width = w;
-              p.height = h;
+              p.width = w as number;
+              p.height = h as number;
             });
           }}
           options={PRESETS.map(([label, w, h]) => ({ value: `${w}x${h}`, label: `${label} · ${w}×${h}` }))}

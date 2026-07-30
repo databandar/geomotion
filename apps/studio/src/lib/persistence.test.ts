@@ -89,7 +89,7 @@ describe('localStorage persistence', () => {
     localStorage.setItem('geomotion:project', JSON.stringify({ layers: [{ type: 'text', id: 'x' }] }));
     const loaded = loadLocal()!;
     expect(loaded.fps).toBeGreaterThan(0);
-    expect(loaded.layers[0].visible).toBe(true);
+    expect(loaded.layers[0]!.visible).toBe(true);
   });
 
   it('survives a storage quota failure without throwing', () => {

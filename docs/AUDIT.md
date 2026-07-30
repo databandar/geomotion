@@ -109,7 +109,7 @@ Ordered by risk × cost of delay.
 
 | # | Debt | Impact | Proposed milestone |
 | --- | --- | --- | --- |
-| D11 | Both flags on for `packages/*`; **off for `apps/studio`** | 163 errors against v1 app code. `tsconfig.base.json` has them on, so anything new is strict by default and the exemption is written down where someone will look | Its own milestone |
+| D11 | ~~`noUncheckedIndexedAccess` / `exactOptionalPropertyTypes` missing~~ | — | **Closed in M13**: on in `tsconfig.base.json`, inherited by every project, overridden by none |
 | D12 | `apps/pipeline` tests | Composition and attribution are covered as of M9 (11 tests); narration timing, voice mixing and encode are still unguarded | Remainder with the `apps/server` / `apps/render-cli` split |
 
 ### 6.1 Bugs found by the M3 suite
@@ -158,6 +158,46 @@ headless browser instead:
 | --- | --- |
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
+### 6.13 A real data-corruption bug, found by a compiler flag (M13)
+
+`apps/studio` under both strict flags: 163 errors at first count, 76 after the engine
+work in M12, all now fixed. No project overrides the flags any more.
+
+**One was a silent, visible bug.** `regionSet` builds its rendered FeatureCollection
+by mapping `regions` and indexing `parsed.features` **by position** — but a feature
+with no rings is skipped when the region list is built. So for any GeoJSON containing
+a geometry-less feature anywhere but the end, every region after it was drawn with the
+*next* feature's shape: the right name, the right choropleth colour, the wrong
+polygon, and nothing anywhere to say so. Regions are now paired back by `id`, which is
+the 1-based feature index. The regression test fails against the old code and passes
+against the fix — checked both ways.
+
+Two more that could bite:
+
+| Where | What |
+| --- | --- |
+| `Inspector` resolution field | `v.split('x').map(Number)` was written straight into `project.width`/`height`. A value that did not split into two numbers would have put `NaN` into the document. Now validated before the transaction. |
+| `ScriptStep` paste handler | Tested `rows[cursor]` and took `rows[cursor++]` — the same index at evaluation time, so correct, but correct by coincidence. Now reads each row once. |
+
+The rest were provably-safe accesses, and the fixes that matter are the ones that
+turned an invariant into something checkable rather than assumed:
+
+- `regionAtStop(set, stop)` replaces `set.regions[set.order[stop]]` at every call
+  site. The tour's order-to-region lookup is a double indirection where both halves
+  can miss; it now has one name and one definition.
+- `cameraAt`, `ringArea`, `ringCentroid`, `unwrap`, `buildPath` and `measure` walk
+  consecutive pairs instead of indexing two positions of the same array. Shorter, and
+  no assertions.
+- `RAMPS` and `BASEMAPS` are typed `[T, ...T[]]`, so the `?? LIST[0]` fallback that
+  both `getRamp` and `getBasemap` depend on is guaranteed by the type.
+
+Test-file assertions were inserted by a compiler-driven script rather than by hand: in
+a test, a missing element *is* the failure, so asserting there is honest. Where a
+whole block wanted the same guard, a small `regionsAt`/`textAt`/`cloudsAt` helper
+replaced it and throws with the timestamp instead.
+
+All ten golden frames are bit-identical, and the test count went 232 -> 233.
 
 ### 6.12 Strict indexing, and four suppressions that were fine (M12)
 

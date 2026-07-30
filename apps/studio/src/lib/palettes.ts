@@ -24,7 +24,7 @@ export interface Ramp {
  * monotonically end to end. The thing to avoid is a cycling rainbow like jet,
  * where lightness goes up and down and rank becomes unreadable.
  */
-export const RAMPS: Ramp[] = [
+export const RAMPS: [Ramp, ...Ramp[]] = [
   { id: 'blue', name: 'Blue', steps: ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'] },
   { id: 'ember', name: 'Ember (red)', steps: ['#fee5d9', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#99000d'] },
   { id: 'amber', name: 'Amber (orange)', steps: ['#feedde', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'] },
@@ -67,23 +67,35 @@ const rgbToHex = (r: number, g: number, b: number) =>
  * `flip` reverses the anchor for dark basemaps so high values read bright.
  */
 export function rampColor(ramp: Ramp, t: number, flip: boolean): string {
-  const steps = flip ? [...ramp.steps].reverse() : ramp.steps;
+  const steps = flip ? [...ramp.steps].reverse() : [...ramp.steps];
   const clamped = Math.max(0, Math.min(1, isFinite(t) ? t : 0));
   const pos = clamped * (steps.length - 1);
   const i = Math.floor(pos);
   const f = pos - i;
-  if (i >= steps.length - 1) return steps[steps.length - 1];
-  const a = hexToRgb(steps[i]);
-  const b = hexToRgb(steps[i + 1]);
+
+  const lo = steps[i];
+  const hi = steps[i + 1];
+  // A ramp with no steps cannot happen (every shipped ramp has at least five, and
+  // palettes.test.ts asserts it), but the function still owes the caller a colour.
+  if (!lo) return '#000000';
+  // No upper neighbour means we are at or past the last step, so there is nothing
+  // to interpolate towards. Replaces the explicit length check this used to do.
+  if (!hi) return lo;
+
+  const a = hexToRgb(lo);
+  const b = hexToRgb(hi);
   return rgbToHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
 }
 
 /** WCAG relative luminance, used to pick readable ink on top of a swatch. */
 export function luminance(hex: string): number {
-  const [r, g, b] = hexToRgb(hex).map((v) => {
+  // Mapping the tuple would widen it to number[], so the channels are linearised
+  // individually — which also puts each WCAG coefficient beside its channel.
+  const linear = (v: number) => {
     const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [r, g, b] = hexToRgb(hex);
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
 }
 

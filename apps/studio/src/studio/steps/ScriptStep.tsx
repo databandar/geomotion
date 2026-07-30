@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type Beat, type Extracted, type Health, type StudioScript, type TourStop } from '../api';
 import { BEAT_HELP } from '../defaults';
 
+/** The message from a failed illustration request, if that is what this is. */
+const imageError = (v: string | undefined) => (v?.startsWith('error:') ? v.slice(6) : null);
+
 const KINDS: Beat['kind'][] = ['hook', 'clouds', 'outline', 'overview', 'tour', 'ranking', 'labels'];
 
 export function ScriptStep({
@@ -40,7 +43,7 @@ export function ScriptStep({
 
   const beats = script.beats;
   const tourIndex = beats.findIndex((b) => b.kind === 'tour');
-  const stops = tourIndex >= 0 ? beats[tourIndex].stops ?? [] : [];
+  const stops = (tourIndex >= 0 ? beats[tourIndex]?.stops : undefined) ?? [];
 
   const editBeat = (i: number, p: Partial<Beat>) => setBeats(beats.map((b, j) => (i === j ? { ...b, ...p } : b)));
   const setStops = (next: TourStop[]) => tourIndex >= 0 && editBeat(tourIndex, { stops: next });
@@ -117,13 +120,27 @@ export function ScriptStep({
     if (!rows.length) return;
 
     let cursor = 0;
+    /*
+     * Read each row once. The previous form tested `rows[cursor]` and took
+     * `rows[cursor++]` — the same index at evaluation time, so correct, but it
+     * relied on that coincidence and read as though it might not.
+     */
+    const nextRow = () => {
+      const row = rows[cursor];
+      if (row === undefined) return undefined;
+      cursor++;
+      return row;
+    };
     const next = beats.map((b) => {
       if (b.kind === 'tour') {
-        const taken = (b.stops ?? []).map((st) => ({ ...st, say: rows[cursor] !== undefined ? rows[cursor++] : st.say }));
+        const taken = (b.stops ?? []).map((st) => {
+          const row = nextRow();
+          return row === undefined ? st : { ...st, say: row };
+        });
         return { ...b, stops: taken };
       }
-      const say = rows[cursor] !== undefined ? rows[cursor++] : b.say;
-      return { ...b, say };
+      const row = nextRow();
+      return row === undefined ? b : { ...b, say: row };
     });
     setBeats(next);
     setShowPaste(false);
@@ -166,7 +183,11 @@ export function ScriptStep({
     const j = i + dir;
     if (j < 0 || j >= stops.length) return;
     const next = stops.slice();
-    [next[i], next[j]] = [next[j], next[i]];
+    const a = next[i];
+    const b = next[j];
+    if (!a || !b) return;
+    next[i] = b;
+    next[j] = a;
     setStops(next);
   };
 
@@ -413,8 +434,8 @@ export function ScriptStep({
                     value={stop.caption ?? ''}
                     onChange={(e) => setStops(stops.map((s, j) => (i === j ? { ...s, caption: e.target.value } : s)))}
                   />
-                  {images[stop.region]?.startsWith('error:') && (
-                    <p className="hint warn">{images[stop.region].slice(6)}</p>
+                  {imageError(images[stop.region]) && (
+                    <p className="hint warn">{imageError(images[stop.region])}</p>
                   )}
                 </div>
               </div>

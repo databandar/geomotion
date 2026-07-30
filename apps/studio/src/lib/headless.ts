@@ -43,7 +43,7 @@ export interface HeadlessApi {
   debug(t?: number): {
     styleLoaded: boolean;
     sources: string[];
-    layers: { id: string; type: string; source?: string; paint: Record<string, unknown> }[];
+    layers: { id: string; type: string; source: string | undefined; paint: Record<string, unknown> }[];
     scene: {
       time: number;
       camera: { zoom: number; center: [number, number] };

@@ -29,18 +29,18 @@ export interface Extracted {
 export interface TourStop {
   region: string;
   say: string;
-  caption?: string;
-  image?: string;
+  caption?: string | undefined;
+  image?: string | undefined;
 }
 
 export interface Beat {
   kind: 'hook' | 'clouds' | 'outline' | 'overview' | 'tour' | 'ranking' | 'labels';
   id?: string;
-  say?: string;
-  onScreen?: string;
-  stops?: TourStop[];
+  say?: string | undefined;
+  onScreen?: string | undefined;
+  stops?: TourStop[] | undefined;
   top?: number;
-  heading?: string;
+  heading?: string | undefined;
   labelAll?: boolean;
   pad?: number;
   minLength?: number;
@@ -50,13 +50,13 @@ export interface Beat {
 
 export interface VoiceConfig {
   engine: 'voicebox' | 'say' | 'elevenlabs' | 'google' | 'http';
-  vbEngine?: string;
-  presetVoice?: string;
-  profileName?: string;
-  profileId?: string;
-  language?: string;
-  voice?: string;
-  rate?: number;
+  vbEngine?: string | undefined;
+  presetVoice?: string | undefined;
+  profileName?: string | undefined;
+  profileId?: string | undefined;
+  language?: string | undefined;
+  voice?: string | undefined;
+  rate?: number | undefined;
 }
 
 export interface StudioScript {
@@ -117,7 +117,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  image: (input: { slug: string; region: string; prompt?: string; style?: string }) =>
+  image: (input: { slug: string; region: string; prompt?: string | undefined; style?: string | undefined }) =>
     call<{ url?: string; path?: string; dataUrl?: string; prompt: string }>('/llm/image', {
       method: 'POST',
       body: JSON.stringify(input),

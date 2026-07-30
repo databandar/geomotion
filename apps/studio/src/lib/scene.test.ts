@@ -164,7 +164,8 @@ describe('cameraAt — keyframe interpolation', () => {
   });
 
   it('tolerates unsorted keyframes', () => {
-    const shuffled = { ...project, camera: [project.camera[2], project.camera[0], project.camera[1]] };
+    const [k0, k1, k2] = project.camera;
+    const shuffled = { ...project, camera: [k2!, k0!, k1!] };
     expect(cameraAt(shuffled, 5).zoom).toBeCloseTo(cameraAt(project, 5).zoom, 9);
   });
 
@@ -234,7 +235,7 @@ describe('tourPhases — story timing', () => {
     const p = tourPhases(tour({ stopDurations: [2, 1, 3, 1] }), 4);
     expect(p.offsets).toHaveLength(5);
     for (let i = 1; i < p.offsets.length; i++) {
-      expect(p.offsets[i]).toBeGreaterThan(p.offsets[i - 1]);
+      expect(p.offsets[i]).toBeGreaterThan(p.offsets[i - 1]!);
     }
   });
 
@@ -251,6 +252,13 @@ describe('tourPhases — story timing', () => {
 });
 
 describe('evaluate — region tour phases', () => {
+  /** The regions render at `t`. Absent means the layer stopped evaluating at all. */
+  function regionsAt(p: Project, t: number) {
+    const r = evaluate(p, t).regions[0];
+    if (!r) throw new Error(`no regions render at t=${t}`);
+    return r;
+  }
+
   const project = indiaTourProject();
   const regionsLayer = project.layers.find((l): l is RegionsLayer => l.type === 'regions')!;
 
@@ -258,7 +266,7 @@ describe('evaluate — region tour phases', () => {
   // derive it from an evaluation rather than hardcoding a number that drifts
   // whenever the bundled dataset changes.
   clearRegionCache();
-  const stopCount = evaluate(project, regionsLayer.in + 0.01).regions[0].set.order.length;
+  const stopCount = regionsAt(project, regionsLayer.in + 0.01).set.order.length;
   const phases = tourPhases(regionsLayer, stopCount);
 
   it('has stops to tour', () => {
@@ -268,17 +276,17 @@ describe('evaluate — region tour phases', () => {
   it('walks intro -> tour -> outro in order', () => {
     const { tourStart, tourEnd } = phases;
     clearRegionCache();
-    expect(evaluate(project, regionsLayer.in + 0.1).regions[0].phase).toBe('intro');
-    expect(evaluate(project, tourStart + 0.1).regions[0].phase).toBe('tour');
-    expect(evaluate(project, tourEnd + 0.1).regions[0].phase).toBe('outro');
+    expect(regionsAt(project, regionsLayer.in + 0.1).phase).toBe('intro');
+    expect(regionsAt(project, tourStart + 0.1).phase).toBe('tour');
+    expect(regionsAt(project, tourEnd + 0.1).phase).toBe('outro');
   });
 
   it('has no active region outside the tour, and exactly one inside it', () => {
     const { tourStart, tourEnd } = phases;
     clearRegionCache();
-    expect(evaluate(project, regionsLayer.in + 0.1).regions[0].activeId).toBeNull();
-    expect(evaluate(project, tourEnd + 0.5).regions[0].activeId).toBeNull();
-    const mid = evaluate(project, tourStart + 1).regions[0];
+    expect(regionsAt(project, regionsLayer.in + 0.1).activeId).toBeNull();
+    expect(regionsAt(project, tourEnd + 0.5).activeId).toBeNull();
+    const mid = regionsAt(project, tourStart + 1);
     expect(mid.activeId).not.toBeNull();
     expect(mid.activeIndex).toBeGreaterThanOrEqual(0);
   });
@@ -288,7 +296,7 @@ describe('evaluate — region tour phases', () => {
     clearRegionCache();
     let last = -1;
     for (let t = tourStart + 0.05; t < tourEnd; t += 1) {
-      const idx = evaluate(project, t).regions[0].activeIndex;
+      const idx = regionsAt(project, t).activeIndex;
       expect(idx).toBeGreaterThanOrEqual(last);
       last = idx;
     }
@@ -297,7 +305,7 @@ describe('evaluate — region tour phases', () => {
   it('keeps every normalised progress value inside 0..1', () => {
     clearRegionCache();
     for (let t = 0; t <= project.duration; t += 0.37) {
-      const r = evaluate(project, t).regions[0];
+      const r = regionsAt(project, t);
       for (const [key, v] of Object.entries({
         trace: r.trace,
         introTrace: r.introTrace,
@@ -322,13 +330,25 @@ describe('evaluate — region tour phases', () => {
 });
 
 describe('evaluate — text and clouds', () => {
+  /** The first text/clouds render at `t`; absent means the layer did not evaluate. */
+  const textAt = (p: Project, t: number) => {
+    const r = evaluate(p, t).texts[0];
+    if (!r) throw new Error(`no text render at t=${t}`);
+    return r;
+  };
+  const cloudsAt = (p: Project, t: number) => {
+    const r = evaluate(p, t).clouds[0];
+    if (!r) throw new Error(`no clouds render at t=${t}`);
+    return r;
+  };
+
   it('reveals a typewriter layer progressively and never past the full string', () => {
     const text = createLayer('text', 0, { anim: 'typewriter', fade: 0.5, out: 10 } as Partial<Layer>) as TextLayer;
     const project: Project = { ...emptyProject(), duration: 10, layers: [text] };
-    const early = evaluate(project, 0.2).texts[0].reveal;
-    const later = evaluate(project, 1.4).texts[0].reveal;
+    const early = textAt(project, 0.2).reveal;
+    const later = textAt(project, 1.4).reveal;
     expect(early).toBeLessThan(later);
-    expect(evaluate(project, 9).texts[0].reveal).toBe(1);
+    expect(textAt(project, 9).reveal).toBe(1);
   });
 
   it('parts the clouds monotonically across the dissipate window', () => {
@@ -339,11 +359,11 @@ describe('evaluate — text and clouds', () => {
       dissipateEnd: 4,
     } as Partial<Layer>);
     const project: Project = { ...emptyProject(), duration: 10, layers: [clouds] };
-    expect(evaluate(project, 0.5).clouds[0].clear).toBe(0);
-    expect(evaluate(project, 5).clouds[0].clear).toBe(1);
+    expect(cloudsAt(project, 0.5).clear).toBe(0);
+    expect(cloudsAt(project, 5).clear).toBe(1);
     let prev = -1;
     for (let t = 1; t <= 4; t += 0.25) {
-      const clear = evaluate(project, t).clouds[0].clear;
+      const clear = cloudsAt(project, t).clear;
       expect(clear).toBeGreaterThanOrEqual(prev);
       prev = clear;
     }
@@ -352,7 +372,7 @@ describe('evaluate — text and clouds', () => {
   it('drifts clouds from absolute time so a scrub lands on the same frame', () => {
     const clouds = createLayer('clouds', 0, { out: 10 } as Partial<Layer>);
     const project: Project = { ...emptyProject(), duration: 10, layers: [clouds] };
-    expect(evaluate(project, 3.5).clouds[0].drift).toBe(3.5);
-    expect(evaluate(project, 3.5).clouds[0].drift).toBe(evaluate(project, 3.5).clouds[0].drift);
+    expect(cloudsAt(project, 3.5).drift).toBe(3.5);
+    expect(cloudsAt(project, 3.5).drift).toBe(cloudsAt(project, 3.5).drift);
   });
 });

@@ -43,7 +43,7 @@ export default function LayerPanel() {
       <div className="layer-list">
         <div
           className={'layer-item camera' + (selection?.kind === 'keyframe' ? ' sel' : '')}
-          onClick={() => camera.length && select({ kind: 'keyframe', id: camera[0].id })}
+          onClick={() => camera[0] && select({ kind: 'keyframe', id: camera[0].id })}
         >
           <span className="glyph t-camera">▣</span>
           <span className="lname">Camera</span>

@@ -9,7 +9,8 @@ interface Place {
   name: string;
   lng: number;
   lat: number;
-  bbox?: [number, number, number, number];
+  // Nominatim omits it for some results, and the mapper passes undefined through.
+  bbox?: [number, number, number, number] | undefined;
 }
 
 export default function Toolbar({ onExport, onStudio }: { onExport: () => void; onStudio: () => void }) {

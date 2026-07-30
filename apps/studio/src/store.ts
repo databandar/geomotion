@@ -191,7 +191,11 @@ export const useStore = create<State>((set, get) => ({
       const i = p.layers.findIndex((l) => l.id === id);
       const j = i + dir;
       if (i < 0 || j < 0 || j >= p.layers.length) return;
-      [p.layers[i], p.layers[j]] = [p.layers[j], p.layers[i]];
+      const from = p.layers[i];
+      const to = p.layers[j];
+      if (!from || !to) return;
+      p.layers[i] = to;
+      p.layers[j] = from;
     });
   },
 
@@ -213,7 +217,9 @@ export const useStore = create<State>((set, get) => ({
     get().patch((p) => {
       const i = p.camera.findIndex((k) => k.id === id);
       if (i < 0) return;
-      p.camera[i] = { ...p.camera[i], ...patchObj };
+      const existing = p.camera[i];
+      if (!existing) return;
+      p.camera[i] = { ...existing, ...patchObj };
       p.camera.sort((a, b) => a.t - b.t);
     }, historyKey ? `${id}:${historyKey}` : undefined);
   },

@@ -18,7 +18,7 @@ import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
 import { ease } from './easing';
 import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
-import { fitBounds, regionSet, type RegionSet } from './regions';
+import { fitBounds, regionAtStop, regionSet, type RegionSet } from './regions';
 import { getBasemap } from './basemaps';
 
 const DEFAULT_CAMERA: CameraState = {
@@ -32,15 +32,20 @@ const DEFAULT_CAMERA: CameraState = {
 
 export function cameraAt(project: Project, time: number): CameraState {
   const kfs = [...project.camera].sort((a, b) => a.t - b.t);
-  if (kfs.length === 0) return DEFAULT_CAMERA;
-  if (kfs.length === 1 || time <= kfs[0].t) return pick(kfs[0]);
+  const first = kfs[0];
   const last = kfs[kfs.length - 1];
+  if (!first || !last) return DEFAULT_CAMERA;
+  if (kfs.length === 1 || time <= first.t) return pick(first);
   if (time >= last.t) return pick(last);
 
+  // The surrounding pair. Both exist: `time` is strictly inside the range, so the
+  // scan stops before the final keyframe.
   let i = 0;
-  while (i < kfs.length - 1 && kfs[i + 1].t <= time) i++;
+  while (i < kfs.length - 1 && (kfs[i + 1]?.t ?? Infinity) <= time) i++;
   const a = kfs[i];
   const b = kfs[i + 1];
+  if (!a || !b) return pick(first);
+
   const u = invLerp(a.t, b.t, time);
   const e = ease(a.easing, u);
 
@@ -228,11 +233,13 @@ const GLOW_TIME = 0.75;
 
 /** Where the camera sits for a given stop on the tour (-1 = the opening overview). */
 function tourCamera(layer: RegionsLayer, set: RegionSet, project: Project, stop: number): CameraState {
-  if (stop < 0 || stop >= set.order.length) {
+  const region = stop < 0 ? undefined : regionAtStop(set, stop);
+  if (!region) {
+    // The opening overview, and the fallback if a stop no longer resolves to a
+    // region — framing the whole area is always a defensible shot.
     // Half the per-region pad: the overview is meant to fill the frame.
     return fitBounds(set.bounds, project.width, project.height, Math.max(0.06, layer.tour.padding * 0.5), 0);
   }
-  const region = set.regions[set.order[stop]];
   return fitBounds(region.bounds, project.width, project.height, layer.tour.padding, layer.tour.pitch, layer.tour.maxZoom);
 }
 
@@ -288,7 +295,10 @@ export function tourPhases(layer: RegionsLayer, stops: number) {
     holds.push(typeof d === 'number' && d > 0.05 ? d : dwell);
   }
   const offsets: number[] = [0];
-  for (let i = 0; i < holds.length; i++) offsets.push(offsets[i] + holds[i]);
+  {
+    let acc = 0;
+    for (const h of holds) offsets.push((acc += h));
+  }
 
   const tourEnd = tourStart + (offsets[stops] ?? 0);
   return { dwell, intro, outro, tourStart, tourEnd, holds, offsets, end: tourEnd + outro };
@@ -299,8 +309,8 @@ function stopAt(offsets: number[], holds: number[], local: number) {
   const stops = holds.length;
   if (stops === 0) return { index: -1, local: 0, hold: 0 };
   let i = 0;
-  while (i < stops - 1 && local >= offsets[i + 1]) i++;
-  return { index: i, local: local - offsets[i], hold: holds[i] };
+  while (i < stops - 1 && local >= (offsets[i + 1] ?? Infinity)) i++;
+  return { index: i, local: local - (offsets[i] ?? 0), hold: holds[i] ?? 0 };
 }
 
 function evaluateRegions(layer: RegionsLayer, project: Project, time: number, alpha: number) {
@@ -335,7 +345,7 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
     alpha,
     phase,
     activeIndex,
-    activeId: activeIndex >= 0 ? set.regions[set.order[activeIndex]].id : null,
+    activeId: activeIndex >= 0 ? (regionAtStop(set, activeIndex)?.id ?? null) : null,
     trace: layer.traceBorder ? ease('easeInOutCubic', settled / TRACE_TIME) : activeIndex >= 0 ? 1 : 0,
     fillIn:
       activeIndex < 0

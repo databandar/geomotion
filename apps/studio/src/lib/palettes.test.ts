@@ -44,8 +44,8 @@ describe('shipped ramps', () => {
         expect(
           lums[i],
           `ramp "${ramp.id}" breaks monotonicity at step ${i} ` +
-            `(${ramp.steps[i - 1]} L=${lums[i - 1].toFixed(3)} -> ${ramp.steps[i]} L=${lums[i].toFixed(3)})`,
-        ).toBeLessThan(lums[i - 1]);
+            `(${ramp.steps[i - 1]} L=${lums[i - 1]!.toFixed(3)} -> ${ramp.steps[i]} L=${lums[i]!.toFixed(3)})`,
+        ).toBeLessThan(lums[i - 1]!);
       }
     }
   });

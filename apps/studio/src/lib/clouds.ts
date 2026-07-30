@@ -61,7 +61,7 @@ export function cloudTexture(): HTMLCanvasElement {
       const u = x / TEX;
       const v = y / TEX;
       let n = 0;
-      for (let o = 0; o < octaves.length; o++) n += octave(u, v, octaves[o][0], o + 1) * octaves[o][1];
+      octaves.forEach(([scale, weight], o) => (n += octave(u, v, scale, o + 1) * weight));
       // Bias towards wispy edges rather than a flat grey field.
       const a = Math.max(0, Math.min(1, (n - 0.34) * 2.1)) ** 1.35;
       const i = (y * TEX + x) * 4;

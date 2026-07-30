@@ -61,8 +61,8 @@ describe('regionSet — parsing and the data join', () => {
   it('reports regions with no matching value as null rather than zero', () => {
     // Rendering a hole as 0 would be a silent lie; it must read as "no data".
     const set = regionSet(layerWith({ values: { Alpha: 10 } }), false);
-    expect(set.regions[0].value).toBe(10);
-    expect(set.regions[1].value).toBeNull();
+    expect(set.regions[0]!.value).toBe(10);
+    expect(set.regions[1]!.value).toBeNull();
     expect(set.withValues).toBe(1);
   });
 
@@ -96,8 +96,8 @@ describe('regionSet — parsing and the data join', () => {
   it('bakes a fill colour per valued region and the no-data colour otherwise', () => {
     const layer = layerWith({ values: { Alpha: 4 }, noDataColor: '#123456' });
     const set = regionSet(layer, false);
-    expect(set.regions[0].fill).toMatch(/^#[0-9a-f]{6}$/);
-    expect(set.regions[1].fill).toBe('#123456');
+    expect(set.regions[0]!.fill).toMatch(/^#[0-9a-f]{6}$/);
+    expect(set.regions[1]!.fill).toBe('#123456');
   });
 
   it('returns an empty set for malformed or empty geojson instead of throwing', () => {
@@ -113,22 +113,52 @@ describe('regionSet — parsing and the data join', () => {
     expect(set.bounds).toEqual([0, 0, 30, 30]);
   });
 
+  it('pairs each region with the geometry it actually came from', () => {
+    /*
+     * Regression test. Features with no rings are skipped, so `regions` and
+     * `parsed.features` are not index-aligned — and the rendered FeatureCollection
+     * used to be built by *position*, which gave every region after a geometry-less
+     * feature the next feature's shape. The right name and colour on the wrong
+     * polygon, with nothing to indicate it.
+     */
+    const geojson = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', properties: { name: 'Alpha' }, geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] } },
+        // No geometry: skipped when the region list is built.
+        { type: 'Feature', properties: { name: 'Ghost' }, geometry: null },
+        { type: 'Feature', properties: { name: 'Beta' }, geometry: { type: 'Polygon', coordinates: [[[20, 20], [21, 20], [21, 21], [20, 21], [20, 20]]] } },
+      ],
+    });
+    const set = regionSet(layerWith({ geojson, values: { Alpha: 1, Beta: 2 } }), false);
+
+    expect(set.regions.map((r) => r.name)).toEqual(['Alpha', 'Beta']);
+    // Beta is the third feature, so its id is 3 even though it is the second region.
+    expect(set.regions.map((r) => r.id)).toEqual([1, 3]);
+
+    const beta = set.data.features.find((f) => f.properties?._name === 'Beta');
+    expect(beta, 'Beta missing from the rendered collection').toBeTruthy();
+    // The shape drawn for Beta must be Beta's own square, not the ghost's or Alpha's.
+    const ring = (beta!.geometry as GeoJSON.Polygon).coordinates[0]!;
+    expect(ring[0]).toEqual([20, 20]);
+  });
+
   describe('tour ordering', () => {
     const values = { Alpha: 10, Beta: 99 };
 
     it('valueDesc visits the highest first', () => {
       const set = regionSet(layerWith({ values, tour: tourWith({ order: 'valueDesc' }) }), false);
-      expect(set.order.map((i) => set.regions[i].name)).toEqual(['Beta', 'Alpha']);
+      expect(set.order.map((i) => set.regions[i]!.name)).toEqual(['Beta', 'Alpha']);
     });
 
     it('valueAsc visits the lowest first', () => {
       const set = regionSet(layerWith({ values, tour: tourWith({ order: 'valueAsc' }) }), false);
-      expect(set.order.map((i) => set.regions[i].name)).toEqual(['Alpha', 'Beta']);
+      expect(set.order.map((i) => set.regions[i]!.name)).toEqual(['Alpha', 'Beta']);
     });
 
     it('value orderings exclude unvalued regions so they cannot lead the tour', () => {
       const set = regionSet(layerWith({ values: { Alpha: 10 }, tour: tourWith({ order: 'valueDesc' }) }), false);
-      expect(set.order.map((i) => set.regions[i].name)).toEqual(['Alpha']);
+      expect(set.order.map((i) => set.regions[i]!.name)).toEqual(['Alpha']);
     });
 
     it('alpha sorts by name, and geojson keeps file order', () => {
@@ -145,7 +175,7 @@ describe('regionSet — parsing and the data join', () => {
         layerWith({ values, tour: tourWith({ order: 'custom', customOrder: ['beta', 'Nowhere', 'Alpha'] }) }),
         false,
       );
-      expect(set.order.map((i) => set.regions[i].name)).toEqual(['Beta', 'Alpha']);
+      expect(set.order.map((i) => set.regions[i]!.name)).toEqual(['Beta', 'Alpha']);
     });
 
     it('custom order falls back to every region when nothing matches', () => {

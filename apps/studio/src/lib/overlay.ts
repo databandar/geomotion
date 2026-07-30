@@ -357,6 +357,7 @@ function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
 
   priority.forEach((ri, i) => {
     const region = set.regions[ri];
+    if (!region) return;
     const appear = clamp01(r.outroProgress * (priority.length + 6) - i);
     if (appear <= 0) return;
 
@@ -532,8 +533,9 @@ function drawRouteHead(f: OverlayFrame, r: RouteRender) {
   // Screen-space heading from the last drawn segment: exact under any
   // bearing/pitch combination, unlike converting the compass bearing.
   let angle = 0;
-  if (style.marker.rotate && r.drawn.length >= 2) {
-    const prev = f.project(r.drawn[Math.max(0, r.drawn.length - 2)]);
+  const penultimate = r.drawn[r.drawn.length - 2];
+  if (style.marker.rotate && penultimate) {
+    const prev = f.project(penultimate);
     angle = Math.atan2(p.y - prev.y, p.x - prev.x);
   }
 
@@ -733,7 +735,7 @@ function drawText(f: OverlayFrame, t: TextRender) {
   }
 
   lines.forEach((line, i) => {
-    const left = alignLeft(x, widths[i], style.align);
+    const left = alignLeft(x, widths[i] ?? 0, style.align);
     const ly = y + i * lineHeight;
     ctx.lineJoin = 'round';
     ctx.lineWidth = size * 0.16;

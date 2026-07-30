@@ -45,7 +45,7 @@ function hybridStyle(imagery: string, reference: string, attribution: string, ma
  * All of these are keyless. If you have a Mapbox/MapTiler key you can drop the
  * style URL straight into the Basemap list and it will work the same way.
  */
-export const BASEMAPS: Basemap[] = [
+export const BASEMAPS: [Basemap, ...Basemap[]] = [
   {
     id: 'dark',
     name: 'Dark Matter',

@@ -47,22 +47,31 @@ function ringsOf(g: GeoJSON.Geometry | null, out: LngLat[][]) {
 }
 
 function ringArea(r: LngLat[]): number {
+  let prev = r[r.length - 1];
+  if (!prev) return 0;
   let a = 0;
-  for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]);
+  for (const cur of r) {
+    a += (prev[0] + cur[0]) * (prev[1] - cur[1]);
+    prev = cur;
+  }
   return Math.abs(a / 2);
 }
 
 function ringCentroid(r: LngLat[]): LngLat {
+  const first = r[0];
+  let prev = r[r.length - 1];
+  if (!first || !prev) return [0, 0];
   let x = 0;
   let y = 0;
   let a = 0;
-  for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-    const f = r[j][0] * r[i][1] - r[i][0] * r[j][1];
+  for (const cur of r) {
+    const f = prev[0] * cur[1] - cur[0] * prev[1];
     a += f;
-    x += (r[j][0] + r[i][0]) * f;
-    y += (r[j][1] + r[i][1]) * f;
+    x += (prev[0] + cur[0]) * f;
+    y += (prev[1] + cur[1]) * f;
+    prev = cur;
   }
-  if (a === 0) return r[0] ?? [0, 0];
+  if (a === 0) return first;
   return [x / (3 * a), y / (3 * a)];
 }
 
@@ -172,13 +181,29 @@ function build(layer: RegionsLayer, basemapIsDark: boolean): RegionSet {
 
   const order = buildOrder(layer, regions);
 
+  /*
+   * Each region is paired back to the feature it came from by `id`, which is the
+   * 1-based index into `parsed.features`.
+   *
+   * NOT by position in `regions`: features with no rings are skipped when building
+   * the list above, so the two arrays are only index-aligned when every feature has
+   * geometry. With one geometry-less feature anywhere but the end, every region
+   * after it was being drawn with the *next* feature's shape — the right name and
+   * colour on the wrong polygon, silently. Found by noUncheckedIndexedAccess.
+   */
   const data: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: regions.map((r, i) => ({
-      ...parsed.features[i],
-      id: r.id,
-      properties: { ...(parsed.features[i].properties ?? {}), _name: r.name, _fill: r.fill },
-    })),
+    features: regions.flatMap((r) => {
+      const source = parsed.features[r.id - 1];
+      if (!source) return [];
+      return [
+        {
+          ...source,
+          id: r.id,
+          properties: { ...(source.properties ?? {}), _name: r.name, _fill: r.fill },
+        },
+      ];
+    }),
   };
 
   return {
@@ -193,7 +218,7 @@ function build(layer: RegionsLayer, basemapIsDark: boolean): RegionSet {
 
 function buildOrder(layer: RegionsLayer, regions: Region[]): number[] {
   const idx = regions.map((_, i) => i);
-  const val = (i: number) => regions[i].value;
+  const val = (i: number) => regions[i]?.value ?? null;
 
   switch (layer.tour.order) {
     case 'valueDesc':
@@ -206,7 +231,7 @@ function buildOrder(layer: RegionsLayer, regions: Region[]): number[] {
         .filter((i) => val(i) !== null)
         .sort((a, b) => (val(a) as number) - (val(b) as number));
     case 'alpha':
-      return idx.sort((a, b) => regions[a].name.localeCompare(regions[b].name));
+      return idx.sort((a, b) => (regions[a]?.name ?? '').localeCompare(regions[b]?.name ?? ''));
     case 'custom': {
       const byName = new Map(regions.map((r, i) => [r.name.toLowerCase(), i]));
       const picked = layer.tour.customOrder
@@ -238,6 +263,19 @@ const invMercY = (y: number) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 1
  * reproducible. It depends on the pixel size, which is precisely why the preview
  * stage renders at full output resolution.
  */
+/**
+ * The region a tour stop refers to.
+ *
+ * `order` holds indices into `regions`, so reaching a stop's region is a double
+ * lookup, and both halves can miss — an empty tour, or an order built before the
+ * geometry changed. One named helper beats the same two-step indexing repeated at
+ * every call site.
+ */
+export const regionAtStop = (set: RegionSet, stop: number): Region | undefined => {
+  const index = set.order[stop];
+  return index === undefined ? undefined : set.regions[index];
+};
+
 export function fitBounds(
   bounds: [number, number, number, number],
   width: number,
