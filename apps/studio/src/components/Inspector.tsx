@@ -10,7 +10,7 @@ import { EASING_NAMES } from '../lib/easing';
 import { getMap } from '../lib/mapref';
 import { BASEMAPS, getBasemap } from '../lib/basemaps';
 import { Color, Field, Num, Section, Select, Slider, Text, Toggle } from './ui';
-import { haversine, measure, buildPath } from '../lib/geo';
+import { haversine, measure, buildPath } from '@geomotion/geometry';
 
 export default function Inspector() {
   const layer = useSelectedLayer();
@@ -558,7 +558,7 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
   const importValues = (raw: string, replace: boolean) => {
     const text = raw.trim();
     if (!text) return;
-    let parsed: Record<string, number> = {};
+    const parsed: Record<string, number> = {};
     try {
       const j = JSON.parse(text);
       const src = (j && typeof j === 'object' && 'values' in j ? j.values : j) as Record<string, unknown>;

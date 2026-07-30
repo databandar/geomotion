@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import type { RouteLayer } from '../types';
-import { clamp } from '../lib/easing';
+import { clamp } from '@geomotion/core';
 
 const GUTTER = 148;
 

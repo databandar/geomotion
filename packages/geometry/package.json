@@ -1,0 +1,21 @@
+{
+  "name": "@geomotion/geometry",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Geo math: great-circle interpolation, bearings, path densification and measurement (ENGINEERING_GUIDE §2, ARCHITECTURE §08).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geomotion/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}

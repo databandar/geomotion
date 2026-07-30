@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "The GeoMotion editor application (ENGINEERING_GUIDE §2: apps/studio).",
+  "description": "The GeoMotion editor application (ENGINEERING_GUIDE \u00a72: apps/studio).",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -13,6 +13,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@geomotion/core": "workspace:*",
+    "@geomotion/geometry": "workspace:*",
     "maplibre-gl": "^5.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

@@ -1,9 +1,10 @@
 import type { CameraKeyframe, Layer, LayerType, LngLat, Project } from '../types';
 import indiaStates from '../data/india-states-official.json';
+import { createId } from '@geomotion/core';
 import anemia from '../data/india-anemia-sample.json';
 import indiaOutline from '../data/india-outline-official.json';
 
-export const uid = () => Math.random().toString(36).slice(2, 10);
+
 
 const PALETTE = [
   '#ff5f56',
@@ -21,7 +22,7 @@ const nextColor = () => PALETTE[colorCursor++ % PALETTE.length];
 
 export function keyframe(t: number, center: LngLat, zoom: number, extra: Partial<CameraKeyframe> = {}): CameraKeyframe {
   return {
-    id: uid(),
+    id: createId(),
     t,
     center,
     zoom,
@@ -35,7 +36,7 @@ export function keyframe(t: number, center: LngLat, zoom: number, extra: Partial
 
 export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = {}): Layer {
   const base = {
-    id: uid(),
+    id: createId(),
     visible: true,
     in: Math.max(0, at),
     out: Math.max(0, at) + 6,

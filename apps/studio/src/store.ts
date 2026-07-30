@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import type { CameraKeyframe, Layer, LayerType, Project } from './types';
 import { clearPathCache } from './lib/scene';
 import { clearRegionCache } from './lib/regions';
-import { createLayer, demoProject, keyframe, loadLocal, saveLocal, uid } from './lib/project';
-import { clamp } from './lib/easing';
+import { createLayer, demoProject, keyframe, loadLocal, saveLocal } from './lib/project';
+import { clamp, createId } from '@geomotion/core';
 
 export type Selection = { kind: 'layer'; id: string } | { kind: 'keyframe'; id: string } | null;
 export type Tool = 'select' | 'route' | 'marker';
@@ -160,7 +160,7 @@ export const useStore = create<State>((set, get) => ({
   duplicateLayer: (id) => {
     const src = get().project.layers.find((l) => l.id === id);
     if (!src) return;
-    const copy = { ...clone({ layers: [src] } as unknown as Project).layers[0], id: uid() } as Layer;
+    const copy = { ...clone({ layers: [src] } as unknown as Project).layers[0], id: createId() } as Layer;
     copy.name = src.name + ' copy';
     get().patch((p) => {
       const i = p.layers.findIndex((l) => l.id === id);
@@ -264,7 +264,7 @@ export function useSelectedKeyframe(): CameraKeyframe | undefined {
   );
 }
 
-// Expose store globally for headless automation (Playwright)
+// The headless renderer reads timeline state through this; see automation.d.ts.
 if (typeof window !== 'undefined') {
-  (window as any).__geomotion_store = useStore;
+  window.__geomotion_store = useStore;
 }

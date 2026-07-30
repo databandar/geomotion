@@ -39,9 +39,9 @@ export function waitForIdle(m: MLMap, timeoutMs = 8000): Promise<void> {
   });
 }
 
-// Expose for headless automation (Playwright)
+// The headless renderer drives the composition through these; see automation.d.ts.
 if (typeof window !== 'undefined') {
-  (window as any).__geomotion_renderFrameAt = renderFrameAt;
-  (window as any).__geomotion_getMap = getMap;
-  (window as any).__geomotion_waitForIdle = waitForIdle;
+  window.__geomotion_renderFrameAt = renderFrameAt;
+  window.__geomotion_getMap = getMap;
+  window.__geomotion_waitForIdle = waitForIdle;
 }

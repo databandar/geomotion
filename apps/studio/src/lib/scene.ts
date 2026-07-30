@@ -10,9 +10,10 @@ import type {
   ShapeLayer,
   TextLayer,
 } from '../types';
-import { clamp01, ease, invLerp, lerp, lerpAngle } from './easing';
+import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
+import { ease } from './easing';
 import type { EasingName } from '../types';
-import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from './geo';
+import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionSet, type RegionSet } from './regions';
 import { getBasemap } from './basemaps';
 
@@ -40,7 +41,7 @@ export function cameraAt(project: Project, time: number): CameraState {
   const e = ease(a.easing, u);
 
   // Keep longitude interpolation on the short way around the globe.
-  let lngA = a.center[0];
+  const lngA = a.center[0];
   let lngB = b.center[0];
   while (lngB - lngA > 180) lngB -= 360;
   while (lngB - lngA < -180) lngB += 360;
@@ -228,7 +229,7 @@ function tourCamera(layer: RegionsLayer, set: RegionSet, project: Project, stop:
  * values only — this is a flourish, and at high bow it reads as a mistake.
  */
 function blendCamera(a: CameraState, b: CameraState, e: number, bow = 0): CameraState {
-  let lngA = a.center[0];
+  const lngA = a.center[0];
   let lngB = b.center[0];
   while (lngB - lngA > 180) lngB -= 360;
   while (lngB - lngA < -180) lngB += 360;

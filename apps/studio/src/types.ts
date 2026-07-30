@@ -1,4 +1,8 @@
-export type LngLat = [number, number];
+// The canonical declaration lives in @geomotion/core (ENGINEERING_GUIDE §2 puts
+// vector-like primitives there). Imported for use below and re-exported under the
+// name v1 already uses, so the document types read the same.
+import type { LngLat } from '@geomotion/core';
+export type { LngLat };
 
 export type EasingName =
   | 'linear'

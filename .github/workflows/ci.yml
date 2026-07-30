@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   verify:
-    name: typecheck, test, build
+    name: lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -37,6 +37,11 @@ jobs:
       # --frozen-lockfile fails rather than silently resolving a new tree, which
       # is what makes the lockfile meaningful.
       - run: pnpm install --frozen-lockfile
+
+      # Runs at the root, not through turbo: the §2 dependency law is a
+      # cross-package property, so it is checked over the whole graph at once.
+      - name: Lint and boundary law
+        run: pnpm run lint
 
       - name: Typecheck
         run: pnpm run typecheck

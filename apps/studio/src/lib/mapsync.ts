@@ -1,7 +1,7 @@
 import type { Map as MLMap, GeoJSONSource, LayerSpecification } from 'maplibre-gl';
 import type { LngLat, ShapeLayer } from '../types';
 import type { Scene } from './scene';
-import { measure, sliceAt, type MeasuredPath } from './geo';
+import { measure, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 
 /**
  * Slicing a border every frame would otherwise rebuild its cumulative-length

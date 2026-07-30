@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A browser-based map motion graphics editor — keyframe camera moves, animated routes and region tours, and frame-accurate video export.",
+  "description": "A browser-based map motion graphics editor \u2014 keyframe camera moves, animated routes and region tours, and frame-accurate video export.",
   "packageManager": "pnpm@10.15.0",
   "engines": {
     "node": ">=22"
@@ -14,11 +14,19 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:watch": "pnpm --filter @geomotion/studio test:watch",
-    "verify": "turbo run typecheck test build",
-    "video": "pnpm --filter @geomotion/pipeline video"
+    "verify": "pnpm run lint && turbo run typecheck test build",
+    "video": "pnpm --filter @geomotion/pipeline video",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^9.39.5",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-boundaries": "^5.4.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "turbo": "^2.5.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.65.0"
   }
 }

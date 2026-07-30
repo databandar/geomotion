@@ -20,11 +20,14 @@ pnpm test      # the engine suite
 pnpm verify    # typecheck + test + build, the same gate CI runs
 ```
 
-The suites next to each module in [`apps/studio/src/lib/`](apps/studio/src/lib/) are the
-behavioural contract for the pure engine — geometry, easing, colour scales, the region join
-and framing solver, scene evaluation, and document serialisation. They are deliberately
-implementation-free, because those algorithms are slated to move into standalone packages
-and these assertions are what the move must preserve. Run them before you send anything.
+Each suite sits next to the code it describes — in [`packages/`](packages/) for what has
+already been extracted, in [`apps/studio/src/lib/`](apps/studio/src/lib/) for what hasn't.
+Together they are the behavioural contract for the pure engine: geo math, easing, colour
+scales, the region join and framing solver, scene evaluation, and document serialisation.
+They are deliberately implementation-free, because these algorithms are moving into
+standalone packages one at a time and the assertions are what each move has to preserve —
+they travel with the code and are the reason the move is checkable. Run them before you
+send anything.
 
 There is also a **video pipeline** that turns a written script plus a Hindi (or any
 language) voiceover into a finished, uploadable MP4 — see
@@ -43,10 +46,19 @@ A pnpm workspace driven by Turborepo, per
 | --- | --- |
 | [`apps/studio/`](apps/studio/) | The editor. Today this is the v1 codebase, being converted in place rather than rewritten alongside. |
 | [`apps/pipeline/`](apps/pipeline/) | Script → voiceover → MP4, plus the dev-server middleware Studio's API calls hit. Splits into `apps/server` + `apps/render-cli` when the render farm lands. |
-| `packages/` | Declared in the workspace, empty for now: the landing site for the engine extraction. Each package's contract is fixed in the guide's §2 table before any code moves. |
+| [`packages/core/`](packages/core/) | Ids, coordinates, numeric interpolation. Zero dependencies by contract. |
+| [`packages/geometry/`](packages/geometry/) | Great-circle math, path densification and measurement. Depends on `core` only. |
+
+The remaining packages in the guide's §2 table are extracted one at a time, each with its
+contract fixed before code moves into it.
 
 Every task runs through `turbo`, so a new package with `typecheck`/`test`/`build` scripts
 is picked up by both `pnpm verify` and CI with no configuration change.
+
+The §2 **dependency law** — arrows point downward only, `core` depends on nothing — is
+enforced by ESLint rather than trusted: `pnpm lint` fails the build on a violation.
+Adding a package means deciding, in [`eslint.config.js`](eslint.config.js), exactly what
+it may import.
 
 ---
 

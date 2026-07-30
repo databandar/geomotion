@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { LngLat } from '../types';
-import { bearing, buildPath, haversine, headingAt, measure, pointAt, sliceAt, slerp, unwrap } from './geo';
+import type { LngLat } from '@geomotion/core';
+import { bearing, buildPath, haversine, headingAt, measure, pointAt, sliceAt, slerp, unwrap } from './geo.ts';
 
 /**
  * Behavioural spec for the geo primitives.
  *
- * These functions are slated to move into `packages/geometry` (ARCHITECTURE §08).
- * This suite is the contract that port must preserve — if a v2 implementation
- * disagrees with any assertion here, the v2 implementation is wrong until an ADR
- * says otherwise.
+ * This suite travelled with the code out of v1 and into `packages/geometry`
+ * (ARCHITECTURE §08) unchanged — it is what made that move verifiable. It remains
+ * the contract: if an implementation disagrees with any assertion here, the
+ * implementation is wrong until an ADR says otherwise.
  */
 
 const LONDON: LngLat = [-0.1276, 51.5072];

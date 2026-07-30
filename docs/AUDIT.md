@@ -95,7 +95,7 @@ Ordered by risk × cost of delay.
 | # | Debt | Impact | Proposed milestone |
 | --- | --- | --- | --- |
 | D1 | ~~Zero tests~~ | — | **Closed in M3**: 157 tests over the six pure modules |
-| D2 | ~~No monorepo~~ | Package **boundaries** are still unenforced — no `eslint-plugin-boundaries` yet, because there are no packages to police | **Workspace closed in M4**; boundary lint lands with the first package (M5) |
+| D2 | ~~No monorepo / package boundaries~~ | — | **Closed in M5**: workspace in M4, first packages + enforced dependency law in M5 |
 | D3 | Document mutations clone the whole project (`store.ts` `patch()`) | O(document) per keystroke; blocks patches, undo granularity, collaboration | M5 (with `packages/document`) |
 | D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
 | D5 | `src/lib/mapref.ts` module-global map handle | Named anti-pattern (guide §15); blocks worker rendering and multiplayer | M5 |
@@ -137,6 +137,25 @@ real contract, with comments recording it for the port.
 Both were found by *running* the pipeline, which the build and the unit suite do not do —
 the argument for D12.
 
+### 6.3 Found by turning on the linter (M5)
+
+There was no ESLint configuration at all, so a handful of things had never been checked:
+
+| Where | Finding |
+| --- | --- |
+| 5 call sites across `MapCanvas.tsx`, `VoiceStep.tsx` | `// eslint-disable-next-line react-hooks/exhaustive-deps` comments suppressing a rule **that was never installed**. The suppressions did nothing and the dependency arrays had never been verified. The plugin is now installed and the rule enforced. |
+| `mapref.ts`, `store.ts` | The headless renderer drives frame stepping through `window.__geomotion_*` globals attached via `as any` — a real cross-process API contract with no type. Renaming one would have broken rendering with no typecheck error. Now declared in `apps/studio/src/automation.d.ts`. |
+| `App.tsx` | `e.shiftKey ? s.redo() : s.undo()` — a ternary evaluated for side effects, which reads as a value and returns one nobody uses. |
+| `scene.ts`, `Inspector.tsx` | Three `let` bindings never reassigned. |
+
+**A rule that enforces nothing is worse than no rule**, and this milestone nearly shipped
+one: `boundaries/element-types` governs only imports it can resolve to a local file, and
+workspace packages are symlinked into `node_modules` — so `import '@geomotion/geometry'`
+read as third-party and was skipped in silence. The first version of the config passed a
+deliberately illegal import. Package-name imports are now covered by `boundaries/external`
+alongside it, and both rules are derived from one table. Any future boundary work should
+be checked the same way: commit a violation, watch it fail, then delete it.
+
 ## 7. Conclusion
 
 The v1 codebase is healthier than its size suggests: the pure-evaluation core, the geo
@@ -150,6 +169,12 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M5.** D2 is fully closed. `packages/core` and `packages/geometry` exist,
+the dependency law is executable, and the M3 port contract travelled with the code —
+which is what made the move checkable rather than hopeful. The next structural blocker is
+D3/D5: the document store clones the whole project per edit, and `mapref.ts` is a module
+global the renderer reaches through.
 
 **Update after M4.** D7 is closed and D2 is half closed: the pnpm + Turborepo
 workspace exists, `packages/` is declared, and v1 has moved to `apps/studio` +

@@ -1,5 +1,4 @@
-import type { LngLat } from '../types';
-import { clamp01 } from './easing';
+import { clamp01, type LngLat } from '@geomotion/core';
 
 const R = 6371008.8; // mean earth radius, metres
 const D2R = Math.PI / 180;

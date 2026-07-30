@@ -104,7 +104,8 @@ function useShortcuts() {
 
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        e.shiftKey ? s.redo() : s.undo();
+        if (e.shiftKey) s.redo();
+        else s.undo();
         return;
       }
 

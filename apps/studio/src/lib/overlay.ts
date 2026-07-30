@@ -3,7 +3,7 @@ import type { CloudsRender, ImageRender, MarkerRender, RegionsRender, RouteRende
 import { getImage } from './images';
 import { cloudTexture, scratchCanvas } from './clouds';
 import { getRamp, rampColor } from './palettes';
-import { clamp01 } from './easing';
+import { clamp01 } from '@geomotion/core';
 
 export interface ProjectFn {
   (c: LngLat): { x: number; y: number };

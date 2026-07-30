@@ -9,7 +9,6 @@ import {
   loadLocal,
   migrate,
   saveLocal,
-  uid,
 } from './project';
 
 /**
@@ -190,17 +189,6 @@ describe('keyframe', () => {
 
   it('accepts overrides', () => {
     expect(keyframe(0, [0, 0], 1, { bearing: 45, easing: 'easeIn' }).bearing).toBe(45);
-  });
-});
-
-describe('uid', () => {
-  it('returns a short url-safe string', () => {
-    expect(uid()).toMatch(/^[a-z0-9]+$/);
-  });
-
-  it('does not collide across many calls', () => {
-    const ids = Array.from({ length: 5000 }, uid);
-    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
