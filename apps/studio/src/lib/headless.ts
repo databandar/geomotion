@@ -98,12 +98,14 @@ export function installHeadlessApi(host: RenderHost) {
         time: scene.time,
         camera: { zoom: scene.camera.zoom, center: scene.camera.center },
         regions: scene.regions.map((r) => ({
-          name: r.layer.name,
+          // The layer name is document metadata, not something the renderer is
+          // given — so it comes from the project, matched by id.
+          name: state.project.layers.find((l) => l.id === r.style.id)?.name ?? r.style.id,
           alpha: r.alpha,
           phase: r.phase,
           activeIndex: r.activeIndex,
           stops: r.set.order.length,
-          fillOpacity: r.layer.fillOpacity,
+          fillOpacity: r.style.fillOpacity,
         })),
       };
       const map = host.map;

@@ -143,6 +143,29 @@ export default tseslint.config(
   },
 
   {
+    // The renderer is document-free as of M8, and this is what keeps it that way.
+    // It reads only the style interfaces in render/styles.ts, so a new draw
+    // routine cannot quietly start depending on document state the evaluator did
+    // not mean to expose. These files are the future `packages/renderer` and
+    // `packages/map`; the import ban is the boundary law applied early.
+    files: ['apps/studio/src/lib/overlay.ts', 'apps/studio/src/lib/mapsync.ts', 'apps/studio/src/render/styles.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@geomotion/document',
+              message:
+                'The renderer must not depend on the document. Add the field to render/styles.ts instead — deliberately.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     // The harness straddles two runtimes: the CLI runs in node, and the capture
     // functions are serialised into the page, so both sets of globals are real.
     files: ['packages/testing/**/*.mjs'],

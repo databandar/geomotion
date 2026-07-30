@@ -1,5 +1,6 @@
 import type { Map as MLMap, GeoJSONSource, LayerSpecification } from 'maplibre-gl';
-import type { LngLat, ShapeLayer } from '@geomotion/document';
+import type { LngLat } from '@geomotion/core';
+import type { ShapeStyle } from '../render/styles';
 import type { Scene } from './scene';
 import { measure, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 
@@ -68,13 +69,13 @@ interface ShapeCacheEntry {
 }
 const shapeCache = new Map<string, ShapeCacheEntry>();
 
-function parseShape(layer: ShapeLayer): ShapeCacheEntry {
-  const hit = shapeCache.get(layer.id);
-  if (hit && hit.raw === layer.geojson) return hit;
+function parseShape(style: ShapeStyle): ShapeCacheEntry {
+  const hit = shapeCache.get(style.id);
+  if (hit && hit.raw === style.geojson) return hit;
 
   let data: GeoJSON.FeatureCollection = EMPTY;
   try {
-    const parsed = JSON.parse(layer.geojson || 'null');
+    const parsed = JSON.parse(style.geojson || 'null');
     if (parsed) {
       if (parsed.type === 'FeatureCollection') data = parsed;
       else if (parsed.type === 'Feature') data = { type: 'FeatureCollection', features: [parsed] };
@@ -87,8 +88,8 @@ function parseShape(layer: ShapeLayer): ShapeCacheEntry {
   const outline: LngLat[][] = [];
   for (const f of data.features) collectRings(f.geometry, outline);
 
-  const entry = { raw: layer.geojson, data, outline };
-  shapeCache.set(layer.id, entry);
+  const entry = { raw: style.geojson, data, outline };
+  shapeCache.set(style.id, entry);
   return entry;
 }
 
@@ -123,9 +124,9 @@ export function syncScene(map: MLMap, scene: Scene) {
   const wanted = new Set<string>();
 
   for (const s of scene.shapes) {
-    const { layer } = s;
-    const src = `gm-shape-${layer.id}`;
-    const entry = parseShape(layer);
+    const { style } = s;
+    const src = `gm-shape-${style.id}`;
+    const entry = parseShape(style);
     wanted.add(src);
 
     ensureSource(map, src, entry.data);
@@ -136,20 +137,20 @@ export function syncScene(map: MLMap, scene: Scene) {
     const traceId = `${src}-trace`;
     const extrudeId = `${src}-3d`;
 
-    ensureLayer(map, { id: fillId, type: 'fill', source: src, paint: { 'fill-color': layer.fillColor } });
-    setPaint(map, fillId, 'fill-color', layer.fillColor);
-    setPaint(map, fillId, 'fill-opacity', layer.fillOpacity * s.alpha);
+    ensureLayer(map, { id: fillId, type: 'fill', source: src, paint: { 'fill-color': style.fillColor } });
+    setPaint(map, fillId, 'fill-color', style.fillColor);
+    setPaint(map, fillId, 'fill-opacity', style.fillOpacity * s.alpha);
 
-    if (layer.extrude) {
+    if (style.extrude) {
       ensureLayer(map, { id: extrudeId, type: 'fill-extrusion', source: src, paint: {} });
-      setPaint(map, extrudeId, 'fill-extrusion-color', layer.fillColor);
-      setPaint(map, extrudeId, 'fill-extrusion-height', layer.extrudeHeight);
+      setPaint(map, extrudeId, 'fill-extrusion-color', style.fillColor);
+      setPaint(map, extrudeId, 'fill-extrusion-height', style.extrudeHeight);
       setPaint(map, extrudeId, 'fill-extrusion-opacity', 0.7 * s.alpha);
     } else {
       removeLayer(map, extrudeId);
     }
 
-    if (layer.traceOutline) {
+    if (style.traceOutline) {
       removeLayer(map, lineId);
       ensureSource(map, `${src}-trace-src`, EMPTY);
       wanted.add(`${src}-trace-src`);
@@ -163,22 +164,22 @@ export function syncScene(map: MLMap, scene: Scene) {
         features: traced.filter((f) => (f.geometry as GeoJSON.LineString).coordinates.length > 1),
       });
       ensureLayer(map, { id: traceId, type: 'line', source: `${src}-trace-src`, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
-      setPaint(map, traceId, 'line-color', layer.lineColor);
-      setPaint(map, traceId, 'line-width', layer.lineWidth);
+      setPaint(map, traceId, 'line-color', style.lineColor);
+      setPaint(map, traceId, 'line-width', style.lineWidth);
       setPaint(map, traceId, 'line-opacity', s.alpha);
     } else {
       removeLayer(map, traceId);
       ensureLayer(map, { id: lineId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
-      setPaint(map, lineId, 'line-color', layer.lineColor);
-      setPaint(map, lineId, 'line-width', layer.lineWidth);
+      setPaint(map, lineId, 'line-color', style.lineColor);
+      setPaint(map, lineId, 'line-width', style.lineWidth);
       setPaint(map, lineId, 'line-opacity', s.alpha);
     }
   }
 
   for (const r of scene.regions) {
-    const { layer, set } = r;
+    const { style, set } = r;
     if (!set.regions.length) continue;
-    const src = `gm-regions-${layer.id}`;
+    const src = `gm-regions-${style.id}`;
     const traceSrc = `${src}-active`;
     wanted.add(src);
     wanted.add(traceSrc);
@@ -204,31 +205,31 @@ export function syncScene(map: MLMap, scene: Scene) {
     setPaint(map, fillId, 'fill-opacity', [
       'case',
       ['boolean', ['feature-state', 'active'], false],
-      layer.fillOpacity * r.alpha * (1 - r.dim + r.dim * r.fillIn),
-      layer.fillOpacity * r.alpha * (1 - r.dim),
+      style.fillOpacity * r.alpha * (1 - r.dim + r.dim * r.fillIn),
+      style.fillOpacity * r.alpha * (1 - r.dim),
     ]);
 
     // Borders only appear once the intro has drawn them on.
     const bordersIn = r.introTrace >= 1;
     const casingId = `${src}-line-casing`;
-    if (layer.borderCasing) {
+    if (style.borderCasing) {
       ensureLayer(map, { id: casingId, type: 'line', source: src, layout: { 'line-join': 'round' }, paint: {} });
       setPaint(map, casingId, 'line-color', 'rgba(0,0,0,0.55)');
-      setPaint(map, casingId, 'line-width', layer.borderWidth + 1.6);
+      setPaint(map, casingId, 'line-width', style.borderWidth + 1.6);
       setPaint(map, casingId, 'line-opacity', bordersIn ? 0.85 * r.alpha : 0);
     } else {
       removeLayer(map, casingId);
     }
 
     ensureLayer(map, { id: lineId, type: 'line', source: src, layout: { 'line-join': 'round' }, paint: {} });
-    setPaint(map, lineId, 'line-color', layer.borderColor);
-    setPaint(map, lineId, 'line-width', layer.borderWidth);
+    setPaint(map, lineId, 'line-color', style.borderColor);
+    setPaint(map, lineId, 'line-width', style.borderWidth);
     setPaint(map, lineId, 'line-opacity', bordersIn ? 0.85 * r.alpha : 0);
 
     // Intro: every border draws itself on at once.
     const introId = `${src}-intro-line`;
     const introSrc = `${src}-intro`;
-    if (r.phase === 'intro' && layer.introTrace && r.introTrace > 0 && r.introTrace < 1) {
+    if (r.phase === 'intro' && style.introTrace && r.introTrace > 0 && r.introTrace < 1) {
       wanted.add(introSrc);
       ensureSource(map, introSrc, EMPTY);
       (map.getSource(introSrc) as GeoJSONSource | undefined)?.setData({
@@ -250,8 +251,8 @@ export function syncScene(map: MLMap, scene: Scene) {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {},
       });
-      setPaint(map, introId, 'line-color', layer.highlightColor);
-      setPaint(map, introId, 'line-width', Math.max(layer.borderWidth, layer.highlightWidth * 0.55));
+      setPaint(map, introId, 'line-color', style.highlightColor);
+      setPaint(map, introId, 'line-width', Math.max(style.borderWidth, style.highlightWidth * 0.55));
       setPaint(map, introId, 'line-opacity', r.alpha);
     } else {
       removeLayer(map, introId);
@@ -292,9 +293,9 @@ export function syncScene(map: MLMap, scene: Scene) {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {},
       });
-      setPaint(map, glowId, 'line-color', layer.highlightColor);
-      setPaint(map, glowId, 'line-width', layer.highlightWidth * 4);
-      setPaint(map, glowId, 'line-blur', layer.highlightWidth * 3);
+      setPaint(map, glowId, 'line-color', style.highlightColor);
+      setPaint(map, glowId, 'line-width', style.highlightWidth * 4);
+      setPaint(map, glowId, 'line-blur', style.highlightWidth * 3);
       setPaint(map, glowId, 'line-opacity', 0.55 * r.glow * r.alpha);
     } else {
       removeLayer(map, glowId);
@@ -307,15 +308,15 @@ export function syncScene(map: MLMap, scene: Scene) {
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {},
     });
-    setPaint(map, activeId, 'line-color', layer.highlightColor);
-    setPaint(map, activeId, 'line-width', layer.highlightWidth);
+    setPaint(map, activeId, 'line-color', style.highlightColor);
+    setPaint(map, activeId, 'line-width', style.highlightWidth);
     setPaint(map, activeId, 'line-opacity', r.alpha);
     setPaint(map, activeId, 'line-blur', 0.4);
   }
 
   for (const r of scene.routes) {
-    const { layer } = r;
-    const src = `gm-route-${layer.id}`;
+    const { style } = r;
+    const src = `gm-route-${style.id}`;
     wanted.add(src);
     ensureSource(map, src, EMPTY);
     (map.getSource(src) as GeoJSONSource | undefined)?.setData(lineFeature(r.drawn));
@@ -323,21 +324,21 @@ export function syncScene(map: MLMap, scene: Scene) {
     const glowId = `${src}-glow`;
     const lineId = `${src}-line`;
 
-    if (layer.glow) {
+    if (style.glow) {
       ensureLayer(map, { id: glowId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
-      setPaint(map, glowId, 'line-color', layer.color);
-      setPaint(map, glowId, 'line-width', layer.width * 3.2);
-      setPaint(map, glowId, 'line-blur', layer.width * 2.4);
-      setPaint(map, glowId, 'line-opacity', 0.4 * r.alpha * layer.opacity);
+      setPaint(map, glowId, 'line-color', style.color);
+      setPaint(map, glowId, 'line-width', style.width * 3.2);
+      setPaint(map, glowId, 'line-blur', style.width * 2.4);
+      setPaint(map, glowId, 'line-opacity', 0.4 * r.alpha * style.opacity);
     } else {
       removeLayer(map, glowId);
     }
 
     ensureLayer(map, { id: lineId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
-    setPaint(map, lineId, 'line-color', layer.color);
-    setPaint(map, lineId, 'line-width', layer.width);
-    setPaint(map, lineId, 'line-opacity', r.alpha * layer.opacity);
-    setLayout(map, lineId, 'line-dasharray', layer.dashed ? [2, 1.6] : undefined);
+    setPaint(map, lineId, 'line-color', style.color);
+    setPaint(map, lineId, 'line-width', style.width);
+    setPaint(map, lineId, 'line-opacity', r.alpha * style.opacity);
+    setLayout(map, lineId, 'line-dasharray', style.dashed ? [2, 1.6] : undefined);
   }
 
   // Drop anything belonging to layers that no longer exist.

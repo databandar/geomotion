@@ -1,4 +1,5 @@
-import type { LngLat, RouteIcon } from '@geomotion/document';
+import type { LngLat } from '@geomotion/core';
+import type { RouteIconStyle } from '../render/styles';
 import type { CloudsRender, ImageRender, MarkerRender, RegionsRender, RouteRender, Scene, TextRender } from './scene';
 import { getImage } from './images';
 import { cloudTexture, scratchCanvas } from './clouds';
@@ -57,7 +58,7 @@ export function drawOverlay(f: OverlayFrame, scene: Scene) {
 /* ---------------------------------------------------------------- clouds */
 
 function drawClouds(f: OverlayFrame, c: CloudsRender) {
-  const { layer } = c;
+  const { style } = c;
   const tex = cloudTexture();
   const scratch = scratchCanvas(f.width, f.height);
   const sctx = scratch.getContext('2d');
@@ -67,9 +68,9 @@ function drawClouds(f: OverlayFrame, c: CloudsRender) {
   sctx.globalCompositeOperation = 'source-over';
   sctx.clearRect(0, 0, f.width, f.height);
 
-  const rad = (layer.direction * Math.PI) / 180;
-  const dx = Math.cos(rad) * layer.speed * f.scale;
-  const dy = Math.sin(rad) * layer.speed * f.scale;
+  const rad = (style.direction * Math.PI) / 180;
+  const dx = Math.cos(rad) * style.speed * f.scale;
+  const dy = Math.sin(rad) * style.speed * f.scale;
 
   // Three passes at different scales and speeds read as depth; one flat layer
   // of noise reads as static.
@@ -82,13 +83,13 @@ function drawClouds(f: OverlayFrame, c: CloudsRender) {
   for (const pass of passes) {
     const pattern = sctx.createPattern(tex, 'repeat');
     if (!pattern) continue;
-    const s = layer.scale * pass.scale * f.scale;
+    const s = style.scale * pass.scale * f.scale;
     // Wrap the offset to one tile so it never grows unbounded over a long take.
     const ox = ((dx * pass.speed * c.drift) / s) % tex.width;
     const oy = ((dy * pass.speed * c.drift) / s) % tex.height;
 
     sctx.save();
-    sctx.globalAlpha = pass.alpha * layer.coverage;
+    sctx.globalAlpha = pass.alpha * style.coverage;
     sctx.scale(s, s);
     sctx.translate(ox, oy);
     sctx.fillStyle = pattern;
@@ -100,7 +101,7 @@ function drawClouds(f: OverlayFrame, c: CloudsRender) {
   // Tint the accumulated white noise.
   sctx.globalCompositeOperation = 'source-in';
   sctx.globalAlpha = 1;
-  sctx.fillStyle = layer.color;
+  sctx.fillStyle = style.color;
   sctx.fillRect(0, 0, f.width, f.height);
 
   // Part the cloud from the centre outward.
@@ -117,7 +118,7 @@ function drawClouds(f: OverlayFrame, c: CloudsRender) {
   }
 
   f.ctx.save();
-  f.ctx.globalAlpha = c.alpha * layer.opacity * (1 - c.clear * 0.35);
+  f.ctx.globalAlpha = c.alpha * style.opacity * (1 - c.clear * 0.35);
   f.ctx.drawImage(scratch, 0, 0);
   f.ctx.restore();
 }
@@ -125,29 +126,29 @@ function drawClouds(f: OverlayFrame, c: CloudsRender) {
 /* ---------------------------------------------------------------- images */
 
 function drawImageLayer(f: OverlayFrame, r: ImageRender) {
-  const { layer } = r;
-  const entry = getImage(layer.src);
+  const { style } = r;
+  const entry = getImage(style.src);
   if (!entry || !entry.ready || entry.failed) return;
 
   const { ctx } = f;
   const natural = entry.img.naturalWidth / Math.max(1, entry.img.naturalHeight);
-  const w = layer.width * f.width * r.zoom;
+  const w = style.width * f.width * r.zoom;
   const h = w / (natural || 1);
 
-  let x = layer.x * f.width;
-  let y = layer.y * f.height + r.offsetY * f.scale;
-  if (layer.anchor === 'center') {
+  let x = style.x * f.width;
+  let y = style.y * f.height + r.offsetY * f.scale;
+  if (style.anchor === 'center') {
     x -= w / 2;
     y -= h / 2;
-  } else if (layer.anchor === 'topRight' || layer.anchor === 'bottomRight') x -= w;
-  if (layer.anchor === 'bottomLeft' || layer.anchor === 'bottomRight') y -= h;
+  } else if (style.anchor === 'topRight' || style.anchor === 'bottomRight') x -= w;
+  if (style.anchor === 'bottomLeft' || style.anchor === 'bottomRight') y -= h;
 
-  const radius = layer.radius * f.scale;
+  const radius = style.radius * f.scale;
 
   ctx.save();
-  ctx.globalAlpha = r.alpha * layer.opacity;
+  ctx.globalAlpha = r.alpha * style.opacity;
 
-  if (layer.shadow) {
+  if (style.shadow) {
     ctx.shadowColor = 'rgba(0,0,0,0.55)';
     ctx.shadowBlur = 26 * f.scale;
     ctx.shadowOffsetY = 6 * f.scale;
@@ -165,14 +166,14 @@ function drawImageLayer(f: OverlayFrame, r: ImageRender) {
   ctx.drawImage(entry.img, x, y, w, h);
   ctx.restore();
 
-  if (layer.border) {
-    ctx.strokeStyle = layer.borderColor;
+  if (style.border) {
+    ctx.strokeStyle = style.borderColor;
     ctx.lineWidth = Math.max(1, 3 * f.scale);
     roundRect(ctx, x, y, w, h, radius);
     ctx.stroke();
   }
 
-  if (layer.caption.trim()) {
+  if (style.caption.trim()) {
     const size = 17 * f.scale;
     ctx.font = `500 ${size}px ${FONT_STACK}`;
     ctx.textAlign = 'center';
@@ -180,9 +181,9 @@ function drawImageLayer(f: OverlayFrame, r: ImageRender) {
     ctx.lineJoin = 'round';
     ctx.lineWidth = size * 0.3;
     ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-    ctx.strokeText(layer.caption, x + w / 2, cy);
+    ctx.strokeText(style.caption, x + w / 2, cy);
     ctx.fillStyle = INK_DIM;
-    ctx.fillText(layer.caption, x + w / 2, cy);
+    ctx.fillText(style.caption, x + w / 2, cy);
   }
 
   ctx.restore();
@@ -200,20 +201,20 @@ function formatValue(v: number, decimals: number, unit: string): string {
 }
 
 function drawRegions(f: OverlayFrame, r: RegionsRender) {
-  const { layer, set } = r;
-  if (layer.showLegend && set.withValues > 0) drawLegend(f, r);
-  if (r.phase === 'outro' && layer.labelAll) drawAllLabels(f, r);
-  if (!layer.showCallout || r.calloutAlpha <= 0 || r.activeId === null) return;
+  const { style, set } = r;
+  if (style.showLegend && set.withValues > 0) drawLegend(f, r);
+  if (r.phase === 'outro' && style.labelAll) drawAllLabels(f, r);
+  if (!style.showCallout || r.calloutAlpha <= 0 || r.activeId === null) return;
 
   const region = set.regions.find((x) => x.id === r.activeId);
   if (!region) return;
 
   const { ctx } = f;
-  const s = f.scale * (layer.calloutSize / 100);
+  const s = f.scale * (style.calloutSize / 100);
   const p = f.project(region.anchor);
   if (!isFinite(p.x) || !isFinite(p.y)) return;
 
-  const accent = region.value === null ? layer.noDataColor : region.fill;
+  const accent = region.value === null ? style.noDataColor : region.fill;
   const nameSize = 19 * s;
   const valueSize = 62 * s;
   const metaSize = 15 * s;
@@ -221,10 +222,10 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const padY = 20 * s;
   const barH = 7 * s;
 
-  const shown = region.value === null ? '—' : formatValue(region.value * r.reveal, layer.decimals, layer.unit);
+  const shown = region.value === null ? '—' : formatValue(region.value * r.reveal, style.decimals, style.unit);
   const name = region.name.toUpperCase();
-  const rankText = layer.showRank && region.rank ? `RANK #${region.rank} of ${set.withValues}` : '';
-  const metricText = layer.metric || '';
+  const rankText = style.showRank && region.rank ? `RANK #${region.rank} of ${set.withValues}` : '';
+  const metricText = style.metric || '';
 
   ctx.save();
 
@@ -334,9 +335,9 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
  * thirty-odd numbers in one frame.
  */
 function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
-  const { layer, set } = r;
+  const { style, set } = r;
   const { ctx } = f;
-  const size = layer.labelSize * f.scale;
+  const size = style.labelSize * f.scale;
 
   ctx.save();
   ctx.textAlign = 'center';
@@ -363,7 +364,7 @@ function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
     if (!isFinite(p.x) || !isFinite(p.y)) return;
     if (p.x < -80 || p.y < -40 || p.x > f.width + 80 || p.y > f.height + 40) return;
 
-    const value = region.value === null ? '—' : formatValue(region.value, layer.decimals, layer.unit);
+    const value = region.value === null ? '—' : formatValue(region.value, style.decimals, style.unit);
 
     ctx.font = `500 ${size * 0.78}px ${FONT_STACK}`;
     const nameW = ctx.measureText(region.name).width;
@@ -435,7 +436,7 @@ function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
 }
 
 function drawLegend(f: OverlayFrame, r: RegionsRender) {
-  const { layer, set } = r;
+  const { style, set } = r;
   const { ctx } = f;
   const s = f.scale;
   const barW = 260 * s;
@@ -459,11 +460,11 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   ctx.fillStyle = INK;
   ctx.font = `600 ${titleSize}px ${FONT_STACK}`;
   ctx.textAlign = 'left';
-  ctx.fillText(layer.legendTitle || layer.metric || 'Value', x + pad, y + pad + titleSize * 0.82);
+  ctx.fillText(style.legendTitle || style.metric || 'Value', x + pad, y + pad + titleSize * 0.82);
 
   const barY = y + pad + titleSize + 10 * s;
   const grad = ctx.createLinearGradient(x + pad, 0, x + pad + barW, 0);
-  const ramp = getRamp(layer.ramp);
+  const ramp = getRamp(style.ramp);
   const flip = r.flip;
   for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampColor(ramp, i / 10, flip));
   // Track first, then the gradient wiping across it during the intro.
@@ -480,10 +481,10 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
 
   ctx.font = `500 ${tickSize}px ${FONT_STACK}`;
   ctx.fillStyle = INK_DIM;
-  ctx.fillText(formatValue(set.domain[0], layer.decimals, layer.unit), x + pad, barY + barH + 6 * s + tickSize * 0.85);
+  ctx.fillText(formatValue(set.domain[0], style.decimals, style.unit), x + pad, barY + barH + 6 * s + tickSize * 0.85);
   ctx.textAlign = 'right';
   ctx.fillText(
-    formatValue(set.domain[1], layer.decimals, layer.unit),
+    formatValue(set.domain[1], style.decimals, style.unit),
     x + pad + barW,
     barY + barH + 6 * s + tickSize * 0.85,
   );
@@ -507,7 +508,7 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   if (hasNoData) {
     const ny = barY + barH + 6 * s + tickSize + 8 * s + tickSize * 0.7;
     ctx.textAlign = 'left';
-    ctx.fillStyle = layer.noDataColor;
+    ctx.fillStyle = style.noDataColor;
     roundRect(ctx, x + pad, ny - tickSize * 0.72, tickSize * 0.9, tickSize * 0.9, 2 * s);
     ctx.fill();
     ctx.fillStyle = INK_DIM;
@@ -521,8 +522,8 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
 /* ------------------------------------------------------------ route head */
 
 function drawRouteHead(f: OverlayFrame, r: RouteRender) {
-  const { layer } = r;
-  if (!layer.marker.enabled || layer.marker.icon === 'none') return;
+  const { style } = r;
+  if (!style.marker.enabled || style.marker.icon === 'none') return;
   if (!r.head || r.drawn.length < 1) return;
 
   const p = f.project(r.head);
@@ -531,12 +532,12 @@ function drawRouteHead(f: OverlayFrame, r: RouteRender) {
   // Screen-space heading from the last drawn segment: exact under any
   // bearing/pitch combination, unlike converting the compass bearing.
   let angle = 0;
-  if (layer.marker.rotate && r.drawn.length >= 2) {
+  if (style.marker.rotate && r.drawn.length >= 2) {
     const prev = f.project(r.drawn[Math.max(0, r.drawn.length - 2)]);
     angle = Math.atan2(p.y - prev.y, p.x - prev.x);
   }
 
-  const size = layer.marker.size * f.scale;
+  const size = style.marker.size * f.scale;
   const { ctx } = f;
   ctx.save();
   ctx.globalAlpha = r.alpha;
@@ -544,11 +545,11 @@ function drawRouteHead(f: OverlayFrame, r: RouteRender) {
   ctx.rotate(angle);
   ctx.shadowColor = 'rgba(0,0,0,0.5)';
   ctx.shadowBlur = 8 * f.scale;
-  drawIcon(ctx, layer.marker.icon, size, layer.marker.color, layer.color);
+  drawIcon(ctx, style.marker.icon, size, style.marker.color, style.color);
   ctx.restore();
 }
 
-function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIcon, s: number, color: string, accent: string) {
+function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIconStyle, s: number, color: string, accent: string) {
   ctx.fillStyle = color;
   ctx.strokeStyle = accent;
   ctx.lineWidth = Math.max(1, s * 0.18);
@@ -612,37 +613,37 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIcon, s: number, col
 /* ---------------------------------------------------------------- markers */
 
 function drawMarker(f: OverlayFrame, m: MarkerRender) {
-  const { layer } = m;
-  const p = f.project(layer.coord);
+  const { style } = m;
+  const p = f.project(style.coord);
   if (!isFinite(p.x) || !isFinite(p.y)) return;
 
   const { ctx } = f;
-  const r = layer.size * f.scale * m.scale;
+  const r = style.size * f.scale * m.scale;
 
   ctx.save();
   ctx.globalAlpha = m.alpha;
 
-  if (layer.pulse) {
+  if (style.pulse) {
     const t = m.pulse;
     ctx.globalAlpha = m.alpha * (1 - t) * 0.55;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r * (1 + t * 2.6), 0, Math.PI * 2);
-    ctx.strokeStyle = layer.color;
+    ctx.strokeStyle = style.color;
     ctx.lineWidth = 2 * f.scale;
     ctx.stroke();
     ctx.globalAlpha = m.alpha;
   }
 
-  if (layer.halo) {
+  if (style.halo) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, r * 1.75, 0, Math.PI * 2);
-    ctx.fillStyle = withAlpha(layer.color, 0.25);
+    ctx.fillStyle = withAlpha(style.color, 0.25);
     ctx.fill();
   }
 
   ctx.beginPath();
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = layer.color;
+  ctx.fillStyle = style.color;
   ctx.shadowColor = 'rgba(0,0,0,0.55)';
   ctx.shadowBlur = 10 * f.scale;
   ctx.fill();
@@ -651,17 +652,17 @@ function drawMarker(f: OverlayFrame, m: MarkerRender) {
   ctx.strokeStyle = 'rgba(255,255,255,0.9)';
   ctx.stroke();
 
-  if (layer.label.trim()) {
-    const size = layer.labelSize * f.scale;
+  if (style.label.trim()) {
+    const size = style.labelSize * f.scale;
     ctx.font = `600 ${size}px ${FONT_STACK}`;
     ctx.textAlign = 'center';
-    const y = p.y - (layer.labelOffset * f.scale + r);
+    const y = p.y - (style.labelOffset * f.scale + r);
     ctx.lineJoin = 'round';
     ctx.lineWidth = size * 0.28;
     ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-    ctx.strokeText(layer.label, p.x, y);
-    ctx.fillStyle = layer.labelColor;
-    ctx.fillText(layer.label, p.x, y);
+    ctx.strokeText(style.label, p.x, y);
+    ctx.fillStyle = style.labelColor;
+    ctx.fillText(style.label, p.x, y);
   }
 
   ctx.restore();
@@ -670,11 +671,11 @@ function drawMarker(f: OverlayFrame, m: MarkerRender) {
 /* ------------------------------------------------------------------ text */
 
 function drawText(f: OverlayFrame, t: TextRender) {
-  const { layer } = t;
+  const { style } = t;
   const { ctx } = f;
-  let size = layer.size * f.scale;
-  const x = layer.x * f.width;
-  const y = layer.y * f.height + t.offsetY * f.scale;
+  let size = style.size * f.scale;
+  const x = style.x * f.width;
+  const y = style.y * f.height + t.offsetY * f.scale;
 
   // Shrink to fit rather than run off the edge. A title cropped at both ends is
   // worse than a title a few points smaller, and vertical formats are narrow.
@@ -682,9 +683,9 @@ function drawText(f: OverlayFrame, t: TextRender) {
   let fit = 1;
   {
     const maxW = f.width * 0.92;
-    ctx.font = `${layer.weight} ${size}px ${FONT_STACK}`;
+    ctx.font = `${style.weight} ${size}px ${FONT_STACK}`;
     const widest = Math.max(
-      ...layer.text.split('\n').map((l) => measureTracked(ctx, l, layer.letterSpacing * f.scale)),
+      ...style.text.split('\n').map((l) => measureTracked(ctx, l, style.letterSpacing * f.scale)),
       1,
     );
     if (widest > maxW) {
@@ -694,32 +695,32 @@ function drawText(f: OverlayFrame, t: TextRender) {
   }
 
   const shown =
-    layer.anim === 'typewriter' ? layer.text.slice(0, Math.ceil(layer.text.length * t.reveal)) : layer.text;
+    style.anim === 'typewriter' ? style.text.slice(0, Math.ceil(style.text.length * t.reveal)) : style.text;
   const lines = shown.split('\n');
   const lineHeight = size * 1.22;
-  const spacing = layer.letterSpacing * f.scale * fit;
+  const spacing = style.letterSpacing * f.scale * fit;
 
   ctx.save();
   ctx.globalAlpha = t.alpha;
-  ctx.font = `${layer.weight} ${size}px ${FONT_STACK}`;
+  ctx.font = `${style.weight} ${size}px ${FONT_STACK}`;
   ctx.textAlign = 'left';
 
   const widths = lines.map((l) => measureTracked(ctx, l, spacing));
   const boxW = Math.max(...widths, 0);
 
-  if (layer.anim === 'wipe') {
+  if (style.anim === 'wipe') {
     const pad = size * 0.6;
-    const left = alignLeft(x, boxW, layer.align);
+    const left = alignLeft(x, boxW, style.align);
     ctx.beginPath();
     ctx.rect(left - pad, y - size - pad, (boxW + pad * 2) * t.wipe, lines.length * lineHeight + pad * 2);
     ctx.clip();
   }
 
-  if (layer.background) {
+  if (style.background) {
     const padX = size * 0.5;
     const padY = size * 0.32;
-    const left = alignLeft(x, boxW, layer.align);
-    ctx.fillStyle = layer.backgroundColor;
+    const left = alignLeft(x, boxW, style.align);
+    ctx.fillStyle = style.backgroundColor;
     roundRect(
       ctx,
       left - padX,
@@ -732,13 +733,13 @@ function drawText(f: OverlayFrame, t: TextRender) {
   }
 
   lines.forEach((line, i) => {
-    const left = alignLeft(x, widths[i], layer.align);
+    const left = alignLeft(x, widths[i], style.align);
     const ly = y + i * lineHeight;
     ctx.lineJoin = 'round';
     ctx.lineWidth = size * 0.16;
     ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-    if (!layer.background) drawTracked(ctx, line, left, ly, spacing, 'stroke');
-    ctx.fillStyle = layer.color;
+    if (!style.background) drawTracked(ctx, line, left, ly, spacing, 'stroke');
+    ctx.fillStyle = style.color;
     drawTracked(ctx, line, left, ly, spacing, 'fill');
   });
 

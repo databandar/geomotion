@@ -194,7 +194,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       ctx.arc(p.x, p.y, layer.size * frame.scale + 12, 0, Math.PI * 2);
       ctx.stroke();
     } else if (layer.type === 'text') {
-      const t = scene.texts.find((x) => x.layer.id === layer.id);
+      const t = scene.texts.find((x) => x.style.id === layer.id);
       if (t) {
         const size = layer.size * frame.scale;
         const x = layer.x * frame.width;

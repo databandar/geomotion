@@ -1,14 +1,18 @@
 import type {
+  CloudsStyle,
+  ImageStyle,
+  MarkerStyle,
+  RegionsStyle,
+  RouteStyle,
+  ShapeStyle,
+  TextStyle,
+} from '../render/styles';
+import type {
   CameraState,
   LngLat,
-  MarkerLayer,
   Project,
-  CloudsLayer,
-  ImageLayer,
   RegionsLayer,
   RouteLayer,
-  ShapeLayer,
-  TextLayer,
 } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
 import { ease } from './easing';
@@ -100,8 +104,17 @@ export function layerAlpha(l: { in: number; out: number; fade: number; visible: 
 
 /* ------------------------------------------------------------------- scene */
 
+/*
+ * Scene items carry a `style`, not a layer.
+ *
+ * The document layer types are structural supersets of these style interfaces, so
+ * the assignments below are free — no copy, no runtime cost. What changes is what
+ * the renderer can see: exactly the fields declared in `render/styles.ts`, and
+ * nothing else. See that file for why.
+ */
+
 export interface RouteRender {
-  layer: RouteLayer;
+  style: RouteStyle;
   alpha: number;
   progress: number;
   drawn: LngLat[];
@@ -110,7 +123,7 @@ export interface RouteRender {
 }
 
 export interface MarkerRender {
-  layer: MarkerLayer;
+  style: MarkerStyle;
   alpha: number;
   scale: number;
   /** 0..1 saw wave driving the pulse ring */
@@ -118,7 +131,7 @@ export interface MarkerRender {
 }
 
 export interface TextRender {
-  layer: TextLayer;
+  style: TextStyle;
   alpha: number;
   /** pixels of vertical offset for slideUp */
   offsetY: number;
@@ -129,7 +142,7 @@ export interface TextRender {
 }
 
 export interface ShapeRender {
-  layer: ShapeLayer;
+  style: ShapeStyle;
   alpha: number;
   trace: number;
 }
@@ -137,7 +150,7 @@ export interface ShapeRender {
 export type RegionPhase = 'intro' | 'tour' | 'outro';
 
 export interface RegionsRender {
-  layer: RegionsLayer;
+  style: RegionsStyle;
   set: RegionSet;
   alpha: number;
   phase: RegionPhase;
@@ -169,7 +182,7 @@ export interface RegionsRender {
 }
 
 export interface CloudsRender {
-  layer: CloudsLayer;
+  style: CloudsStyle;
   alpha: number;
   /** absolute timeline seconds, used to offset the drifting texture */
   drift: number;
@@ -178,7 +191,7 @@ export interface CloudsRender {
 }
 
 export interface ImageRender {
-  layer: ImageLayer;
+  style: ImageStyle;
   alpha: number;
   /** pixels of vertical offset for slideUp */
   offsetY: number;
@@ -317,7 +330,7 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
   const move = Math.max(0, Math.min(layer.moveTime, hold * 0.6));
   const settled = Math.max(0, local - move);
   const render: RegionsRender = {
-    layer,
+    style: layer,
     set,
     alpha,
     phase,
@@ -399,7 +412,7 @@ export function evaluate(project: Project, time: number): Scene {
       const drawn = alpha > 0 ? sliceAt(path, progress) : [];
       const head = path.coords.length >= 2 && progress > 0 ? pointAt(path, progress) : null;
       const heading = path.coords.length >= 2 ? headingAt(path, progress) : 0;
-      routes.push({ layer, alpha, progress, drawn, head, heading });
+      routes.push({ style: layer, alpha, progress, drawn, head, heading });
 
       const following =
         layer.follow.enabled && layer.visible && time >= layer.drawStart && time <= layer.drawEnd && head;
@@ -416,12 +429,12 @@ export function evaluate(project: Project, time: number): Scene {
       const popT = layer.pop ? clamp01(local / 0.55) : 1;
       // Slight overshoot so markers land with a bit of weight.
       const scale = layer.pop ? overshoot(popT) : 1;
-      markers.push({ layer, alpha, scale, pulse: layer.pulse ? (local % 1.6) / 1.6 : 0 });
+      markers.push({ style: layer, alpha, scale, pulse: layer.pulse ? (local % 1.6) / 1.6 : 0 });
     } else if (layer.type === 'text') {
       const span = Math.max(0.0001, layer.fade || 0.5);
       const entering = clamp01((time - layer.in) / span);
       texts.push({
-        layer,
+        style: layer,
         alpha,
         offsetY: layer.anim === 'slideUp' ? (1 - ease('easeOut', entering)) * 26 : 0,
         reveal: layer.anim === 'typewriter' ? clamp01((time - layer.in) / Math.max(0.2, layer.fade * 3)) : 1,
@@ -431,7 +444,7 @@ export function evaluate(project: Project, time: number): Scene {
       const trace = layer.traceOutline
         ? ease('easeInOutCubic', invLerp(layer.in, Math.min(layer.out, layer.in + 2), time))
         : 1;
-      shapes.push({ layer, alpha, trace });
+      shapes.push({ style: layer, alpha, trace });
     } else if (layer.type === 'regions') {
       const { render, camera } = evaluateRegions(layer, project, time, alpha);
       regions.push(render);
@@ -441,7 +454,7 @@ export function evaluate(project: Project, time: number): Scene {
       const through = clamp01((time - layer.in) / span);
       const entering = clamp01((time - layer.in) / Math.max(0.0001, layer.fade || 0.5));
       images.push({
-        layer,
+        style: layer,
         alpha,
         offsetY: layer.anim === 'slideUp' ? (1 - ease('easeOut', entering)) * 40 : 0,
         // A still that never moves reads as a freeze; 4% over the shot is enough.
@@ -450,7 +463,7 @@ export function evaluate(project: Project, time: number): Scene {
     } else {
       const span = Math.max(0.01, layer.dissipateEnd - layer.dissipateStart);
       clouds.push({
-        layer,
+        style: layer,
         alpha,
         // Drift is absolute time, so scrubbing lands on the same frame every time.
         drift: time,

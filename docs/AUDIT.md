@@ -99,7 +99,7 @@ Ordered by risk × cost of delay.
 | D3 | ~~Document mutations clone the whole project~~ | — | **Closed in M6**: `transact` with structural sharing; history is a patch log |
 | D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
 | D5 | ~~`mapref.ts` module-global map handle~~ | — | **Closed in M7**: an explicit `RenderHost`, provided by whoever owns the canvas |
-| D6 | Renderer reads the document through `Scene`'s live `layer` references | The renderer destructures `layer` at 11 sites and reads ~127 fields off it, so `Scene` is not the structured-clone-safe `RenderScene` §14 specifies. The *mutation* risk is already closed (documents are frozen since M6); what remains is the dependency | M8 |
+| D6 | ~~Renderer reads the document through `Scene`~~ | — | **Closed in M8**: scene items carry a declared `style`, and an import ban keeps it that way |
 | D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
 | D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
 | D9 | Export uses headless-Chrome screenshots | Measured 11 fps at 960×540 draft (1292 frames in 1m58s) — better than the ~4 fps first recorded, but that was full resolution. Design doc §14 specifies WebCodecs in-page | M9 |
@@ -158,6 +158,36 @@ headless browser instead:
 | --- | --- |
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
+### 6.8 D6, closed without a rewrite (M8)
+
+The literal reading of ARCHITECTURE §14 is to flatten every field the renderer
+reads onto the scene item — 57 distinct properties across ~150 reads. That would
+have worked, and it would have created a parallel type hierarchy to keep in step
+with the document for as long as v1's renderer lives.
+
+What shipped instead: `apps/studio/src/render/styles.ts` declares, per layer type,
+exactly the fields the renderer reads. Document layer types are structural
+supersets of those interfaces, so the evaluator assigns a layer straight into
+`style` — no copy, no runtime cost — and the narrowing lives entirely in the type
+system. The renderer now imports nothing from `@geomotion/document`, and a
+`no-restricted-imports` rule on those three files says it never will again: a new
+draw routine has to add the field to `styles.ts` first, and notice it is doing so.
+
+Two things this had to get right, and did:
+
+- **It is provably a no-op.** All ten fixture frames are bit-identical before and
+  after. That is the harness from M7b earning its keep on the first change it was
+  built for — without it, "this refactor changed nothing visually" would have been
+  a claim rather than a measurement.
+- **`headless.debug()` reported a layer's `name`**, which is document metadata the
+  renderer has no business seeing. Rather than widen the render contract to keep
+  the diagnostic working, it now reads the name from the project, matched by id.
+
+Note what remains: the two renderer files still import `maplibre-gl`, and still
+live in `apps/studio`. `packages/renderer` and `packages/map` need `overlay.ts`
+(canvas2D) separated from `mapsync.ts` (MapLibre) as distinct packages, which is a
+move, not a redesign — the type boundary that made it hard is now gone.
 
 ### 6.7 The harness that nearly did not work (M7b)
 
@@ -234,6 +264,10 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M8.** D6 is closed. The renderer sees a declared style contract
+instead of the document, enforced by an import ban, and the render-signature
+harness proved the change altered no pixel in any of the ten fixture frames.
 
 **Update after M7.** D5 is closed. The live map is no longer reachable by import:
 `RenderHost` is created by the component that owns the canvas and handed down, so
