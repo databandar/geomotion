@@ -1,9 +1,11 @@
 import { create } from 'zustand';
-import type { CameraKeyframe, Layer, LayerType, Project } from './types';
+import { History, createLayer, keyframe, transact } from '@geomotion/document';
+import type { CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
+import { clamp, createId } from '@geomotion/core';
 import { clearPathCache } from './lib/scene';
 import { clearRegionCache } from './lib/regions';
-import { createLayer, demoProject, keyframe, loadLocal, saveLocal } from './lib/project';
-import { clamp, createId } from '@geomotion/core';
+import { demoProject } from './lib/fixtures';
+import { loadLocal, saveLocal } from './lib/persistence';
 
 export type Selection = { kind: 'layer'; id: string } | { kind: 'keyframe'; id: string } | null;
 export type Tool = 'select' | 'route' | 'marker';
@@ -26,8 +28,8 @@ interface State {
   tool: Tool;
   /** timeline zoom */
   pxPerSec: number;
-  past: Project[];
-  future: Project[];
+  /** bumped on every history change so the UI can re-read canUndo/canRedo */
+  historyRev: number;
   exportStatus: ExportStatus | null;
   /** true while frames are being captured — hides editor-only chrome */
   exporting: boolean;
@@ -62,10 +64,16 @@ interface State {
   redo: () => void;
 }
 
-const clone = (p: Project): Project => JSON.parse(JSON.stringify(p));
+/**
+ * History is a log of patch pairs, not a stack of whole projects.
+ *
+ * It lives beside the store rather than inside it because it is not render state:
+ * nothing re-renders when the undo stack grows, and putting 80 entries of it in
+ * the zustand state would make every subscriber recompute on every keystroke.
+ * `historyRev` is what the UI watches.
+ */
+const history = new History();
 
-let lastHistoryKey = '';
-let lastHistoryAt = 0;
 let saveTimer: number | undefined;
 
 export const useStore = create<State>((set, get) => ({
@@ -77,50 +85,48 @@ export const useStore = create<State>((set, get) => ({
   selection: null,
   tool: 'select',
   pxPerSec: 70,
-  past: [],
-  future: [],
+  historyRev: 0,
   exportStatus: null,
   exporting: false,
   structureRev: 0,
 
   patch: (fn, historyKey) => {
     const state = get();
-    const prev = state.project;
-    const next = clone(prev);
-    fn(next);
+    const tx = transact(state.project, fn);
+    // A recipe that bailed out (`if (i < 0) return`) changed nothing; committing
+    // it would leave an empty step that makes the first undo look broken.
+    if (tx.forward.length === 0) return;
 
-    // Coalesce rapid edits (dragging a slider) into a single undo step.
-    const now = Date.now();
-    const coalesce = !!historyKey && historyKey === lastHistoryKey && now - lastHistoryAt < 700;
-    lastHistoryKey = historyKey ?? '';
-    lastHistoryAt = now;
+    history.push(tx, historyKey);
 
     set({
-      project: next,
-      past: coalesce ? state.past : [...state.past, prev].slice(-80),
-      future: [],
+      project: tx.next,
+      historyRev: state.historyRev + 1,
       structureRev: state.structureRev + 1,
     });
 
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => saveLocal(get().project), 500) as unknown as number;
+    scheduleSave(get);
   },
 
   replaceProject: (p) => {
     clearPathCache();
     clearRegionCache();
-    set((s) => ({
+    const s = get();
+    // Loading a document is still undoable, but it cannot be expressed cheaply:
+    // the patch pair carries a whole project each way. That is the honest cost of
+    // a wholesale load, and loads are rare.
+    history.push(transact(s.project, () => p));
+    set({
       project: p,
       // Long projects (a 36-stop region tour runs well over a minute) are
       // unusable at the default zoom, so frame the whole thing on load.
       pxPerSec: clamp(1000 / Math.max(1, p.duration), 12, 400),
-      past: [...s.past, s.project].slice(-80),
-      future: [],
       selection: null,
       time: 0,
       playing: false,
+      historyRev: s.historyRev + 1,
       structureRev: s.structureRev + 1,
-    }));
+    });
     saveLocal(p);
   },
 
@@ -160,7 +166,10 @@ export const useStore = create<State>((set, get) => ({
   duplicateLayer: (id) => {
     const src = get().project.layers.find((l) => l.id === id);
     if (!src) return;
-    const copy = { ...clone({ layers: [src] } as unknown as Project).layers[0], id: createId() } as Layer;
+    // A duplicate must be independent of its source, so this one copy stays deep.
+    // structuredClone rather than a JSON round-trip: it is faster and does not
+    // quietly drop values JSON cannot represent.
+    const copy = { ...structuredClone(src), id: createId() } as Layer;
     copy.name = src.name + ' copy';
     get().patch((p) => {
       const i = p.layers.findIndex((l) => l.id === id);
@@ -217,36 +226,35 @@ export const useStore = create<State>((set, get) => ({
     if (sel?.kind === 'keyframe' && sel.id === id) set({ selection: null });
   },
 
-  undo: () =>
-    set((s) => {
-      if (!s.past.length) return s;
-      const prev = s.past[s.past.length - 1];
-      clearPathCache();
-      clearRegionCache();
-      lastHistoryKey = '';
-      return {
-        project: prev,
-        past: s.past.slice(0, -1),
-        future: [s.project, ...s.future].slice(0, 80),
-        structureRev: s.structureRev + 1,
-      };
-    }),
-
-  redo: () =>
-    set((s) => {
-      if (!s.future.length) return s;
-      const next = s.future[0];
-      clearPathCache();
-      clearRegionCache();
-      lastHistoryKey = '';
-      return {
-        project: next,
-        past: [...s.past, s.project].slice(-80),
-        future: s.future.slice(1),
-        structureRev: s.structureRev + 1,
-      };
-    }),
+  undo: () => step(set, get, 'undo'),
+  redo: () => step(set, get, 'redo'),
 }));
+
+/** Undo and redo differ only in which direction they replay. */
+function step(set: (p: Partial<State>) => void, get: () => State, dir: 'undo' | 'redo') {
+  const s = get();
+  const project = dir === 'undo' ? history.undo(s.project) : history.redo(s.project);
+  if (!project) return;
+  // The caches key off layer identity and derived geometry, both of which the
+  // replayed patches may have changed underneath them.
+  clearPathCache();
+  clearRegionCache();
+  set({
+    project,
+    // Undoing a project load can restore a shorter composition; without this the
+    // playhead is left stranded past the end, reading e.g. 01:38 / 00:15.
+    time: clamp(s.time, 0, project.duration),
+    historyRev: s.historyRev + 1,
+    structureRev: s.structureRev + 1,
+  });
+  scheduleSave(get);
+}
+
+/** Debounced so a drag writes to localStorage once, not per frame. */
+function scheduleSave(get: () => State) {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveLocal(get().project), 500) as unknown as number;
+}
 
 // Handy for poking at state from the console (and for automated smoke tests).
 if (import.meta.env.DEV) {
@@ -263,6 +271,15 @@ export function useSelectedKeyframe(): CameraKeyframe | undefined {
     s.selection?.kind === 'keyframe' ? s.project.camera.find((k) => k.id === s.selection!.id) : undefined,
   );
 }
+
+/**
+ * Undo availability, for enabling the toolbar buttons.
+ *
+ * History lives outside the zustand state, so these read through `historyRev` —
+ * that is the subscription that makes the buttons re-render when the stacks move.
+ */
+export const useCanUndo = () => useStore((s) => s.historyRev >= 0 && history.canUndo);
+export const useCanRedo = () => useStore((s) => s.historyRev >= 0 && history.canRedo);
 
 // The headless renderer reads timeline state through this; see automation.d.ts.
 if (typeof window !== 'undefined') {

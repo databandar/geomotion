@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Layer, Project, RegionsLayer, TextLayer } from '../types';
-import { demoProject, emptyProject, indiaTourProject, keyframe, createLayer } from './project';
+import type { Layer, Project, RegionsLayer, TextLayer } from '@geomotion/document';
+import { createLayer, emptyProject, keyframe } from '@geomotion/document';
+import { demoProject, indiaTourProject } from './fixtures';
 import { cameraAt, clearPathCache, evaluate, layerAlpha, tourPhases } from './scene';
 import { clearRegionCache } from './regions';
 

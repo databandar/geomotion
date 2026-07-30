@@ -9,10 +9,10 @@ import type {
   RouteLayer,
   ShapeLayer,
   TextLayer,
-} from '../types';
+} from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
 import { ease } from './easing';
-import type { EasingName } from '../types';
+import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionSet, type RegionSet } from './regions';
 import { getBasemap } from './basemaps';

@@ -96,9 +96,9 @@ Ordered by risk × cost of delay.
 | --- | --- | --- | --- |
 | D1 | ~~Zero tests~~ | — | **Closed in M3**: 157 tests over the six pure modules |
 | D2 | ~~No monorepo / package boundaries~~ | — | **Closed in M5**: workspace in M4, first packages + enforced dependency law in M5 |
-| D3 | Document mutations clone the whole project (`store.ts` `patch()`) | O(document) per keystroke; blocks patches, undo granularity, collaboration | M5 (with `packages/document`) |
+| D3 | ~~Document mutations clone the whole project~~ | — | **Closed in M6**: `transact` with structural sharing; history is a patch log |
 | D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
-| D5 | `src/lib/mapref.ts` module-global map handle | Named anti-pattern (guide §15); blocks worker rendering and multiplayer | M5 |
+| D5 | `apps/studio/src/lib/mapref.ts` module-global map handle | Named anti-pattern (guide §15); blocks worker rendering and multiplayer | M7 (with the `RenderScene` boundary, which is what replaces it) |
 | D6 | Renderer coupled to React + document (`MapCanvas.tsx` evaluates, syncs GL, draws overlay) | No `RenderScene` boundary; blocks worker export and WebGPU | M7 |
 | D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
 | D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
@@ -137,6 +137,28 @@ real contract, with comments recording it for the port.
 Both were found by *running* the pipeline, which the build and the unit suite do not do —
 the argument for D12.
 
+### 6.4 Measured: what the whole-project clone actually cost (M6)
+
+Against the bundled India boundary set, inlined on a layer as v1 stores it:
+
+| | per edit | per second of dragging | history after a 500-event drag |
+| --- | --- | --- | --- |
+| Before (`JSON.parse(JSON.stringify(p))`) | 0.172 ms | 20.6 ms | 500 steps, capped at 80 × 246 KB ≈ 19 MB |
+| After (`transact`, coalesced) | 0.010 ms | 1.2 ms | **1 step** of patches |
+
+17.6× per edit, not the ~500× a bare structural copy would give, because generating
+the patch pair costs something — that cost buys patch-based undo and is worth it. The
+memory figure is the bigger win, and both numbers scale with the geometry a user
+loads: a detailed world boundary set turns 20 ms/second of drag into visible latency.
+
+Two things the measurement did not catch, found by driving the real editor in a
+headless browser instead:
+
+| Where | Finding |
+| --- | --- |
+| `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
+| `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
 ### 6.3 Found by turning on the linter (M5)
 
 There was no ESLint configuration at all, so a handful of things had never been checked:
@@ -169,6 +191,17 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M6.** D3 is closed. Every document write goes through one
+transaction that produces a patch pair, documents are frozen so a write outside a
+transaction throws rather than silently bypassing undo, and history is a log of
+patches instead of a stack of whole projects. The §2 DOM prohibition is now
+executable too, which is what forced browser persistence out of the document model
+and into the app where it belongs.
+
+Still v1's *shape*: a project holding arrays of layers and keyframes, not §3's flat
+node store with fractional ordering and a schema registry. That is deliberate — the
+write path is now the thing that can change independently of the shape.
 
 **Update after M5.** D2 is fully closed. `packages/core` and `packages/geometry` exist,
 the dependency law is executable, and the M3 port contract travelled with the code —

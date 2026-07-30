@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { migrate } from './project';
+import { migrate } from '@geomotion/document';
 import { getMap, renderFrameAt, waitForIdle } from './mapref';
 import { evaluate } from './scene';
 import { imagesReady } from './images';

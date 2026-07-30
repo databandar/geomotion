@@ -1,0 +1,22 @@
+{
+  "name": "@geomotion/document",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The document model: schema types, layer/keyframe construction, migrations, and transactions (ENGINEERING_GUIDE §3).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geomotion/core": "workspace:*",
+    "immer": "^10.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}

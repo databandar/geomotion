@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
-import { useStore } from '../store';
+import { useCanRedo, useCanUndo, useStore } from '../store';
 import { getMap } from '../lib/mapref';
-import { demoProject, downloadProject, emptyProject, indiaTourProject, migrate } from '../lib/project';
+import { emptyProject, migrate } from '@geomotion/document';
+import { demoProject, indiaTourProject } from '../lib/fixtures';
+import { downloadProject } from '../lib/persistence';
 
 interface Place {
   name: string;
@@ -14,8 +16,8 @@ export default function Toolbar({ onExport, onStudio }: { onExport: () => void; 
   const name = useStore((s) => s.project.name);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
-  const canUndo = useStore((s) => s.past.length > 0);
-  const canRedo = useStore((s) => s.future.length > 0);
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
   const project = useStore((s) => s.project);
   const replaceProject = useStore((s) => s.replaceProject);
   const addKeyframe = useStore((s) => s.addKeyframe);

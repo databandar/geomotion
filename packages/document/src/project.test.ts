@@ -1,78 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import type { Layer, Project } from '../types';
-import {
-  createLayer,
-  demoProject,
-  emptyProject,
-  indiaTourProject,
-  keyframe,
-  loadLocal,
-  migrate,
-  saveLocal,
-} from './project';
+import { describe, expect, it } from 'vitest';
+import type { Layer } from './types.ts';
+import { createLayer, keyframe, migrate } from './project.ts';
 
 /**
- * Behavioural spec for the document model and its persistence.
+ * Behavioural spec for document construction and migration.
  *
- * ENGINEERING_GUIDE §3.7 makes save/load round-tripping a mandatory test for
- * every document change: a project written by one build must open unchanged in
- * the next, and `migrate` must fill gaps rather than reject the file. A field
- * that only exists in memory — never serialised — is a data-loss bug, and the
- * round-trip assertions below are what catch it.
- *
- * Bound for `packages/document` (ARCHITECTURE §04).
+ * ENGINEERING_GUIDE §3.7 makes migration a hard requirement: a document written by
+ * an older build must open, with gaps filled rather than the file rejected. The
+ * round-trip half of this contract is exercised against realistic fixtures in the
+ * app, where the fixtures live.
  */
-
-/** Minimal in-memory localStorage so persistence is testable under node. */
-function stubStorage() {
-  const map = new Map<string, string>();
-  return {
-    getItem: (k: string) => map.get(k) ?? null,
-    setItem: (k: string, v: string) => void map.set(k, v),
-    removeItem: (k: string) => void map.delete(k),
-    clear: () => map.clear(),
-    key: (i: number) => [...map.keys()][i] ?? null,
-    get length() {
-      return map.size;
-    },
-  } as Storage;
-}
-
-const FIXTURES: [string, () => Project][] = [
-  ['empty', emptyProject],
-  ['demo', demoProject],
-  ['india tour', indiaTourProject],
-];
-
-describe('save/load round trip', () => {
-  for (const [name, make] of FIXTURES) {
-    it(`${name} survives serialise -> parse -> migrate unchanged`, () => {
-      const original = make();
-      const reopened = migrate(JSON.parse(JSON.stringify(original)));
-      // Any difference here means a field is either not serialisable or silently
-      // rewritten on open — both are data loss from the user's point of view.
-      expect(reopened).toEqual(original);
-    });
-
-    it(`${name} contains no undefined values, which vanish through JSON`, () => {
-      const seen: string[] = [];
-      (function walk(value: unknown, path: string) {
-        if (value === undefined) seen.push(path);
-        else if (Array.isArray(value)) value.forEach((v, i) => walk(v, `${path}[${i}]`));
-        else if (value && typeof value === 'object') {
-          for (const [k, v] of Object.entries(value)) walk(v, `${path}.${k}`);
-        }
-      })(make(), name);
-      expect(seen).toEqual([]);
-    });
-
-    it(`${name} is stable across a second round trip`, () => {
-      const once = migrate(JSON.parse(JSON.stringify(make())));
-      const twice = migrate(JSON.parse(JSON.stringify(once)));
-      expect(twice).toEqual(once);
-    });
-  }
-});
 
 describe('migrate', () => {
   it('fills every default from a document holding only a layer stub', () => {
@@ -189,43 +126,5 @@ describe('keyframe', () => {
 
   it('accepts overrides', () => {
     expect(keyframe(0, [0, 0], 1, { bearing: 45, easing: 'easeIn' }).bearing).toBe(45);
-  });
-});
-
-describe('localStorage persistence', () => {
-  beforeEach(() => {
-    globalThis.localStorage = stubStorage();
-  });
-
-  it('round trips a project through storage', () => {
-    const project = demoProject();
-    saveLocal(project);
-    expect(loadLocal()).toEqual(project);
-  });
-
-  it('returns null when nothing is stored', () => {
-    expect(loadLocal()).toBeNull();
-  });
-
-  it('returns null rather than throwing on corrupt stored data', () => {
-    localStorage.setItem('geomotion:project', '{not json');
-    expect(loadLocal()).toBeNull();
-  });
-
-  it('migrates stored documents on the way out', () => {
-    localStorage.setItem('geomotion:project', JSON.stringify({ layers: [{ type: 'text', id: 'x' }] }));
-    const loaded = loadLocal()!;
-    expect(loaded.fps).toBeGreaterThan(0);
-    expect(loaded.layers[0].visible).toBe(true);
-  });
-
-  it('survives a storage quota failure without throwing', () => {
-    globalThis.localStorage = {
-      ...stubStorage(),
-      setItem: () => {
-        throw new Error('QuotaExceededError');
-      },
-    } as Storage;
-    expect(() => saveLocal(demoProject())).not.toThrow();
   });
 });

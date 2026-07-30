@@ -1,4 +1,4 @@
-import type { LngLat, RouteIcon } from '../types';
+import type { LngLat, RouteIcon } from '@geomotion/document';
 import type { CloudsRender, ImageRender, MarkerRender, RegionsRender, RouteRender, Scene, TextRender } from './scene';
 import { getImage } from './images';
 import { cloudTexture, scratchCanvas } from './clouds';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore, useSelectedKeyframe, useSelectedLayer } from '../store';
-import type { CloudsLayer, ImageLayer, MarkerLayer, RegionsLayer, RouteLayer, ShapeLayer, TextLayer } from '../types';
+import type { CloudsLayer, ImageLayer, MarkerLayer, RegionsLayer, RouteLayer, ShapeLayer, TextLayer } from '@geomotion/document';
 import { regionSet } from '../lib/regions';
 import { tourDuration } from '../lib/scene';
 import { RAMPS, getRamp, rampColor } from '../lib/palettes';

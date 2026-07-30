@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@geomotion/core": "workspace:*",
+    "@geomotion/document": "workspace:*",
     "@geomotion/geometry": "workspace:*",
     "maplibre-gl": "^5.6.0",
     "react": "^19.1.0",

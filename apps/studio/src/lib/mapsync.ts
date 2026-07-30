@@ -1,5 +1,5 @@
 import type { Map as MLMap, GeoJSONSource, LayerSpecification } from 'maplibre-gl';
-import type { LngLat, ShapeLayer } from '../types';
+import type { LngLat, ShapeLayer } from '@geomotion/document';
 import type { Scene } from './scene';
 import { measure, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 

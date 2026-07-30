@@ -44,6 +44,9 @@ importers:
       '@geomotion/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@geomotion/document':
+        specifier: workspace:*
+        version: link:../../packages/document
       '@geomotion/geometry':
         specifier: workspace:*
         version: link:../../packages/geometry
@@ -58,7 +61,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       zustand:
         specifier: ^5.0.5
-        version: 5.0.14(@types/react@19.2.17)(react@19.2.8)
+        version: 5.0.14(@types/react@19.2.17)(immer@10.2.0)(react@19.2.8)
     devDependencies:
       '@geomotion/pipeline':
         specifier: workspace:*
@@ -86,6 +89,22 @@ importers:
         version: 3.2.7(@types/node@26.1.2)
 
   packages/core:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)
+
+  packages/document:
+    dependencies:
+      '@geomotion/core':
+        specifier: workspace:*
+        version: link:../core
+      immer:
+        specifier: ^10.1.1
+        version: 10.2.0
     devDependencies:
       typescript:
         specifier: ^5.9.0
@@ -1383,6 +1402,9 @@ packages:
   ignore@7.0.6:
     resolution: {integrity: sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw==}
     engines: {node: '>= 4'}
+
+  immer@10.2.0:
+    resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
 
   import-fresh@3.3.1:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
@@ -3231,6 +3253,8 @@ snapshots:
 
   ignore@7.0.6: {}
 
+  immer@10.2.0: {}
+
   import-fresh@3.3.1:
     dependencies:
       parent-module: 1.0.1
@@ -3881,7 +3905,8 @@ snapshots:
 
   zod@3.23.8: {}
 
-  zustand@5.0.14(@types/react@19.2.17)(react@19.2.8):
+  zustand@5.0.14(@types/react@19.2.17)(immer@10.2.0)(react@19.2.8):
     optionalDependencies:
       '@types/react': 19.2.17
+      immer: 10.2.0
       react: 19.2.8

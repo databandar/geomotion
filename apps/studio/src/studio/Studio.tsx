@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { migrate } from '../lib/project';
+import { migrate } from '@geomotion/document';
 import { RAMPS } from '../lib/palettes';
 import { BASEMAPS } from '../lib/basemaps';
 import { api, watchRender, type Beat, type Extracted, type Health, type StudioScript } from './api';

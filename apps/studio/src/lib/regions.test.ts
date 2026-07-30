@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { RegionsLayer } from '../types';
-import { createLayer } from './project';
+import type { RegionsLayer } from '@geomotion/document';
+import { createLayer } from '@geomotion/document';
 import { clearRegionCache, fitBounds, regionSet } from './regions';
 
 /**

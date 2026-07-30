@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { getMap } from '../lib/mapref';
-import type { LayerType } from '../types';
+import type { LayerType } from '@geomotion/document';
 
 const ADD: { type: LayerType; label: string; glyph: string }[] = [
   { type: 'route', label: 'Route', glyph: '↗' },

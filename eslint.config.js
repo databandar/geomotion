@@ -20,6 +20,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 const elements = [
   { type: 'core', pattern: 'packages/core/**', mode: 'full' },
   { type: 'geometry', pattern: 'packages/geometry/**', mode: 'full' },
+  { type: 'document', pattern: 'packages/document/**', mode: 'full' },
   { type: 'app', pattern: 'apps/**', mode: 'full' },
 ];
 
@@ -31,11 +32,16 @@ const elements = [
  */
 const allowed = [
   { from: 'geometry', allow: ['core', 'geometry'] },
-  { from: 'app', allow: ['core', 'geometry', 'app'] },
+  { from: 'document', allow: ['core', 'document'] },
+  { from: 'app', allow: ['core', 'geometry', 'document', 'app'] },
 ];
 
 /** The published name of each element that is a workspace package. */
-const packageName = { core: '@geomotion/core', geometry: '@geomotion/geometry' };
+const packageName = {
+  core: '@geomotion/core',
+  geometry: '@geomotion/geometry',
+  document: '@geomotion/document',
+};
 
 /**
  * The same law again, for imports written as package names.
@@ -105,6 +111,16 @@ export default tseslint.config(
     files: ['packages/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { paths: NO_DOM }],
+      // §2 forbids these packages from depending on the DOM. Imports were already
+      // covered; these are the globals that sneak past an import check — which is
+      // exactly how localStorage ended up inside v1's document model.
+      'no-restricted-globals': [
+        'error',
+        ...['window', 'document', 'localStorage', 'sessionStorage', 'navigator', 'fetch'].map((name) => ({
+          name,
+          message: 'Engine packages must run in a worker and in node; the app owns browser APIs (guide §2).',
+        })),
+      ],
       // A silent catch is how the v1 export bug stayed hidden for a week: the
       // renderer was throwing on every frame and nothing said so.
       'no-empty': ['error', { allowEmptyCatch: false }],

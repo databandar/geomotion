@@ -7,7 +7,7 @@ import { syncScene, resetSyncCache } from '../lib/mapsync';
 import { drawOverlay, scaleFor } from '../lib/overlay';
 import { getBasemap, TERRAIN_SOURCE } from '../lib/basemaps';
 import { setMap, setOverlayCanvas, setRenderAt } from '../lib/mapref';
-import type { LngLat, MarkerLayer, RouteLayer, TextLayer } from '../types';
+import type { LngLat, MarkerLayer, RouteLayer, TextLayer } from '@geomotion/document';
 
 const seenSyncErrors = new Set<string>();
 function reportSyncError(err: unknown) {

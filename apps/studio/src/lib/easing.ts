@@ -1,5 +1,5 @@
 import { clamp01 } from '@geomotion/core';
-import type { EasingName } from '../types';
+import type { EasingName } from '@geomotion/document';
 
 type EaseFn = (t: number) => number;
 

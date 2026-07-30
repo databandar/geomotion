@@ -1,4 +1,4 @@
-import type { Project } from '../types';
+import type { Project } from '@geomotion/document';
 import { getMap, getOverlayCanvas, renderFrameAt, waitForIdle } from './mapref';
 import { useStore } from '../store';
 import { ZipWriter } from './zip';

@@ -48,6 +48,7 @@ A pnpm workspace driven by Turborepo, per
 | [`apps/pipeline/`](apps/pipeline/) | Script → voiceover → MP4, plus the dev-server middleware Studio's API calls hit. Splits into `apps/server` + `apps/render-cli` when the render farm lands. |
 | [`packages/core/`](packages/core/) | Ids, coordinates, numeric interpolation. Zero dependencies by contract. |
 | [`packages/geometry/`](packages/geometry/) | Great-circle math, path densification and measurement. Depends on `core` only. |
+| [`packages/document/`](packages/document/) | The document: schema types, construction, migrations, transactions and undo. Depends on `core` only — browser persistence stays in the app. |
 
 The remaining packages in the guide's §2 table are extracted one at a time, each with its
 contract fixed before code moves into it.
