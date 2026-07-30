@@ -189,6 +189,24 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.28 The renderer's first tests (M27)
+
+`renderer` was 1239 lines with no unit tests, guarded only by a golden harness whose
+baselines are machine-specific and cannot run in CI — and which can say a frame changed
+but never which label moved or why.
+
+The closing shot's label placement is the part that does not need a canvas: priority,
+stagger, the push off a too-small region, the collision test. All of it is arithmetic
+given a projected point, so it moved to `labels.ts` and got 23 tests.
+
+Two edge cases were already handled by accident and are now handled on purpose. A saved
+tour can name the same stop twice, or name one that an import has since replaced with a
+shorter list; both used to reach the draw loop and be discarded there — the duplicate by
+colliding with itself, the dangling index by an early return. Each left a dead slot in
+the stagger, so the labels after it arrived late. Filtering in `labelPriority` removes
+the slot as well as the label. Well-formed tours are unaffected: all ten golden frames
+are bit-identical.
+
 ### 6.27 Colours that are not colours (M26)
 
 The inspector's colour field is free text beside the picker, and it commits on every

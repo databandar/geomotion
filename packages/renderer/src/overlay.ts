@@ -1,4 +1,14 @@
-import { clamp01, getRamp, rampColor, withAlpha, type LngLat } from '@geomotion/core';
+import { getRamp, rampColor, withAlpha, type LngLat } from '@geomotion/core';
+import {
+  collides,
+  labelAppear,
+  labelBox,
+  labelPriority,
+  needsOffset,
+  offScreen,
+  offsetLabel,
+  type LabelBox,
+} from './labels.ts';
 import type { RouteIconStyle } from './styles.ts';
 import type {
   CloudsRender,
@@ -351,26 +361,17 @@ function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
 
   // Placed boxes, so crowded areas drop labels instead of printing mush. Tour
   // order decides who wins, which means the ranking you chose sets the priority.
-  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-
-  // The closing shot labels *every* region with a value, not just the ones the
-  // tour visited — but the visited ones are placed first, so they survive a
-  // collision. A tour limited to the top five still ends on the full picture.
-  const priority = [...set.order];
-  const seen = new Set(set.order);
-  set.regions.forEach((r2, i) => {
-    if (!seen.has(i) && r2.value !== null) priority.push(i);
-  });
+  const placed: LabelBox[] = [];
+  const priority = labelPriority(set.order, set.regions);
 
   priority.forEach((ri, i) => {
     const region = set.regions[ri];
     if (!region) return;
-    const appear = clamp01(r.outroProgress * (priority.length + 6) - i);
+    const appear = labelAppear(r.outroProgress, priority.length, i);
     if (appear <= 0) return;
 
     const p = f.project(region.anchor);
-    if (!isFinite(p.x) || !isFinite(p.y)) return;
-    if (p.x < -80 || p.y < -40 || p.x > f.width + 80 || p.y > f.height + 40) return;
+    if (offScreen(p, f.width, f.height)) return;
 
     const value = region.value === null ? '—' : formatValue(region.value, style.decimals, style.unit);
 
@@ -384,21 +385,14 @@ function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
     const nw = f.project([region.bounds[0], region.bounds[3]]);
     const se = f.project([region.bounds[2], region.bounds[1]]);
     const onScreen = Math.max(Math.abs(se.x - nw.x), Math.abs(se.y - nw.y));
-    const offset = onScreen < w * 1.6;
+    const offset = needsOffset(onScreen, w);
 
-    let lx = p.x;
-    let ly = p.y;
-    if (offset) {
-      const away = Math.atan2(p.y - f.height / 2, p.x - f.width / 2);
-      const push = w + size * 1.6;
-      lx += Math.cos(away) * push;
-      ly += Math.sin(away) * push;
-      lx = Math.max(w + 8, Math.min(lx, f.width - w - 8));
-      ly = Math.max(size * 1.4, Math.min(ly, f.height - size * 1.4));
-    }
+    const at = offset ? offsetLabel(p, w, size, f.width, f.height) : p;
+    const lx = at.x;
+    const ly = at.y;
 
-    const box = { x0: lx - w, y0: ly - size * 1.15, x1: lx + w, y1: ly + size * 1.05 };
-    if (placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) return;
+    const box = labelBox(lx, ly, w, size);
+    if (collides(box, placed)) return;
     placed.push(box);
 
     ctx.save();
