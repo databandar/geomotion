@@ -189,6 +189,33 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.20 The inspector gets tests (M19)
+
+The least-protected code in the app, and the most edited: M10 rewrote 42 of its
+controls by script when the tour became nested, and M13 touched ten more. Both were
+verified by the type checker and the rendered canvas, neither of which can tell whether
+a control still writes the field it claims to.
+
+Component tests need a DOM, so `*.test.tsx` runs in jsdom while `*.test.ts` stays in
+node — split by extension so a test still sits beside what it covers.
+
+Fifteen tests, aimed at what those refactors could have broken: a tour field writes
+into the nested object and not back onto the layer; editing one field merges rather
+than replacing the behaviour; the enable toggle sets `tour.enabled` without erasing
+the rest; a deliberate `0` survives; the resolution field refuses a value that does not
+parse instead of writing `NaN`; and the audio clip's level, fades, retime and removal.
+
+Two things learned by writing them, both worth keeping:
+
+- **A number field cannot be emptied.** Clearing it commits `NaN`, which the control
+  rejects and restores the previous value — so tests select and replace. Pinned by its
+  own test, because it looks like a bug until you see it is the only sane behaviour for
+  a field the document needs a number from.
+- **`getByLabelText` does not work here.** `Field` wraps its label around a container
+  that can hold several focusable elements, so the association is ambiguous. A small
+  `control(label)` helper finds the field and reaches into it, which is also how a
+  person finds it.
+
 ### 6.19 WebCodecs, and what the estimate missed (M18)
 
 Drafts now encode inside the page instead of capturing PNGs over CDP: **113s → 35s**
