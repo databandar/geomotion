@@ -19,7 +19,7 @@ describe('migrate', () => {
     expect(p.duration).toBeGreaterThan(0);
     expect(p.width).toBeGreaterThan(0);
     expect(p.layers).toHaveLength(1);
-    const layer = p.layers[0];
+    const layer = p.layers[0]!;
     expect(layer.type).toBe('text');
     expect(layer.id).toBe('x');
     expect(typeof layer.in).toBe('number');
@@ -65,11 +65,12 @@ describe('migrate', () => {
 
   it('fills camera keyframe defaults without discarding the authored values', () => {
     const p = migrate({ camera: [{ t: 3, center: [10, 20], zoom: 7 }] });
-    expect(p.camera[0].t).toBe(3);
-    expect(p.camera[0].center).toEqual([10, 20]);
-    expect(p.camera[0].zoom).toBe(7);
-    expect(typeof p.camera[0].easing).toBe('string');
-    expect(typeof p.camera[0].bearing).toBe('number');
+    const k = p.camera[0]!;
+    expect(k.t).toBe(3);
+    expect(k.center).toEqual([10, 20]);
+    expect(k.zoom).toBe(7);
+    expect(typeof k.easing).toBe('string');
+    expect(typeof k.bearing).toBe('number');
   });
 
   it('fills the nested route marker and follow blocks', () => {

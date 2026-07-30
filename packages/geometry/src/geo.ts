@@ -53,14 +53,16 @@ export function slerp(a: LngLat, b: LngLat, f: number): LngLat {
  * antimeridian doesn't snap back across the whole world. MapLibre renders these fine.
  */
 export function unwrap(coords: LngLat[]): LngLat[] {
-  if (coords.length === 0) return [];
-  const out: LngLat[] = [[coords[0][0], coords[0][1]]];
-  for (let i = 1; i < coords.length; i++) {
-    const prev = out[i - 1][0];
-    let lng = coords[i][0];
-    while (lng - prev > 180) lng -= 360;
-    while (lng - prev < -180) lng += 360;
-    out.push([lng, coords[i][1]]);
+  const out: LngLat[] = [];
+  let prev: number | undefined;
+  for (const [rawLng, lat] of coords) {
+    let lng = rawLng;
+    if (prev !== undefined) {
+      while (lng - prev > 180) lng -= 360;
+      while (lng - prev < -180) lng += 360;
+    }
+    out.push([lng, lat]);
+    prev = lng;
   }
   return out;
 }
@@ -92,13 +94,16 @@ export function buildPath(control: LngLat[], curve: 'geodesic' | 'straight' | 'a
   if (curve === 'straight') return pts;
 
   const out: LngLat[] = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    const steps = Math.max(24, Math.min(256, Math.round(haversine(a, b) / 20000)));
-    const seg = curve === 'arc' ? arcSegment(a, b, steps) : geodesicSegment(a, b, steps);
-    if (i > 0) seg.shift();
-    out.push(...seg);
+  let a: LngLat | undefined;
+  for (const b of pts) {
+    if (a) {
+      const steps = Math.max(24, Math.min(256, Math.round(haversine(a, b) / 20000)));
+      const seg = curve === 'arc' ? arcSegment(a, b, steps) : geodesicSegment(a, b, steps);
+      // Drop the vertex shared with the previous segment, except on the first.
+      if (out.length) seg.shift();
+      out.push(...seg);
+    }
+    a = b;
   }
   return unwrap(out);
 }
@@ -118,55 +123,89 @@ export interface MeasuredPath {
 
 export function measure(coords: LngLat[]): MeasuredPath {
   const cum = [0];
-  for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + haversine(coords[i - 1], coords[i]));
-  return { coords, cum, length: cum[cum.length - 1] ?? 0 };
+  let total = 0;
+  let prev: LngLat | undefined;
+  for (const c of coords) {
+    if (prev) {
+      total += haversine(prev, c);
+      cum.push(total);
+    }
+    prev = c;
+  }
+  return { coords, cum, length: total };
 }
 
-/** Point at a 0..1 fraction of the measured path. */
-export function pointAt(path: MeasuredPath, f: number): LngLat {
-  const { coords, cum, length } = path;
-  if (coords.length === 0) return [0, 0];
-  if (coords.length === 1 || length === 0) return coords[0];
-  const target = clamp01(f) * length;
-  const i = upperBound(cum, target);
-  const a = coords[i - 1];
-  const b = coords[i];
-  const segLen = cum[i] - cum[i - 1];
-  const local = segLen === 0 ? 0 : (target - cum[i - 1]) / segLen;
-  return [a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local];
+/**
+ * The segment of the path containing `target` metres along it.
+ *
+ * The bounds invariant lives here, once, instead of in a comment on each caller:
+ * a returned segment always has both endpoints and both cumulative distances, so
+ * `pointAt`, `headingAt` and `sliceAt` work with values rather than with indices
+ * they have to trust.
+ */
+interface PathSegment {
+  a: LngLat;
+  b: LngLat;
+  /** cumulative distance at `a` and at `b`, metres */
+  start: number;
+  end: number;
+  /** index of `b`, which is also the vertex count of the path up to `a` */
+  index: number;
 }
 
-/** Heading (degrees) of the path at a 0..1 fraction. */
-export function headingAt(path: MeasuredPath, f: number): number {
-  const { coords, cum, length } = path;
-  if (coords.length < 2) return 0;
-  const target = clamp01(f) * length;
-  const i = upperBound(cum, target);
-  return bearing(coords[i - 1], coords[i]);
-}
+function segmentAt(path: MeasuredPath, target: number): PathSegment | null {
+  const { coords, cum } = path;
+  if (coords.length < 2) return null;
 
-/** The leading portion of the path, ending exactly at fraction f. */
-export function sliceAt(path: MeasuredPath, f: number): LngLat[] {
-  const { coords, cum, length } = path;
-  if (coords.length < 2) return coords.slice();
-  const ff = clamp01(f);
-  if (ff <= 0) return [];
-  if (ff >= 1) return coords.slice();
-  const target = ff * length;
-  const i = upperBound(cum, target);
-  const head = coords.slice(0, i);
-  head.push(pointAt(path, ff));
-  return head;
-}
-
-/** First index whose cumulative distance is >= target (min 1). */
-function upperBound(cum: number[], target: number): number {
+  // First index whose cumulative distance is >= target (min 1).
   let lo = 1;
   let hi = cum.length - 1;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (cum[mid] < target) lo = mid + 1;
+    // `mid` is strictly between lo and hi, both of which index `cum`.
+    if (cum[mid]! < target) lo = mid + 1;
     else hi = mid;
   }
-  return lo;
+
+  const a = coords[lo - 1];
+  const b = coords[lo];
+  const start = cum[lo - 1];
+  const end = cum[lo];
+  if (!a || !b || start === undefined || end === undefined) return null;
+  return { a, b, start, end, index: lo };
+}
+
+/** Point at a 0..1 fraction of the measured path. */
+export function pointAt(path: MeasuredPath, f: number): LngLat {
+  const { coords, length } = path;
+  const first = coords[0];
+  if (!first) return [0, 0];
+  const target = clamp01(f) * length;
+  const seg = length === 0 ? null : segmentAt(path, target);
+  if (!seg) return first;
+
+  const segLen = seg.end - seg.start;
+  const local = segLen === 0 ? 0 : (target - seg.start) / segLen;
+  return [seg.a[0] + (seg.b[0] - seg.a[0]) * local, seg.a[1] + (seg.b[1] - seg.a[1]) * local];
+}
+
+/** Heading (degrees) of the path at a 0..1 fraction. */
+export function headingAt(path: MeasuredPath, f: number): number {
+  const seg = segmentAt(path, clamp01(f) * path.length);
+  return seg ? bearing(seg.a, seg.b) : 0;
+}
+
+/** The leading portion of the path, ending exactly at fraction f. */
+export function sliceAt(path: MeasuredPath, f: number): LngLat[] {
+  const { coords, length } = path;
+  if (coords.length < 2) return coords.slice();
+  const ff = clamp01(f);
+  if (ff <= 0) return [];
+  if (ff >= 1) return coords.slice();
+
+  const seg = segmentAt(path, ff * length);
+  if (!seg) return coords.slice();
+  const head = coords.slice(0, seg.index);
+  head.push(pointAt(path, ff));
+  return head;
 }

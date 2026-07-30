@@ -74,9 +74,9 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     map.on('style.load', () => {
       resetSyncCache();
       applyTerrain(map);
-      render(true);
+      renderRef.current(true);
     });
-    map.on('move', () => render(false));
+    map.on('move', () => renderRef.current(false));
     setMapReady(true);
     map.on('mousedown', onMouseDown);
     map.on('click', onClick);
@@ -86,7 +86,6 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       map.remove();
       mapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ------------------------------------------------------------- rendering */
@@ -232,7 +231,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        render(true);
+        renderRef.current(true);
       });
     };
     schedule();
@@ -244,7 +243,6 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       unsub();
       if (raf) cancelAnimationFrame(raf);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* --------------------------------------------------------- style/terrain */
@@ -306,10 +304,9 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     if (!map) return;
     const id = requestAnimationFrame(() => {
       map.resize();
-      render(true);
+      renderRef.current(true);
     });
     return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height]);
 
   useEffect(() => {

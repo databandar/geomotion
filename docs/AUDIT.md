@@ -109,7 +109,7 @@ Ordered by risk × cost of delay.
 
 | # | Debt | Impact | Proposed milestone |
 | --- | --- | --- | --- |
-| D11 | `strict` is on, but the two flags the guide also mandates — `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` — are not | Guide §2 requires both. Turning them on will surface real indexing and optional-property assumptions across ~12.8k lines | Its own milestone; too noisy to bundle into an infrastructure change |
+| D11 | Both flags on for `packages/*`; **off for `apps/studio`** | 163 errors against v1 app code. `tsconfig.base.json` has them on, so anything new is strict by default and the exemption is written down where someone will look | Its own milestone |
 | D12 | `apps/pipeline` tests | Composition and attribution are covered as of M9 (11 tests); narration timing, voice mixing and encode are still unguarded | Remainder with the `apps/server` / `apps/render-cli` split |
 
 ### 6.1 Bugs found by the M3 suite
@@ -158,6 +158,40 @@ headless browser instead:
 | --- | --- |
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
+### 6.12 Strict indexing, and four suppressions that were fine (M12)
+
+Two jobs, both of them "check the thing I have twice said was unchecked".
+
+**The `exhaustive-deps` suppressions.** All four turned out to be legitimate — but
+nobody had established that, and an unexplained directive hides the *next* genuinely
+missing dependency as effectively as the one it was written for.
+
+- `MapCanvas` × 3: the effects closed over `render`, which is rebuilt every commit.
+  Safe, because the whole render chain reads `useStore.getState()` and refs at call
+  time rather than capturing values. Rather than document three suppressions, the
+  effects now call through the `renderRef` added in M7 — always the current
+  closure, so **the warnings are gone rather than silenced**, and the staleness
+  question is moot instead of argued.
+- `VoiceStep` × 1: `refresh` closes over `vbEngine`, which is already in the
+  dependency array, so the closure and the effect regenerate together. Kept, with
+  the reason written down.
+
+**The strict flags.** `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`
+are on for every package: 40 errors, all fixed, no behaviour change (the geometry
+port contract's 25 tests pass untouched and all ten golden frames are identical).
+`apps/studio` reported 163 and stays exempt, documented in `tsconfig.base.json`.
+
+Nothing in the packages was a latent crash — every flagged index was provably in
+range — but two fixes are real improvements rather than appeasement:
+
+| Where | What changed |
+| --- | --- |
+| `geometry` path accessors | `upperBound` returned an index whose validity only a comment guaranteed, and three callers indexed `coords`/`cum` on that trust. Replaced by `segmentAt`, which returns the endpoints and their distances or null. The invariant is now a type, checked once, instead of a convention repeated in three places. |
+| `document` `History.key` | Declared `key?: string` while the code deliberately assigns `undefined` to break coalescing after an undo. Under `exactOptionalPropertyTypes` "may be absent" and "may be undefined" are different claims; it is now `string \| undefined`, which is the true one. |
+
+The rest were array destructuring that wanted tuple types, and test assertions where
+a missing element is itself the failure.
 
 ### 6.11 Un-freezing the narration (M11)
 

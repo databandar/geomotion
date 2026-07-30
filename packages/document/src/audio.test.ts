@@ -45,7 +45,7 @@ describe('planAudio', () => {
   it('re-mixes from the cue positions, so retiming is honoured', () => {
     // The whole point: move a cue, and the mix follows.
     const moved = planAudio(withAudio([cue(12.5, 'one', '/v/1.wav')]));
-    expect(moved.kind === 'remix' && moved.clips[0].start).toBe(12.5);
+    expect(moved.kind === 'remix' && moved.clips[0]!.start).toBe(12.5);
   });
 
   it('orders clips by time regardless of how they sit in the file', () => {

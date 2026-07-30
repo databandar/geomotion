@@ -7,7 +7,9 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false
   },
   "include": [
     "src"

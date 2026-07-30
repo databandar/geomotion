@@ -81,7 +81,7 @@ describe('unwrap', () => {
       [-170, 0],
     ]);
     // The second point must read as 190, not -170, or the line wraps the globe.
-    expect(out[1][0]).toBe(190);
+    expect(out[1]![0]).toBe(190);
   });
 
   it('leaves ordinary sequences untouched', () => {
@@ -118,7 +118,7 @@ describe('buildPath', () => {
 
   it('starts and ends at the outer control points', () => {
     const path = buildPath([LONDON, TOKYO], 'geodesic');
-    expect(path[0][0]).toBeCloseTo(LONDON[0], 4);
+    expect(path[0]![0]).toBeCloseTo(LONDON[0], 4);
     expect(path.at(-1)![0]).toBeCloseTo(TOKYO[0], 4);
   });
 
@@ -139,7 +139,7 @@ describe('measure / pointAt / headingAt / sliceAt', () => {
 
   it('accumulates a monotonic cumulative length', () => {
     for (let i = 1; i < path.cum.length; i++) {
-      expect(path.cum[i]).toBeGreaterThanOrEqual(path.cum[i - 1]);
+      expect(path.cum[i]!).toBeGreaterThanOrEqual(path.cum[i - 1]!);
     }
     expect(path.length).toBeCloseTo(path.cum.at(-1)!, 6);
   });

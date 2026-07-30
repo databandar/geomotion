@@ -44,6 +44,9 @@ export function VoiceStep({
   useEffect(() => {
     refresh();
     api.referenceText().then((r) => setReference(r.text.trim())).catch(() => setReference(''));
+    // `refresh` is deliberately not a dependency: it closes over `vbEngine` and
+    // nothing else, and `vbEngine` is in the array — so the closure and the effect
+    // are always regenerated together. Listing it would re-fetch on every commit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vbEngine]);
 

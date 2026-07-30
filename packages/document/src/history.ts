@@ -13,8 +13,15 @@ import type { Project } from './types.ts';
 interface Step {
   forward: Patch[];
   backward: Patch[];
-  /** Set when this step may absorb the next edit from the same control. */
-  key?: string;
+  /**
+   * Set when this step may absorb the next edit from the same control.
+   *
+   * `string | undefined` rather than `key?: string`: the property is always
+   * present, and clearing it to `undefined` is a deliberate act — it is how
+   * coalescing is broken after an undo. Under `exactOptionalPropertyTypes` those
+   * are different statements, and this is the one that is true.
+   */
+  key: string | undefined;
   at: number;
 }
 

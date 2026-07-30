@@ -53,12 +53,15 @@ describe('lerpAngle', () => {
   });
 
   it('never travels more than 180 degrees', () => {
-    for (const [a, b] of [
+    // Typed as pairs, not number[]: destructuring the latter yields
+    // `number | undefined` once indexed access is checked.
+    const cases: [number, number][] = [
       [0, 179],
       [0, 181],
       [-170, 170],
       [45, 315],
-    ]) {
+    ];
+    for (const [a, b] of cases) {
       const travelled = Math.abs(lerpAngle(a, b, 1) - a);
       expect(travelled).toBeLessThanOrEqual(180 + 1e-9);
     }
