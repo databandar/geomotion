@@ -94,6 +94,38 @@ function AudioInspector({ cue }: { cue: AudioCue }) {
       <Field label="Fade out">
         <Num value={env.fadeOut} onChange={(fadeOut) => set({ fadeOut }, 'fout')} step={0.1} min={0} suffix="s" />
       </Field>
+      <Field
+        label="Music bed"
+        hint="Drops out of the way whenever another clip is playing over it, and comes back after."
+      >
+        <Toggle
+          value={cue.role === 'music'}
+          onChange={(on) => set({ role: on ? 'music' : undefined })}
+        />
+      </Field>
+      {cue.role === 'music' && (
+        <>
+          <Field label="Duck to" hint="How far it drops while something plays over it.">
+            <Slider
+              value={cue.duck ?? 0.25}
+              onChange={(duck) => set({ duck }, 'duck')}
+              min={0}
+              max={1}
+              step={0.05}
+              precision={2}
+            />
+          </Field>
+          <Field label="Duck fade">
+            <Num
+              value={cue.duckFade ?? 0.3}
+              onChange={(duckFade) => set({ duckFade }, 'dfade')}
+              step={0.05}
+              min={0}
+              suffix="s"
+            />
+          </Field>
+        </>
+      )}
       <div className="row">
         <button className="mini" onClick={() => setTime(cue.t)}>
           Jump to start

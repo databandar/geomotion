@@ -1,5 +1,5 @@
 import { scheduleFrom, type AudioCue } from '@geomotion/document';
-import { applyEnvelope } from './narration-player';
+import { applyCurve } from './narration-player';
 
 /**
  * The composition's audio, as a track a MediaRecorder can record.
@@ -72,8 +72,8 @@ export async function prepareAudioTrack(cues: AudioCue[]): Promise<PreparedAudio
         const node = ctx.createBufferSource();
         node.buffer = buffer;
         const at = origin + s.when;
-        // The same envelope the preview applies, so the export sounds like it.
-        node.connect(applyEnvelope(ctx, s.envelope, at, s.duration)).connect(dest);
+        // The same curve the preview applies, so the export sounds like it.
+        node.connect(applyCurve(ctx, s.curve, at, s.offset, s.duration)).connect(dest);
         node.start(at, s.offset, s.duration);
         sources.push(node);
       }

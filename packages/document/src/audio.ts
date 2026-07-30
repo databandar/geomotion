@@ -30,6 +30,8 @@ export interface RemixClip {
   gain: number;
   fadeIn: number;
   fadeOut: number;
+  /** The full gain curve in clip time, including any ducking. */
+  curve: GainPoint[];
 }
 
 /** What the renderer should do about narration. */
@@ -76,7 +78,13 @@ export function planAudio(project: Project): AudioPlan {
       kind: 'remix',
       // Sorted so the mix is deterministic regardless of cue order in the file.
       clips: remixable
-        .map(({ cue, source }) => ({ source, start: cue.t, duration: cue.d, ...envelopeOf(cue) }))
+        .map(({ cue, source }) => ({
+          source,
+          start: cue.t,
+          duration: cue.d,
+          ...envelopeOf(cue),
+          curve: gainCurve(cue, cues),
+        }))
         .sort((a, b) => a.start - b.start || a.source.localeCompare(b.source)),
       duration: project.duration,
     };
@@ -137,11 +145,85 @@ export function envelopeOf(cue: Pick<AudioCue, 'd' | 'gain' | 'fadeIn' | 'fadeOu
   return { gain, fadeIn, fadeOut };
 }
 
+/** A point on a clip's gain curve, in seconds from the start of that clip. */
+export interface GainPoint {
+  t: number;
+  gain: number;
+}
+
+/** Defaults for a music clip that has not said otherwise. */
+const DUCK_TO = 0.25;
+const DUCK_FADE = 0.3;
+
+/**
+ * The gain curve for a clip: its own fades, plus ducking under anything speaking.
+ *
+ * Returned as points with straight lines between them, because that is the one shape
+ * all three mixers can follow exactly — Web Audio ramps to it, and ffmpeg's `volume`
+ * takes an expression built from it. Anything smarter would sound different in the
+ * preview than in the file.
+ *
+ * Only `music` clips duck, and only under clips that are not music: two beds do not
+ * fight each other, and narration is never pushed down by a bed.
+ */
+export function gainCurve(cue: AudioCue, others: AudioCue[] = []): GainPoint[] {
+  const { gain, fadeIn, fadeOut } = envelopeOf(cue);
+  const length = Number.isFinite(cue.d) && cue.d > 0 ? cue.d : 0;
+  const points: GainPoint[] = [];
+  const add = (t: number, g: number) => points.push({ t: Math.max(0, Math.min(length, t)), gain: g });
+
+  if (length === 0) return [{ t: 0, gain }];
+
+  // The clip's own shape first.
+  add(0, fadeIn > 0 ? 0 : gain);
+  if (fadeIn > 0) add(fadeIn, gain);
+  if (fadeOut > 0) add(length - fadeOut, gain);
+  add(length, fadeOut > 0 ? 0 : gain);
+
+  if (cue.role !== 'music') return points;
+
+  const floor = clampUnit(cue.duck, DUCK_TO) * gain;
+  const ramp = Math.max(0.01, cue.duckFade === undefined ? DUCK_FADE : Math.max(0, cue.duckFade));
+
+  for (const other of others) {
+    if (other === cue || other.id === cue.id || other.role === 'music') continue;
+    if (!(other.d > 0)) continue;
+
+    // In this clip's own time.
+    const from = other.t - cue.t;
+    const to = from + other.d;
+    if (to <= 0 || from >= length) continue;
+
+    add(from - ramp, gain);
+    add(from, floor);
+    add(to, floor);
+    add(to + ramp, gain);
+  }
+
+  points.sort((a, b) => a.t - b.t);
+
+  // Where the clip's own fade and a duck disagree, the quieter one wins: a fade-out
+  // that has already brought the bed down should not be pushed back up by a duck
+  // ending. Collapsing duplicates keeps the curve single-valued.
+  const merged: GainPoint[] = [];
+  for (const p of points) {
+    const last = merged[merged.length - 1];
+    if (last && Math.abs(last.t - p.t) < 1e-6) last.gain = Math.min(last.gain, p.gain);
+    else merged.push({ ...p });
+  }
+  return merged;
+}
+
+const clampUnit = (v: number | undefined, fallback: number) =>
+  v === undefined || !Number.isFinite(v) ? fallback : Math.min(Math.max(v, 0), 1);
+
 /** One line, ready to hand to an audio clock. */
 export interface ScheduledCue {
   url: string;
   /** Level and fades for this clip, clamped. */
   envelope: ClipEnvelope;
+  /** The full gain curve in clip time, including any ducking. */
+  curve: GainPoint[];
   /** seconds from now until it should start; 0 means immediately */
   when: number;
   /** seconds into the clip to begin at, for a line already underway */
@@ -168,11 +250,12 @@ export function scheduleFrom(cues: AudioCue[], time: number): ScheduledCue[] {
     if (end <= time) continue; // already finished
 
     const envelope = envelopeOf(cue);
+    const curve = gainCurve(cue, cues);
     if (cue.t >= time) {
-      out.push({ url: cue.url, when: cue.t - time, offset: 0, duration: cue.d, envelope });
+      out.push({ url: cue.url, when: cue.t - time, offset: 0, duration: cue.d, envelope, curve });
     } else {
       const offset = time - cue.t;
-      out.push({ url: cue.url, when: 0, offset, duration: cue.d - offset, envelope });
+      out.push({ url: cue.url, when: 0, offset, duration: cue.d - offset, envelope, curve });
     }
   }
   return out.sort((a, b) => a.when - b.when);

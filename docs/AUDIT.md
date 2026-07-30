@@ -189,6 +189,29 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.21 Ducking (M20)
+
+Overlapping clips summed at full level, so a music bed fought the narration — the thing
+you would import music *for*. A clip can now be marked a music bed, and it drops while
+anything else is playing over it.
+
+That needed the envelope to become a **curve**: gain that varies within a clip, not one
+value with fades at the ends. `gainCurve` returns points with straight lines between
+them, because that is the one shape all three mixers reproduce exactly — Web Audio
+ramps through them, and ffmpeg's `volume` takes an expression generated from the same
+points. Two hand-written envelope implementations would have drifted the first time
+either was tuned.
+
+Rules worth stating, each with a test: only music ducks, and only under clips that are
+not music, so two beds do not fight and narration is never pushed down by a bed; the
+duck is relative to the clip's own level, so setting a bed quiet and ducking it stay
+independent; and where a fade and a duck disagree the quieter wins, so a bed already
+fading out is not pushed back up by a duck ending.
+
+Verified through ffmpeg rather than by ear: a steady bed with one line over it measured
+**−21.1 dB before, −33.1 dB during, −21.1 dB after**. The 12.0 dB drop is
+20·log₁₀(0.25) to a decimal place, and it returns to exactly its own level.
+
 ### 6.20 The inspector gets tests (M19)
 
 The least-protected code in the app, and the most edited: M10 rewrote 42 of its

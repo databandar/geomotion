@@ -345,6 +345,21 @@ export interface AudioCue {
   fadeIn?: number | undefined;
   fadeOut?: number | undefined;
   /**
+   * What this clip is for.
+   *
+   * `music` clips duck out of the way whenever another clip is speaking over them.
+   * Everything else is treated as foreground and never ducked. Absent means
+   * foreground, so existing narration is unaffected.
+   */
+  role?: 'music' | undefined;
+  /**
+   * How far a music clip drops while something else plays, as a fraction of its own
+   * level. 0.25 means a quarter, about -12 dB. Absent means the default.
+   */
+  duck?: number | undefined;
+  /** Seconds to move in and out of the duck. Absent means the default. */
+  duckFade?: number | undefined;
+  /**
    * A URL the editor can fetch this line from.
    *
    * Separate from `file` because they serve different consumers and neither works

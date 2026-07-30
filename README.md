@@ -128,7 +128,10 @@ VBR mp3 will misreport itself, and a clip whose length disagrees with its audio 
 every timing downstream wrong.
 
 Click a clip to select it and the inspector gives you **level** and **fade in / fade
-out** — which is what makes music sit under a voice rather than fight it. Fades are
+out**. Mark one as a **music bed** and it ducks automatically: it drops out of the way
+whenever another clip plays over it and comes back after, with the depth and the ramp
+under your control. Measured through the renderer, a bed at the default setting sits
+12 dB down while a line speaks and returns to exactly its own level. Fades are
 clamped so they cannot cross on a short clip, because two ramps meeting in the middle
 ducks it to nothing and reads as a dropout.
 

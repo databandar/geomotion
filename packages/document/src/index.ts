@@ -15,11 +15,13 @@ export { createLayer, defaultTour, emptyProject, keyframe, migrate } from './pro
 export {
   canPlayPerCue,
   envelopeOf,
+  gainCurve,
   isRetimable,
   planAudio,
   scheduleFrom,
   type AudioPlan,
   type ClipEnvelope,
+  type GainPoint,
   type RemixClip,
   type ScheduledCue,
 } from './audio.ts';

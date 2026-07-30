@@ -304,15 +304,56 @@ export function clipFilter(index, clip) {
   const ms = Math.round(clip.start * 1000);
   const stages = [];
 
-  const gain = clip.gain ?? 1;
-  if (gain !== 1) stages.push(`volume=${gain.toFixed(4)}`);
-  if (clip.fadeIn > 0) stages.push(`afade=t=in:st=0:d=${clip.fadeIn.toFixed(3)}`);
-  if (clip.fadeOut > 0 && clip.duration > 0) {
-    stages.push(`afade=t=out:st=${Math.max(0, clip.duration - clip.fadeOut).toFixed(3)}:d=${clip.fadeOut.toFixed(3)}`);
+  if (clip.curve?.length) {
+    // A curve covers level, fades and ducking together, so it replaces them all.
+    const expr = volumeExpression(clip.curve);
+    // A constant of exactly 1 is no change; anything else, including a constant at
+    // some other level, still needs the filter.
+    if (Number(expr) !== 1) stages.push(`volume=eval=frame:volume='${expr}'`);
+  } else {
+    const gain = clip.gain ?? 1;
+    if (gain !== 1) stages.push(`volume=${gain.toFixed(4)}`);
+    if (clip.fadeIn > 0) stages.push(`afade=t=in:st=0:d=${clip.fadeIn.toFixed(3)}`);
+    if (clip.fadeOut > 0 && clip.duration > 0) {
+      stages.push(`afade=t=out:st=${Math.max(0, clip.duration - clip.fadeOut).toFixed(3)}:d=${clip.fadeOut.toFixed(3)}`);
+    }
   }
   stages.push(`adelay=${ms}|${ms}`);
 
   return `[${index + 1}:a]${stages.join(',')}[a${index}]`;
+}
+
+/**
+ * A piecewise-linear volume expression for ffmpeg, from the same points Web Audio
+ * ramps through.
+ *
+ * `volume` takes an expression evaluated per frame, so the curve is expressed as
+ * nested `if(lt(t,…))` segments with `lerp` inside each. Building it from the shared
+ * curve is what keeps the render sounding like the preview: two hand-written envelope
+ * implementations would drift the first time either was tuned.
+ *
+ * Evaluated in the clip's own time, which is why this has to come before `adelay`.
+ */
+export function volumeExpression(curve) {
+  const points = curve.filter((p) => Number.isFinite(p.t) && Number.isFinite(p.gain));
+  if (!points.length) return '1';
+  if (points.length === 1) return points[0].gain.toFixed(4);
+  if (points.every((p) => Math.abs(p.gain - points[0].gain) < 1e-6)) return points[0].gain.toFixed(4);
+
+  const n = (v) => v.toFixed(4);
+  // Built from the end backwards so each segment is the else-branch of the one before.
+  let expr = n(points[points.length - 1].gain);
+  for (let i = points.length - 1; i > 0; i--) {
+    const a = points[i - 1];
+    const b = points[i];
+    const span = b.t - a.t;
+    const value =
+      span <= 1e-6
+        ? n(b.gain)
+        : `${n(a.gain)}+(${n(b.gain)}-${n(a.gain)})*(t-${n(a.t)})/${n(span)}`;
+    expr = `if(lt(t,${n(b.t)}),${value},${expr})`;
+  }
+  return `if(lt(t,${n(points[0].t)}),${n(points[0].gain)},${expr})`;
 }
 
 export async function buildVoiceTrack(clips, outWav, totalDuration) {

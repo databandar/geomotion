@@ -1,29 +1,47 @@
-import { scheduleFrom, type AudioCue, type ClipEnvelope } from '@geomotion/document';
+import { scheduleFrom, type AudioCue, type GainPoint } from '@geomotion/document';
 
 /**
- * A gain node carrying the clip's level and its fades.
+ * A gain node following a clip's curve: its level, its fades, and any ducking.
  *
- * Linear ramps rather than exponential: these are short shapes on speech and music
- * beds, where a straight line is what people expect, and an exponential ramp cannot
- * reach zero anyway.
+ * Linear ramps rather than exponential, because that is the shape the curve describes
+ * and the shape ffmpeg reproduces on the render side. An exponential ramp would sound
+ * different in the preview than in the file, and cannot reach zero anyway.
+ *
+ * `offset` matters when the playhead lands mid-clip: the curve is in clip time, so
+ * points before the offset are behind us and the value at the offset is where the
+ * automation has to start.
  */
-export function applyEnvelope(
+export function applyCurve(
   ctx: BaseAudioContext,
-  envelope: ClipEnvelope,
+  curve: GainPoint[],
   startAt: number,
+  offset: number,
   duration: number,
 ): GainNode {
   const node = ctx.createGain();
-  const { gain, fadeIn, fadeOut } = envelope;
-  const end = startAt + duration;
+  if (!curve.length) return node;
 
-  node.gain.setValueAtTime(fadeIn > 0 ? 0 : gain, startAt);
-  if (fadeIn > 0) node.gain.linearRampToValueAtTime(gain, startAt + Math.min(fadeIn, duration));
-  if (fadeOut > 0 && fadeOut < duration) {
-    node.gain.setValueAtTime(gain, end - fadeOut);
-    node.gain.linearRampToValueAtTime(0, end);
+  node.gain.setValueAtTime(valueAt(curve, offset), startAt);
+  const end = offset + duration;
+  for (const point of curve) {
+    if (point.t <= offset) continue;
+    if (point.t > end) break;
+    node.gain.linearRampToValueAtTime(point.gain, startAt + (point.t - offset));
   }
   return node;
+}
+
+/** The curve's value at a time, interpolating between the points around it. */
+function valueAt(curve: GainPoint[], t: number): number {
+  let prev = curve[0]!;
+  for (const p of curve) {
+    if (p.t >= t) {
+      if (p.t === prev.t) return p.gain;
+      return prev.gain + (p.gain - prev.gain) * ((t - prev.t) / (p.t - prev.t));
+    }
+    prev = p;
+  }
+  return prev.gain;
 }
 
 /**
@@ -121,8 +139,8 @@ export class NarrationPlayer {
         const src = ctx.createBufferSource();
         src.buffer = buffer;
         const at = Math.max(startAt, ctx.currentTime);
-        // Per-clip level and fades, so music can sit under a voice.
-        const clipGain = applyEnvelope(ctx, s.envelope, at, s.duration);
+        // Level, fades and ducking, so music sits under a voice.
+        const clipGain = applyCurve(ctx, s.curve, at, s.offset, s.duration);
         src.connect(clipGain);
         if (this.gain) clipGain.connect(this.gain);
         src.onended = () => {

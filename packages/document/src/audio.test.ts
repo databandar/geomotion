@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AudioCue, Project } from './types.ts';
 import { emptyProject } from './project.ts';
-import { canPlayPerCue, envelopeOf, isRetimable, planAudio, scheduleFrom } from './audio.ts';
+import { canPlayPerCue, envelopeOf, gainCurve, isRetimable, planAudio, scheduleFrom } from './audio.ts';
 
 /**
  * Behavioural spec for the narration plan (docs/AUDIT.md D10).
@@ -14,6 +14,12 @@ import { canPlayPerCue, envelopeOf, isRetimable, planAudio, scheduleFrom } from 
  * must fall back to the bed rather than silently dropping the lines it cannot
  * place. Out of step is bad; missing narration is worse.
  */
+
+/** The curve of a plain clip with no fades and nothing over it. */
+const flat = (d: number) => [
+  { t: 0, gain: 1 },
+  { t: d, gain: 1 },
+];
 
 const cue = (t: number, text: string, file?: string): AudioCue =>
   ({ id: `c-${t}-${text}`, t, d: 2, text, ...(file ? { file } : {}) });
@@ -36,8 +42,8 @@ describe('planAudio', () => {
     expect(plan).toEqual({
       kind: 'remix',
       clips: [
-        { source: '/v/1.wav', start: 0, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0 },
-        { source: '/v/2.wav', start: 5, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0 },
+        { source: '/v/1.wav', start: 0, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0, curve: flat(2) },
+        { source: '/v/2.wav', start: 5, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0, curve: flat(2) },
       ],
       duration: 60,
     });
@@ -276,5 +282,105 @@ describe('envelopeOf', () => {
 
   it('yields no fades for a clip with no length', () => {
     expect(envelopeOf({ d: 0, fadeIn: 1, fadeOut: 1 })).toEqual({ gain: 1, fadeIn: 0, fadeOut: 0 });
+  });
+});
+
+describe('gainCurve', () => {
+  const music = (patch: Partial<AudioCue> = {}): AudioCue =>
+    ({ id: 'm', t: 0, d: 20, text: 'bed', role: 'music', url: '/m.wav', ...patch });
+  const voice = (t: number, d: number, id = 'v'): AudioCue => ({ id, t, d, text: 'line', url: '/v.wav' });
+
+  /** The curve's value at a time, with straight lines between points. */
+  const at = (points: { t: number; gain: number }[], t: number) => {
+    let prev = points[0]!;
+    for (const p of points) {
+      if (p.t >= t) {
+        if (p.t === prev.t) return p.gain;
+        const f = (t - prev.t) / (p.t - prev.t);
+        return prev.gain + (p.gain - prev.gain) * f;
+      }
+      prev = p;
+    }
+    return prev.gain;
+  };
+
+  it('is flat at the clip level with no fades and nothing over it', () => {
+    const points = gainCurve(music({ gain: 0.8 }));
+    expect(at(points, 0)).toBeCloseTo(0.8, 6);
+    expect(at(points, 10)).toBeCloseTo(0.8, 6);
+    expect(at(points, 20)).toBeCloseTo(0.8, 6);
+  });
+
+  it('carries the clip\'s own fades', () => {
+    const points = gainCurve(music({ gain: 1, fadeIn: 2, fadeOut: 2 }));
+    expect(at(points, 0)).toBeCloseTo(0, 6);
+    expect(at(points, 1)).toBeCloseTo(0.5, 6);
+    expect(at(points, 10)).toBeCloseTo(1, 6);
+    expect(at(points, 19)).toBeCloseTo(0.5, 6);
+  });
+
+  it('ducks a bed while a line plays over it, and lifts it after', () => {
+    // The whole point of the feature.
+    const points = gainCurve(music({ gain: 1 }), [voice(8, 4)]);
+    expect(at(points, 4)).toBeCloseTo(1, 6);
+    expect(at(points, 9)).toBeCloseTo(0.25, 6);
+    expect(at(points, 11)).toBeCloseTo(0.25, 6);
+    expect(at(points, 16)).toBeCloseTo(1, 6);
+  });
+
+  it('ramps into and out of the duck rather than stepping', () => {
+    const points = gainCurve(music({ gain: 1, duckFade: 1 }), [voice(10, 4)]);
+    // Halfway down at half a second before the line starts.
+    expect(at(points, 9.5)).toBeCloseTo(0.625, 3);
+    expect(at(points, 14.5)).toBeCloseTo(0.625, 3);
+  });
+
+  it('honours a custom duck depth, relative to the clip\'s own level', () => {
+    const points = gainCurve(music({ gain: 0.8, duck: 0.5 }), [voice(5, 5)]);
+    expect(at(points, 7)).toBeCloseTo(0.4, 6);
+  });
+
+  it('does not duck a clip that is not music', () => {
+    const points = gainCurve({ ...voice(0, 20, 'a'), gain: 1 }, [voice(5, 5, 'b')]);
+    expect(at(points, 7)).toBeCloseTo(1, 6);
+  });
+
+  it('does not let one bed duck another', () => {
+    const points = gainCurve(music({ gain: 1 }), [music({ id: 'm2', t: 5, d: 5 })]);
+    expect(at(points, 7)).toBeCloseTo(1, 6);
+  });
+
+  it('ignores lines that do not overlap the bed at all', () => {
+    const points = gainCurve(music({ t: 0, d: 10, gain: 1 }), [voice(50, 5)]);
+    expect(points.every((p) => p.gain === 1)).toBe(true);
+  });
+
+  it('ducks for a line that starts before the bed does', () => {
+    // The line is already speaking when the music comes in.
+    const points = gainCurve(music({ t: 10, d: 10, gain: 1 }), [voice(6, 8)]);
+    expect(at(points, 0)).toBeCloseTo(0.25, 6);
+  });
+
+  it('handles several lines over one bed', () => {
+    const points = gainCurve(music({ gain: 1 }), [voice(3, 2, 'a'), voice(10, 2, 'b')]);
+    expect(at(points, 4)).toBeCloseTo(0.25, 6);
+    expect(at(points, 7)).toBeCloseTo(1, 6);
+    expect(at(points, 11)).toBeCloseTo(0.25, 6);
+  });
+
+  it('takes the quieter value where a fade and a duck meet', () => {
+    // A bed already fading out must not be pushed back up by a duck ending.
+    const points = gainCurve(music({ gain: 1, fadeOut: 4 }), [voice(14, 2)]);
+    expect(at(points, 20)).toBeCloseTo(0, 6);
+    expect(points.every((p) => p.gain <= 1 + 1e-9)).toBe(true);
+  });
+
+  it('stays inside the clip and never goes negative', () => {
+    const points = gainCurve(music({ gain: 1, fadeIn: 1, fadeOut: 1 }), [voice(-5, 30, 'x')]);
+    for (const p of points) {
+      expect(p.t).toBeGreaterThanOrEqual(0);
+      expect(p.t).toBeLessThanOrEqual(20);
+      expect(p.gain).toBeGreaterThanOrEqual(0);
+    }
   });
 });
