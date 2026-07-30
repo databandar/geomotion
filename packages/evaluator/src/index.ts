@@ -14,9 +14,11 @@ export {
   clearPathCache,
   evaluate,
   layerAlpha,
+  resolveCamera,
   routePath,
   tourDuration,
   tourPhases,
+  type CameraClaim,
   type CameraState,
   type Scene,
 } from './scene.ts';

@@ -295,6 +295,35 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
   return { render, camera };
 }
 
+/**
+ * One layer's request to drive the camera for this frame.
+ *
+ * `kind` is not used to resolve the winner — it is here so a caller can say *why* the
+ * camera moved, which is the question asked when a render surprises someone.
+ */
+export interface CameraClaim {
+  layer: string;
+  kind: 'follow' | 'tour';
+  camera: CameraState;
+}
+
+/**
+ * The topmost claimant wins.
+ *
+ * Layers are ordered back to front, so the last one to ask is the one nearest the
+ * viewer — the same rule that decides what draws on top, which is the only ordering
+ * the timeline actually shows. Blending two claims was rejected: averaging a route
+ * follow with a region tour lands the camera somewhere neither behaviour asked for,
+ * and there is no interpretation of that a user could have predicted.
+ *
+ * This matches what the code did before it was written down, so no render changes.
+ * The point is that it is now a stated rule with a test, rather than a consequence of
+ * two branches assigning to the same variable in loop order.
+ */
+export function resolveCamera(claims: readonly CameraClaim[]): CameraState | null {
+  return claims.length ? claims[claims.length - 1]!.camera : null;
+}
+
 export function evaluate(project: Project, time: number): Scene {
   const routes: RouteRender[] = [];
   const markers: MarkerRender[] = [];
@@ -304,7 +333,17 @@ export function evaluate(project: Project, time: number): Scene {
   const clouds: CloudsRender[] = [];
   const images: ImageRender[] = [];
 
-  let followCam: CameraState | null = null;
+  /*
+   * Layers that want to drive the camera this frame, in layer order.
+   *
+   * Two behaviours can ask for it — a route's follow and a region tour's
+   * `driveCamera` — and nothing stops a project from enabling both, or from having
+   * two touring region layers. Collecting the claims and resolving them once states
+   * the rule instead of leaving it to whichever branch assigned last: see
+   * `resolveCamera`. A third claimant is then an entry here, not a fourth place that
+   * quietly overwrites the same variable.
+   */
+  const claims: CameraClaim[] = [];
 
   for (const layer of project.layers) {
     const alpha = layerAlpha(layer, time);
@@ -321,12 +360,16 @@ export function evaluate(project: Project, time: number): Scene {
       const following =
         layer.follow.enabled && layer.visible && time >= layer.drawStart && time <= layer.drawEnd && head;
       if (following) {
-        followCam = {
-          center: head as LngLat,
-          zoom: layer.follow.zoom,
-          pitch: layer.follow.pitch,
-          bearing: layer.follow.faceHeading ? heading : cameraAt(project, time).bearing,
-        };
+        claims.push({
+          layer: layer.id,
+          kind: 'follow',
+          camera: {
+            center: head as LngLat,
+            zoom: layer.follow.zoom,
+            pitch: layer.follow.pitch,
+            bearing: layer.follow.faceHeading ? heading : cameraAt(project, time).bearing,
+          },
+        });
       }
     } else if (layer.type === 'marker') {
       const local = time - layer.in;
@@ -352,7 +395,7 @@ export function evaluate(project: Project, time: number): Scene {
     } else if (layer.type === 'regions') {
       const { render, camera } = evaluateRegions(layer, project, time, alpha);
       regions.push(render);
-      if (camera) followCam = camera;
+      if (camera) claims.push({ layer: layer.id, kind: 'tour', camera });
     } else if (layer.type === 'image') {
       const span = Math.max(0.0001, layer.out - layer.in);
       const through = clamp01((time - layer.in) / span);
@@ -378,7 +421,7 @@ export function evaluate(project: Project, time: number): Scene {
 
   return {
     time,
-    camera: followCam ?? cameraAt(project, time),
+    camera: resolveCamera(claims) ?? cameraAt(project, time),
     routes,
     markers,
     texts,

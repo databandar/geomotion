@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Project, RegionsLayer, RegionTour } from '@geomotion/document';
 import { createLayer, defaultTour, emptyProject, keyframe } from '@geomotion/document';
-import { cameraAt, layerAlpha, tourPhases } from './scene.ts';
+import type { CameraState } from './scene.ts';
+import { cameraAt, layerAlpha, resolveCamera, tourPhases } from './scene.ts';
 
 /**
  * Behavioural spec for the parts of evaluation that need nothing but a document.
@@ -181,5 +182,37 @@ describe('tourPhases — story timing', () => {
   it('clamps a non-positive dwell so time always advances', () => {
     const p = tourPhases(tour({ dwell: 0 }), 2);
     expect(p.tourEnd).toBeGreaterThan(p.tourStart);
+  });
+});
+
+describe('resolveCamera', () => {
+  const cam = (zoom: number): CameraState => ({ center: [0, 0], zoom, bearing: 0, pitch: 0 });
+
+  it('leaves the camera to the keyframes when nothing claims it', () => {
+    expect(resolveCamera([])).toBeNull();
+  });
+
+  it('gives it to the topmost claimant', () => {
+    const winner = resolveCamera([
+      { layer: 'a', kind: 'tour', camera: cam(4) },
+      { layer: 'b', kind: 'follow', camera: cam(9) },
+    ]);
+    expect(winner?.zoom).toBe(9);
+  });
+
+  it('does not care which behaviour asked, only where the layer sits', () => {
+    // The inverse of the case above. Before this was written down, the winner
+    // depended on which branch of the evaluator's loop assigned last, so a rule
+    // stated in one direction is not evidence it holds in the other.
+    const winner = resolveCamera([
+      { layer: 'b', kind: 'follow', camera: cam(9) },
+      { layer: 'a', kind: 'tour', camera: cam(4) },
+    ]);
+    expect(winner?.zoom).toBe(4);
+  });
+
+  it('hands back a claim untouched rather than blending', () => {
+    const only = cam(7);
+    expect(resolveCamera([{ layer: 'a', kind: 'tour', camera: only }])).toEqual(only);
   });
 });

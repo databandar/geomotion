@@ -189,6 +189,23 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.26 Who drives the camera (M25)
+
+Two behaviours can claim the camera on the same frame — a route's `follow` and a
+region tour's `driveCamera` — and nothing stops a project from enabling both. They
+resolved by assigning to the same local in the evaluator's layer loop, so the winner
+was whichever branch ran last: correct, but by accident, and the variable was named
+after only one of the two claimants.
+
+Now each claim is pushed onto a list and `resolveCamera` picks the topmost — the same
+outcome, verified bit-identical on all ten golden frames, but a stated rule with a test
+in both directions rather than an emergent one. Blending was rejected: averaging a
+follow with a tour puts the camera where neither behaviour asked, and no user could
+predict it.
+
+This is a first slice of ARCHITECTURE §06's normative stack, not the stack itself —
+see "Not done" below.
+
 ### 6.25 The rest of the inspectors (M24)
 
 Sixteen tests over the six layer inspectors that had none — route, marker, text,
