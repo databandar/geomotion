@@ -189,6 +189,33 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.24 Guarding the renderer in CI (M23)
+
+Exact pixel comparison cannot run in CI — GPU rasterisation differs between drivers, so
+a committed baseline mismatches for reasons that are not regressions. Rather than fake
+determinism, CI now asserts the properties that hold on **any** machine, by describing
+a single run instead of comparing two:
+
+- every fixture frame renders,
+- none is blank (grid variance above a floor),
+- no two are pixel-identical, so the composition actually animates,
+- the overlay contributes something in each fixture,
+- and the page logs no errors.
+
+**The first version of this check was worthless, and testing it is what showed that.**
+Disabling `drawOverlay` entirely left every frame varied and distinct, because the map
+still drew the choropleth — blankness and distinctness alone do not notice a whole
+surface going missing. Comparing the composite against the map on its own does, and it
+is still one run compared with itself. That variant fails both fixtures the moment the
+overlay stops drawing, and passes when it is healthy.
+
+It is also scoped per fixture rather than per frame, because a composition legitimately
+has moments with nothing on the overlay — the demo's first frame is one.
+
+Stated plainly: this will **not** catch a layer that goes missing for part of the
+timeline, which is the M18 failure. That needs a baseline, and a baseline needs a fixed
+environment. The exact check remains a local tool.
+
 ### 6.23 The evaluator leaves the app (M22)
 
 `evaluate(document, t) -> Scene` was the last engine code in `apps/studio`. It is now

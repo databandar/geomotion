@@ -57,6 +57,44 @@ jobs:
         # settles and the numbers stop moving with every feature.
         run: du -sh apps/studio/dist && du -ah apps/studio/dist/assets | sort -rh | head -20
 
+  render:
+    name: the renderer still draws
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # A real browser, driving the real production build.
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+
+      - run: pnpm build
+
+      - name: Serve the build
+        run: |
+          pnpm --filter @geomotion/studio exec vite preview --port 5173 &
+          npx --yes wait-on http://127.0.0.1:5173 --timeout 60000
+
+      # NOT a pixel comparison. GPU rasterisation differs between drivers, and
+      # headless software rendering differs from both, so a committed baseline would
+      # mismatch here for reasons that are not regressions — that check stays a local
+      # tool. These properties describe a single run rather than comparing two, so
+      # they hold anywhere: every frame renders, none is blank, no two are identical,
+      # the overlay contributes, and the page logs no errors.
+      - name: Render smoke
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          GOLDEN_URL: http://127.0.0.1:5173/
+        run: pnpm --filter @geomotion/testing golden:smoke
+
   secrets:
     name: no credentials in the tree
     runs-on: ubuntu-latest

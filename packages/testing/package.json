@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Shared test utilities: the render-signature harness (ENGINEERING_GUIDE §2, §12).",
+  "description": "Shared test utilities: the render-signature harness (ENGINEERING_GUIDE \u00a72, \u00a712).",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "golden:capture": "node src/cli.mjs capture",
-    "golden:check": "node src/cli.mjs check"
+    "golden:check": "node src/cli.mjs check",
+    "golden:smoke": "node src/cli.mjs smoke"
   },
   "dependencies": {
     "puppeteer-core": "^23.0.0"

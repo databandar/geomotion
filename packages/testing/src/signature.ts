@@ -110,3 +110,21 @@ export function describe(name: string, d: Diff): string {
   const where = d.worst ? ` worst cell (${d.worst.x},${d.worst.y}) Δ${d.worst.delta}` : '';
   return `${name}: ${d.changedCells}/${d.totalCells} cells changed (${pct}%), max Δ${d.maxDelta}, mean Δ${d.meanDelta.toFixed(2)}${where}`;
 }
+
+
+/**
+ * How much a frame varies across its own grid.
+ *
+ * A blank frame — a failed render, a missing basemap, an all-white canvas — has almost
+ * none. Unlike a comparison against a baseline this says something true on *any*
+ * machine, which is what makes it usable in CI where the GPU differs.
+ */
+export function variance(sig: Signature): number {
+  const n = sig.cells.length;
+  if (!n) return 0;
+  const mean = sig.cells.reduce((a, b) => a + b, 0) / n;
+  return sig.cells.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+}
+
+/** Whether two frames are the same picture, by the same tolerance as `matches`. */
+export const identical = (a: Signature, b: Signature) => compare(a, b).changedCells === 0;

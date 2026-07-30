@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TOLERANCE, compare, describe as describeDiff, matches, type Signature } from './signature.ts';
+import {
+  DEFAULT_TOLERANCE,
+  compare,
+  describe as describeDiff,
+  identical,
+  matches,
+  variance,
+  type Signature,
+} from './signature.ts';
 
 /**
  * Behavioural spec for the comparison itself.
@@ -127,5 +135,34 @@ describe('describe', () => {
     expect(line).toContain('tour-mid');
     expect(line).toContain('(3,1)');
     expect(line).toContain('1/16');
+  });
+});
+
+describe('variance', () => {
+  it('is zero for a blank frame', () => {
+    // The failure this exists to catch: a render that produced nothing at all.
+    expect(variance(flat(16, 16, 255))).toBe(0);
+    expect(variance(flat(16, 16, 0))).toBe(0);
+  });
+
+  it('rises with the range of content in the frame', () => {
+    const plain = sig(16, 16, (i) => [100 + (i % 4), 100, 100]);
+    const busy = sig(16, 16, (i) => (i % 2 ? [250, 10, 10] : [5, 5, 200]));
+    expect(variance(busy)).toBeGreaterThan(variance(plain));
+  });
+
+  it('is machine-independent, which is why CI can use it', () => {
+    // No baseline involved: it describes one frame, not a comparison.
+    const a = sig(8, 8, (i) => [i * 3, 40, 200 - i]);
+    expect(variance(a)).toBe(variance({ ...a, cells: [...a.cells] }));
+  });
+});
+
+describe('identical', () => {
+  it('is true only for the same picture', () => {
+    expect(identical(flat(8, 8, 90), flat(8, 8, 90))).toBe(true);
+    const moved = flat(8, 8, 90);
+    moved.cells[10] = 200;
+    expect(identical(flat(8, 8, 90), moved)).toBe(false);
   });
 });

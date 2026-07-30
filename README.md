@@ -79,8 +79,14 @@ cell that moved. A 4px change to the legend bar fails 5 frames and points at row
 
 Baselines are **machine-specific**: GPU rasterisation differs between drivers. A diff
 on a new machine or after a browser update shifts every frame at once and means
-recapture; a regression looks like a few frames moving. This is why it is a local tool
-and not a CI gate — CI runs the comparison's unit tests, which are pure arithmetic.
+recapture; a regression looks like a few frames moving. That is why exact comparison is
+a local tool.
+
+CI runs `golden:smoke` instead, which asserts only what is true on any machine: every
+frame renders, none is blank, no two are identical, the overlay contributes something,
+and the page logs no errors. It will not catch a layer that goes missing for part of the
+timeline — that needs a baseline — but it does catch a renderer that has stopped
+drawing, which is the failure worth blocking a merge for.
 
 The §2 **dependency law** — arrows point downward only, `core` depends on nothing — is
 enforced by ESLint rather than trusted: `pnpm lint` fails the build on a violation.

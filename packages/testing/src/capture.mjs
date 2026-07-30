@@ -47,7 +47,7 @@ const GRID_LONG_EDGE = 32;
  * filter, so each cell really is the mean of its region and the signature is
  * stable between runs.
  */
-function inPageSignature(gridLongEdge) {
+function inPageSignature(gridLongEdge, mapOnly) {
   const map = document.querySelector('.maplibregl-canvas');
   const overlay = document.querySelector('.overlay-canvas');
   if (!map) throw new Error('no map canvas found');
@@ -60,7 +60,9 @@ function inPageSignature(gridLongEdge) {
   src.height = h;
   const composite = src.getContext('2d');
   composite.drawImage(map, 0, 0);
-  if (overlay) composite.drawImage(overlay, 0, 0, w, h);
+  // `mapOnly` leaves the overlay out, so a caller can tell whether it drew anything
+  // at all — a comparison within one run, and so machine-independent.
+  if (overlay && !mapOnly) composite.drawImage(overlay, 0, 0, w, h);
 
   const gw = w >= h ? gridLongEdge : Math.max(1, Math.round((gridLongEdge * w) / h));
   const gh = h > w ? gridLongEdge : Math.max(1, Math.round((gridLongEdge * h) / w));
@@ -131,6 +133,7 @@ export async function capture({ url = 'http://localhost:5173/', waitTiles = true
     await page.waitForFunction('window.geomotion && window.geomotion.ready', { timeout: 30000 });
 
     const frames = {};
+    const mapOnly = {};
     for (const { name, fixture, times } of FIXTURES) {
       await page.evaluate(async (fx) => {
         const mod = await import('/src/lib/fixtures.ts');
@@ -146,12 +149,12 @@ export async function capture({ url = 'http://localhost:5173/', waitTiles = true
       for (const t of times) {
         await page.evaluate((tt) => window.geomotion.renderFrameAt(tt), t);
         if (waitTiles) await page.evaluate(() => window.geomotion.waitIdle(15000));
-        const sig = await page.evaluate(inPageSignature, GRID_LONG_EDGE);
-        frames[`${name}@${t}`] = sig;
+        frames[`${name}@${t}`] = await page.evaluate(inPageSignature, GRID_LONG_EDGE, false);
+        mapOnly[`${name}@${t}`] = await page.evaluate(inPageSignature, GRID_LONG_EDGE, true);
       }
     }
 
-    return { frames, errors };
+    return { frames, mapOnly, errors };
   } finally {
     await browser.close();
   }
