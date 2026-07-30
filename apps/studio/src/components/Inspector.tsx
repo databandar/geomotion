@@ -12,9 +12,9 @@ import type {
   ShapeLayer,
   TextLayer,
 } from '@geomotion/document';
-import { regionSet } from '../lib/regions';
+import { regionSet } from '@geomotion/entities';
 import { tourDuration } from '../lib/scene';
-import { RAMPS, getRamp, rampColor } from '../lib/palettes';
+import { RAMPS, getRamp, rampColor } from '@geomotion/core';
 import indiaStatesOfficial from '../data/india-states-official.json';
 import indiaStatesNE from '../data/india-states.json';
 import { EASING_NAMES } from '../lib/easing';

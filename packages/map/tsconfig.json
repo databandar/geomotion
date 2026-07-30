@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "DOM is in `lib` here and nowhere else in packages/: MapLibre is a DOM library.",
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ]
+  },
+  "include": [
+    "src"
+  ]
+}

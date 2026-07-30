@@ -7,5 +7,6 @@
  */
 
 export { createId } from './id.ts';
+export { RAMPS, getRamp, luminance, rampColor, type Ramp } from './palettes.ts';
 export { clamp, clamp01, invLerp, lerp, lerpAngle } from './numeric.ts';
 export type { LngLat } from './units.ts';

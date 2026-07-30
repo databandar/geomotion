@@ -3,7 +3,7 @@ import { History, createLayer, keyframe, transact } from '@geomotion/document';
 import type { AudioCue, CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
 import { clamp, createId } from '@geomotion/core';
 import { clearPathCache } from './lib/scene';
-import { clearRegionCache } from './lib/regions';
+import { clearRegionCache } from '@geomotion/entities';
 import { demoProject } from './lib/fixtures';
 import { loadLocal, saveLocal } from './lib/persistence';
 

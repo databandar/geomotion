@@ -1,5 +1,5 @@
 import type { CameraState, LngLat, RegionsLayer } from '@geomotion/document';
-import { getRamp, rampColor } from './palettes';
+import { getRamp, rampColor } from '@geomotion/core';
 
 /* ------------------------------------------------------------- geometry */
 

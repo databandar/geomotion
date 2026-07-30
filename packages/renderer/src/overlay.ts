@@ -1,10 +1,17 @@
-import type { LngLat } from '@geomotion/core';
-import type { RouteIconStyle } from '../render/styles';
-import type { CloudsRender, ImageRender, MarkerRender, RegionsRender, RouteRender, Scene, TextRender } from './scene';
-import { getImage } from './images';
-import { cloudTexture, scratchCanvas } from './clouds';
-import { getRamp, rampColor } from './palettes';
-import { clamp01 } from '@geomotion/core';
+import { clamp01, getRamp, rampColor, type LngLat } from '@geomotion/core';
+import type { RouteIconStyle } from './styles.ts';
+import type {
+  CloudsRender,
+  ImageRender,
+  MarkerRender,
+  RegionsRender,
+  RouteRender,
+  Scene,
+  TextRender,
+} from './scene-types.ts';
+import { getImage } from './images.ts';
+import { cloudTexture, scratchCanvas } from './clouds.ts';
+
 
 export interface ProjectFn {
   (c: LngLat): { x: number; y: number };

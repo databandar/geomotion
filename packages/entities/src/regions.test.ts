@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RegionsLayer, RegionTour } from '@geomotion/document';
 import { createLayer, defaultTour } from '@geomotion/document';
-import { clearRegionCache, fitBounds, regionSet } from './regions';
+import { clearRegionCache, fitBounds, regionSet } from './regions.ts';
 
 /**
  * Behavioural spec for the region join and the framing solver.

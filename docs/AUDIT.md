@@ -189,6 +189,42 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.22 The renderer and the map become packages (M21)
+
+The two drawing surfaces were the last engine code living in the app. They are now
+`@geomotion/renderer` (the 2D compositor) and `@geomotion/map` (MapLibre), with
+`@geomotion/entities` under them for the data join that both need.
+
+M8 did the hard part: the renderer already read a declared style contract rather than
+the document, so this was a move rather than an untangling. What moved with it:
+
+| To | What, and why |
+| --- | --- |
+| `core` | `palettes` — colour maths and the ramp table. Both the renderer and the inspector need it, and it has no dependencies. |
+| `entities` | `regions` — the join and the framing solver. §2 names this package; the renderer needs only `RegionSet`'s shape. |
+| `renderer` | `overlay`, `clouds`, `images`, `styles`, and the render-scene types lifted out of `scene.ts`. The evaluator stays in the app and now imports the types it produces. |
+| `map` | `mapsync`, alone. |
+
+**The DOM ban had to be relaxed, but only here and only for the DOM.** A canvas
+compositor with no canvas is not a useful abstraction. The dependency law still holds,
+and `renderer` still may not import MapLibre — that separation is the entire reason
+`map` is its own package, and it is enforced rather than trusted.
+
+Two things worth recording:
+
+- **A later ESLint block replaces a rule rather than merging with it.** Two blocks both
+  setting `no-restricted-imports` silently dropped the first, so the renderer's MapLibre
+  ban did nothing until each package got exactly one block. Found by testing the rule
+  with a deliberate violation, which is the third time that habit has caught a rule
+  that enforced nothing.
+- **Source-only packages leak their type dependencies.** `entities` type-checks clean
+  alone, but a consumer compiles its `.ts` sources under its *own* config, so every
+  consumer of a package exposing GeoJSON types needs `@types/geojson` declared too.
+  The same phantom-dependency class M4 found, one level up.
+
+Verified as a pure move: 327 tests before and after, and all ten golden frames
+bit-identical.
+
 ### 6.21 Ducking (M20)
 
 Overlapping clips summed at full level, so a music bed fought the narration — the thing

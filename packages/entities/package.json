@@ -1,0 +1,23 @@
+{
+  "name": "@geomotion/entities",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The data join: regions matched to values, ranked and coloured, plus the framing solver (ENGINEERING_GUIDE §2, ARCHITECTURE §09).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geomotion/core": "workspace:*",
+    "@geomotion/document": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}

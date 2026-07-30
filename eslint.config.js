@@ -21,6 +21,9 @@ const elements = [
   { type: 'core', pattern: 'packages/core/**', mode: 'full' },
   { type: 'geometry', pattern: 'packages/geometry/**', mode: 'full' },
   { type: 'document', pattern: 'packages/document/**', mode: 'full' },
+  { type: 'entities', pattern: 'packages/entities/**', mode: 'full' },
+  { type: 'renderer', pattern: 'packages/renderer/**', mode: 'full' },
+  { type: 'map', pattern: 'packages/map/**', mode: 'full' },
   { type: 'testing', pattern: 'packages/testing/**', mode: 'full' },
   { type: 'app', pattern: 'apps/**', mode: 'full' },
 ];
@@ -34,10 +37,17 @@ const elements = [
 const allowed = [
   { from: 'geometry', allow: ['core', 'geometry'] },
   { from: 'document', allow: ['core', 'document'] },
-  { from: 'app', allow: ['core', 'geometry', 'document', 'app'] },
+  { from: 'entities', allow: ['core', 'geometry', 'document', 'entities'] },
+  // The renderer takes a scene of plain values. It reaches `entities` only for the
+  // region set's shape, and must never see the document.
+  { from: 'renderer', allow: ['core', 'geometry', 'entities', 'renderer'] },
+  // Everything that knows MapLibre exists lives in `map`, which is why the
+  // compositor can stay independent of it.
+  { from: 'map', allow: ['core', 'geometry', 'renderer', 'map'] },
+  { from: 'app', allow: ['core', 'geometry', 'document', 'entities', 'renderer', 'map', 'app'] },
   // Dev-only, so it may reach for anything. Nothing may reach for it: shipped
   // code importing a test harness is how a harness ends up in a bundle.
-  { from: 'testing', allow: ['core', 'geometry', 'document', 'testing'] },
+  { from: 'testing', allow: ['core', 'geometry', 'document', 'entities', 'renderer', 'map', 'testing'] },
 ];
 
 /** The published name of each element that is a workspace package. */
@@ -45,6 +55,9 @@ const packageName = {
   core: '@geomotion/core',
   geometry: '@geomotion/geometry',
   document: '@geomotion/document',
+  entities: '@geomotion/entities',
+  renderer: '@geomotion/renderer',
+  map: '@geomotion/map',
   testing: '@geomotion/testing',
 };
 
@@ -82,6 +95,16 @@ const NO_DOM = [
   { name: 'maplibre-gl', message: 'Only packages/map and the apps may touch MapLibre (guide §2).' },
 ];
 
+/**
+ * Packages that legitimately draw.
+ *
+ * `renderer` composites onto a canvas and `map` drives MapLibre; a canvas renderer
+ * with no canvas is not a useful abstraction. They are exempt from the DOM ban and
+ * from nothing else — the dependency law still applies, and `renderer` still may not
+ * import MapLibre.
+ */
+const DRAWS = ['packages/renderer/**', 'packages/map/**'];
+
 export default tseslint.config(
   {
     ignores: [
@@ -114,7 +137,7 @@ export default tseslint.config(
 
   {
     files: ['packages/**/*.ts'],
-    ignores: ['packages/testing/**'],
+    ignores: ['packages/testing/**', ...DRAWS],
     rules: {
       'no-restricted-imports': ['error', { paths: NO_DOM }],
       // §2 forbids these packages from depending on the DOM. Imports were already
@@ -143,25 +166,49 @@ export default tseslint.config(
   },
 
   {
-    // The renderer is document-free as of M8, and this is what keeps it that way.
-    // It reads only the style interfaces in render/styles.ts, so a new draw
-    // routine cannot quietly start depending on document state the evaluator did
-    // not mean to expose. These files are the future `packages/renderer` and
-    // `packages/map`; the import ban is the boundary law applied early.
-    files: ['apps/studio/src/lib/overlay.ts', 'apps/studio/src/lib/mapsync.ts', 'apps/studio/src/render/styles.ts'],
+    /*
+     * The drawing packages may use the DOM. A canvas compositor with no canvas is not
+     * a useful abstraction, and MapLibre is a DOM library.
+     *
+     * They are exempt from that ban and nothing else: the dependency law still holds,
+     * and `renderer` still may not know MapLibre exists. That separation is the whole
+     * reason `map` is a separate package — one surface paints pixels, the other drapes
+     * geometry onto a map, and they can be reasoned about, and eventually moved to a
+     * worker, independently.
+     *
+     * One block per package, because a later block replaces a rule rather than
+     * merging with it: two blocks both setting `no-restricted-imports` would silently
+     * drop whichever came first.
+     */
+    files: ['packages/renderer/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           paths: [
-            {
-              name: '@geomotion/document',
-              message:
-                'The renderer must not depend on the document. Add the field to render/styles.ts instead — deliberately.',
-            },
+            { name: 'maplibre-gl', message: 'Only packages/map and the apps may touch MapLibre (guide §2).' },
+            { name: 'react', message: 'The renderer must stay framework-free (guide §2).' },
+            { name: '@geomotion/document', message: 'The renderer draws a scene, never the document.' },
           ],
         },
       ],
+      'no-empty': ['error', { allowEmptyCatch: false }],
+    },
+  },
+
+  {
+    files: ['packages/map/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'react', message: 'The map package must stay framework-free (guide §2).' },
+            { name: '@geomotion/document', message: 'The map drapes a scene, never the document.' },
+          ],
+        },
+      ],
+      'no-empty': ['error', { allowEmptyCatch: false }],
     },
   },
 

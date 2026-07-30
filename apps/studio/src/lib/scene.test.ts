@@ -3,7 +3,7 @@ import type { Layer, Project, RegionsLayer, RegionTour, TextLayer } from '@geomo
 import { createLayer, defaultTour, emptyProject, keyframe } from '@geomotion/document';
 import { demoProject, indiaTourProject } from './fixtures';
 import { cameraAt, clearPathCache, evaluate, layerAlpha, tourPhases } from './scene';
-import { clearRegionCache } from './regions';
+import { clearRegionCache } from '@geomotion/entities';
 
 /**
  * Behavioural spec for scene evaluation — the contract at the centre of the

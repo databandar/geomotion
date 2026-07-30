@@ -1,0 +1,24 @@
+{
+  "name": "@geomotion/renderer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The 2D compositor: what a frame is, and how it is drawn (ENGINEERING_GUIDE §2, ARCHITECTURE §14).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geomotion/core": "workspace:*",
+    "@geomotion/entities": "workspace:*",
+    "@geomotion/geometry": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}

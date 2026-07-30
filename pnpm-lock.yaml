@@ -54,9 +54,18 @@ importers:
       '@geomotion/document':
         specifier: workspace:*
         version: link:../../packages/document
+      '@geomotion/entities':
+        specifier: workspace:*
+        version: link:../../packages/entities
       '@geomotion/geometry':
         specifier: workspace:*
         version: link:../../packages/geometry
+      '@geomotion/map':
+        specifier: workspace:*
+        version: link:../../packages/map
+      '@geomotion/renderer':
+        specifier: workspace:*
+        version: link:../../packages/renderer
       maplibre-gl:
         specifier: ^5.6.0
         version: 5.24.0
@@ -129,12 +138,78 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.1.2)(jsdom@30.0.1)
 
+  packages/entities:
+    dependencies:
+      '@geomotion/core':
+        specifier: workspace:*
+        version: link:../core
+      '@geomotion/document':
+        specifier: workspace:*
+        version: link:../document
+    devDependencies:
+      '@types/geojson':
+        specifier: ^7946.0.16
+        version: 7946.0.16
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)(jsdom@30.0.1)
+
   packages/geometry:
     dependencies:
       '@geomotion/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)(jsdom@30.0.1)
+
+  packages/map:
+    dependencies:
+      '@geomotion/core':
+        specifier: workspace:*
+        version: link:../core
+      '@geomotion/geometry':
+        specifier: workspace:*
+        version: link:../geometry
+      '@geomotion/renderer':
+        specifier: workspace:*
+        version: link:../renderer
+      maplibre-gl:
+        specifier: ^5.6.0
+        version: 5.24.0
+    devDependencies:
+      '@types/geojson':
+        specifier: ^7946.0.16
+        version: 7946.0.16
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)(jsdom@30.0.1)
+
+  packages/renderer:
+    dependencies:
+      '@geomotion/core':
+        specifier: workspace:*
+        version: link:../core
+      '@geomotion/entities':
+        specifier: workspace:*
+        version: link:../entities
+      '@geomotion/geometry':
+        specifier: workspace:*
+        version: link:../geometry
+    devDependencies:
+      '@types/geojson':
+        specifier: ^7946.0.16
+        version: 7946.0.16
       typescript:
         specifier: ^5.9.0
         version: 5.9.3

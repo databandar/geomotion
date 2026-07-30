@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RAMPS, getRamp, luminance, rampColor } from './palettes';
+import { RAMPS, getRamp, luminance, rampColor } from './palettes.ts';
 
 /**
  * Behavioural spec for the sequential colour ramps, bound for the scale editor

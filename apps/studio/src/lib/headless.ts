@@ -2,7 +2,7 @@ import { useStore } from '../store';
 import { migrate } from '@geomotion/document';
 import type { RenderHost } from '../render/host';
 import { evaluate } from './scene';
-import { imagesReady } from './images';
+import { imagesReady } from '@geomotion/renderer';
 
 /**
  * A small, stable surface for automation — the render step of the video pipeline
