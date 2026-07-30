@@ -189,6 +189,18 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.25 The rest of the inspectors (M24)
+
+Sixteen tests over the six layer inspectors that had none — route, marker, text,
+shape, clouds, image. They had been edited twice without coverage: by the
+strict-indexing pass and by the package moves.
+
+Each asserts the round trip rather than the rendering, because that is the failure that
+hides: a control wired to the wrong field renders perfectly. Two cases target nested
+objects specifically — the route's travelling marker and the marker's label — since
+that is the shape that broke when the region tour was nested, and a set that replaced
+rather than merged would clear the siblings.
+
 ### 6.24 Guarding the renderer in CI (M23)
 
 Exact pixel comparison cannot run in CI — GPU rasterisation differs between drivers, so
