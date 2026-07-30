@@ -159,6 +159,25 @@ headless browser instead:
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
 
+### 6.7 The harness that nearly did not work (M7b)
+
+`packages/testing` reduces a frame to a 32×18 grid of mean RGB values so a render
+change is visible as readable, diffable JSON rather than a binary blob.
+
+Its first version had a per-channel tolerance of 6, chosen defensively without
+measuring anything. Testing it the same way the boundary lint was tested — by making
+a deliberate change and watching what happened — showed a 4px narrowing of the legend
+bar produced deltas of 1–2 and **passed**. The harness detected the change and
+reported it as fine.
+
+Three consecutive captures of all ten frames then came back bit-identical, so the
+tolerance is now zero. The same 4px change fails 5 of 10 frames, correctly leaves the
+4 demo frames (which have no legend) alone, and points at grid row 16 where the legend
+sits.
+
+The lesson generalises past this harness: a threshold nobody measured is a threshold
+that silently defines what you are willing to miss.
+
 ### 6.6 Found by removing the global (M7)
 
 | Where | Finding |

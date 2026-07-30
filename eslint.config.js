@@ -21,6 +21,7 @@ const elements = [
   { type: 'core', pattern: 'packages/core/**', mode: 'full' },
   { type: 'geometry', pattern: 'packages/geometry/**', mode: 'full' },
   { type: 'document', pattern: 'packages/document/**', mode: 'full' },
+  { type: 'testing', pattern: 'packages/testing/**', mode: 'full' },
   { type: 'app', pattern: 'apps/**', mode: 'full' },
 ];
 
@@ -34,6 +35,9 @@ const allowed = [
   { from: 'geometry', allow: ['core', 'geometry'] },
   { from: 'document', allow: ['core', 'document'] },
   { from: 'app', allow: ['core', 'geometry', 'document', 'app'] },
+  // Dev-only, so it may reach for anything. Nothing may reach for it: shipped
+  // code importing a test harness is how a harness ends up in a bundle.
+  { from: 'testing', allow: ['core', 'geometry', 'document', 'testing'] },
 ];
 
 /** The published name of each element that is a workspace package. */
@@ -41,6 +45,7 @@ const packageName = {
   core: '@geomotion/core',
   geometry: '@geomotion/geometry',
   document: '@geomotion/document',
+  testing: '@geomotion/testing',
 };
 
 /**
@@ -109,6 +114,7 @@ export default tseslint.config(
 
   {
     files: ['packages/**/*.ts'],
+    ignores: ['packages/testing/**'],
     rules: {
       'no-restricted-imports': ['error', { paths: NO_DOM }],
       // §2 forbids these packages from depending on the DOM. Imports were already
@@ -134,6 +140,21 @@ export default tseslint.config(
     files: ['apps/studio/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.recommended.rules,
+  },
+
+  {
+    // The harness straddles two runtimes: the CLI runs in node, and the capture
+    // functions are serialised into the page, so both sets of globals are real.
+    files: ['packages/testing/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        document: 'readonly',
+        window: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
   },
 
   {

@@ -1,0 +1,23 @@
+{
+  "name": "@geomotion/testing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared test utilities: the render-signature harness (ENGINEERING_GUIDE §2, §12).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "golden:capture": "node src/cli.mjs capture",
+    "golden:check": "node src/cli.mjs check"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}

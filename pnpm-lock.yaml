@@ -126,6 +126,19 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.1.2)
 
+  packages/testing:
+    dependencies:
+      puppeteer-core:
+        specifier: ^23.0.0
+        version: 23.11.1
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)
+
 packages:
 
   '@babel/code-frame@7.29.7':

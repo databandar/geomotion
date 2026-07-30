@@ -49,12 +49,33 @@ A pnpm workspace driven by Turborepo, per
 | [`packages/core/`](packages/core/) | Ids, coordinates, numeric interpolation. Zero dependencies by contract. |
 | [`packages/geometry/`](packages/geometry/) | Great-circle math, path densification and measurement. Depends on `core` only. |
 | [`packages/document/`](packages/document/) | The document: schema types, construction, migrations, transactions and undo. Depends on `core` only — browser persistence stays in the app. |
+| [`packages/testing/`](packages/testing/) | The render-signature harness. Dev-only; shipped code may not import it. |
 
 The remaining packages in the guide's §2 table are extracted one at a time, each with its
 contract fixed before code moves into it.
 
 Every task runs through `turbo`, so a new package with `typecheck`/`test`/`build` scripts
 is picked up by both `pnpm verify` and CI with no configuration change.
+
+### Checking that a change did not alter the picture
+
+`pnpm verify` proves the app runs; it says nothing about what it draws. With a dev
+server up:
+
+```bash
+pnpm --filter @geomotion/testing golden:check     # compare against the baseline
+pnpm --filter @geomotion/testing golden:capture   # re-record it, deliberately
+```
+
+Ten fixture frames are reduced to a 32×18 grid of mean RGB values and compared
+exactly. Capture is deterministic — three consecutive runs came back bit-identical —
+so any delta is a real change in what the renderer drew, and the report names the grid
+cell that moved. A 4px change to the legend bar fails 5 frames and points at row 16.
+
+Baselines are **machine-specific**: GPU rasterisation differs between drivers. A diff
+on a new machine or after a browser update shifts every frame at once and means
+recapture; a regression looks like a few frames moving. This is why it is a local tool
+and not a CI gate — CI runs the comparison's unit tests, which are pure arithmetic.
 
 The §2 **dependency law** — arrows point downward only, `core` depends on nothing — is
 enforced by ESLint rather than trusted: `pnpm lint` fails the build on a violation.
