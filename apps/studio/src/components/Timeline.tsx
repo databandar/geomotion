@@ -90,8 +90,9 @@ export default function Timeline() {
                 <span
                   className="warn-dot"
                   title={
-                    'This narration is a single pre-mixed track, so retiming will move the picture ' +
-                    'and leave the voice behind. Regenerate it from Studio to make it follow the timeline.'
+                    'This narration is a single pre-mixed track: retiming moves the picture and ' +
+                    'leaves the voice behind, in the preview and in the export. Regenerate it from ' +
+                    'Studio and the lines will follow the timeline individually.'
                   }
                 >
                   !

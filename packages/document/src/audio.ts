@@ -71,3 +71,46 @@ export function planAudio(project: Project): AudioPlan {
  * composition and discover the problem in the finished video.
  */
 export const isRetimable = (project: Project) => planAudio(project).kind === 'remix';
+
+/** One line, ready to hand to an audio clock. */
+export interface ScheduledCue {
+  url: string;
+  /** seconds from now until it should start; 0 means immediately */
+  when: number;
+  /** seconds into the clip to begin at, for a line already underway */
+  offset: number;
+  /** how much of the clip is left to play */
+  duration: number;
+}
+
+/**
+ * What to play, and when, if playback starts at `time`.
+ *
+ * Pure, because this is where the mistakes are: a line the playhead has landed in
+ * the middle of has to start immediately *and* skip into itself by the same amount,
+ * and getting either half wrong sounds like a sync bug rather than a maths one.
+ *
+ * Cues without a `url` are skipped — the renderer can mux from a path, a page
+ * cannot fetch one.
+ */
+export function scheduleFrom(cues: AudioCue[], time: number): ScheduledCue[] {
+  const out: ScheduledCue[] = [];
+  for (const cue of cues) {
+    if (!cue.url || !(cue.d > 0)) continue;
+    const end = cue.t + cue.d;
+    if (end <= time) continue; // already finished
+
+    if (cue.t >= time) {
+      out.push({ url: cue.url, when: cue.t - time, offset: 0, duration: cue.d });
+    } else {
+      const offset = time - cue.t;
+      out.push({ url: cue.url, when: 0, offset, duration: cue.d - offset });
+    }
+  }
+  return out.sort((a, b) => a.when - b.when);
+}
+
+/** Whether the editor can play the lines individually rather than the mixed bed. */
+export const canPlayPerCue = (project: Project) =>
+  (project.audio?.cues ?? []).some((c) => c.url) &&
+  (project.audio?.cues ?? []).every((c) => c.url || !(c.d > 0));

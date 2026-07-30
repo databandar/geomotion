@@ -567,7 +567,7 @@ async function buildProjectAudio(script, built) {
         const clip = await resolveClip(slug, stop.__key, stop.say, script.voice);
         if (clip) {
           clips.push({ file: clip.file, start: t });
-          cues.push({ t: round3(t), d: round3(clip.duration), text: stop.say ?? '', file: clip.file });
+          cues.push({ t: round3(t), d: round3(clip.duration), text: stop.say ?? '', file: clip.file, url: clip.url });
         }
         t += stop.duration;
       }
@@ -575,7 +575,7 @@ async function buildProjectAudio(script, built) {
       const clip = await resolveClip(slug, beat.__key, beat.say, script.voice);
       if (clip) {
         clips.push({ file: clip.file, start: beat.start });
-        cues.push({ t: round3(beat.start), d: round3(clip.duration), text: beat.say, file: clip.file });
+        cues.push({ t: round3(beat.start), d: round3(clip.duration), text: beat.say, file: clip.file, url: clip.url });
       }
     }
   }
@@ -594,7 +594,11 @@ const round3 = (n) => Math.round(n * 1000) / 1000;
 async function resolveClip(slug, key, text, voice) {
   if (!key || !text) return null;
   try {
-    return await lineAudio({ voiceRoot: VOICE_ROOT, slug, key, text, voice });
+    const clip = await lineAudio({ voiceRoot: VOICE_ROOT, slug, key, text, voice });
+    // The editor needs a URL, not a path: it plays the lines individually so the
+    // preview stays right after a retime. `voiceStatic` serves VOICE_ROOT here.
+    const rel = clip.manual ? `${slug}/manual/${key}.wav` : `${slug}/${key}.wav`;
+    return { ...clip, url: `/voice-out/${rel}` };
   } catch {
     return null;
   }

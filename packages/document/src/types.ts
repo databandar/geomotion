@@ -326,6 +326,15 @@ export interface AudioCue {
    * be retimed.
    */
   file?: string;
+  /**
+   * A URL the editor can fetch this line from.
+   *
+   * Separate from `file` because they serve different consumers and neither works
+   * for the other: the renderer muxes from disk, and a page cannot read a
+   * filesystem path. With these present the editor can play the lines where the
+   * cues actually sit, instead of a bed mixed before they moved.
+   */
+  url?: string;
 }
 
 export interface Project {

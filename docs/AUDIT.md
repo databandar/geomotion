@@ -159,6 +159,38 @@ headless browser instead:
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
 
+### 6.14 The preview stops lying (M14)
+
+M11 fixed the exported video but left the editor playing the pre-mixed bed, so after
+a retime the preview *sounded* right while only the export was. An editor that
+disagrees with the thing it is previewing is the worst kind of wrong, because there is
+nothing to notice.
+
+Narration is now played line by line through Web Audio, scheduled at the positions the
+cues actually hold. The timeline stays the clock: a play schedules from the playhead,
+a scrub cancels and reschedules, and nothing here ever drives `time` — letting audio
+do that would fight the frame-accurate export, which has no audio at all.
+
+`AudioCue` gains a `url` beside its `file`, because the two serve different consumers
+and neither substitutes for the other: **the renderer muxes from a path, and a page
+cannot fetch one.** That makes the two capabilities independent, and worth stating:
+
+| Document | `isRetimable` | `canPlayPerCue` |
+| --- | --- | --- |
+| Studio composition (`file` + `url`) | yes | yes |
+| CLI render (`file` only) | yes | no |
+| Bed only (pre-M11) | no | no |
+
+The scheduling decision is a pure function with eleven tests, because that is where
+the mistake would be: a line the playhead has landed inside must start *immediately*
+and skip into itself by the same amount, and getting either half wrong sounds like a
+sync bug rather than the arithmetic one it is.
+
+Verified in Chrome rather than asserted: three cues, three clips fetched and decoded,
+correct offsets from both `t=0` and mid-line (`offset: 0.5, duration: 1.5`), no page
+errors. A stale decode cannot play late — each run carries a generation, and a clip
+whose moment passed while it was loading is dropped rather than started behind.
+
 ### 6.13 A real data-corruption bug, found by a compiler flag (M13)
 
 `apps/studio` under both strict flags: 163 errors at first count, 76 after the engine

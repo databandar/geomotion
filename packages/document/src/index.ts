@@ -12,7 +12,14 @@
  */
 
 export { createLayer, defaultTour, emptyProject, keyframe, migrate } from './project.ts';
-export { isRetimable, planAudio, type AudioPlan } from './audio.ts';
+export {
+  canPlayPerCue,
+  isRetimable,
+  planAudio,
+  scheduleFrom,
+  type AudioPlan,
+  type ScheduledCue,
+} from './audio.ts';
 export { History } from './history.ts';
 export { applyPatches, isNoop, transact, type Patch, type Transaction } from './transact.ts';
 export type * from './types.ts';
