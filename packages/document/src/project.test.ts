@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Layer } from './types.ts';
-import { createLayer, keyframe, migrate } from './project.ts';
+import type { Layer, RegionsLayer } from './types.ts';
+import { createLayer, defaultTour, keyframe, migrate } from './project.ts';
 
 /**
  * Behavioural spec for document construction and migration.
@@ -72,6 +72,106 @@ describe('migrate', () => {
     const before = JSON.stringify(input);
     migrate(input);
     expect(JSON.stringify(input)).toBe(before);
+  });
+
+  describe('the pre-M9 flat tour', () => {
+    /** A region layer as a document written before the tour was nested. */
+    const legacy = () => ({
+      type: 'regions' as const,
+      id: 'r1',
+      tour: true,
+      order: 'valueAsc' as const,
+      customOrder: ['Kerala'],
+      dwell: 3.7,
+      stopDurations: [1, 2, 3],
+      moveTime: 1.4,
+      driveCamera: false,
+      padding: 0.31,
+      maxZoom: 6,
+      tourPitch: 42,
+      countUp: false,
+      sequenceReveal: false,
+      cameraOvershoot: false,
+      cameraBow: 0.8,
+      dimOthers: 0.6,
+      intro: 9,
+      introTrace: false,
+      outro: 11,
+      labelAll: false,
+      labelSize: 22,
+      labelAt: 30,
+    });
+
+    const tourOf = (input: unknown) => (migrate({ layers: [input] }).layers[0] as RegionsLayer).tour;
+
+    it('lifts every flat field into the nested behaviour', () => {
+      // A migration that silently resets someone's pacing to the defaults is data
+      // loss that looks like a preference change.
+      expect(tourOf(legacy())).toEqual({
+        enabled: true,
+        order: 'valueAsc',
+        customOrder: ['Kerala'],
+        dwell: 3.7,
+        stopDurations: [1, 2, 3],
+        moveTime: 1.4,
+        driveCamera: false,
+        padding: 0.31,
+        maxZoom: 6,
+        pitch: 42,
+        overshoot: false,
+        bow: 0.8,
+        sequenceReveal: false,
+        countUp: false,
+        dimOthers: 0.6,
+        intro: 9,
+        introTrace: false,
+        outro: 11,
+        labelAll: false,
+        labelSize: 22,
+        labelAt: 30,
+      });
+    });
+
+    it('carries the renamed fields across', () => {
+      // tourPitch -> pitch, cameraOvershoot -> overshoot, cameraBow -> bow.
+      const t = tourOf({ ...legacy(), tourPitch: 12, cameraOvershoot: true, cameraBow: 0.11 });
+      expect(t.pitch).toBe(12);
+      expect(t.overshoot).toBe(true);
+      expect(t.bow).toBeCloseTo(0.11, 6);
+    });
+
+    it('reads the old boolean as the on/off switch', () => {
+      expect(tourOf({ ...legacy(), tour: false }).enabled).toBe(false);
+      expect(tourOf({ ...legacy(), tour: true }).enabled).toBe(true);
+    });
+
+    it('fills defaults for fields an old document never had', () => {
+      const t = tourOf({ type: 'regions', id: 'r1', tour: true, dwell: 5 });
+      expect(t.dwell).toBe(5);
+      expect(t.order).toBe(defaultTour().order);
+      expect(t.maxZoom).toBe(defaultTour().maxZoom);
+    });
+
+    it('leaves an already-nested tour alone, filling only what is missing', () => {
+      const t = tourOf({ type: 'regions', id: 'r1', tour: { enabled: false, dwell: 8 } });
+      expect(t.enabled).toBe(false);
+      expect(t.dwell).toBe(8);
+      expect(t.intro).toBe(defaultTour().intro);
+    });
+
+    it('distinguishes a false from a missing value', () => {
+      // `driveCamera: false` must survive; `pick` has to test for undefined, not
+      // falsiness, or every deliberate "off" silently reverts to the default.
+      const t = tourOf({ type: 'regions', id: 'r1', tour: true, driveCamera: false, countUp: false, labelAt: 0 });
+      expect(t.driveCamera).toBe(false);
+      expect(t.countUp).toBe(false);
+      expect(t.labelAt).toBe(0);
+    });
+
+    it('round-trips once migrated', () => {
+      const once = migrate({ layers: [legacy()] });
+      expect(migrate(JSON.parse(JSON.stringify(once)))).toEqual(once);
+    });
   });
 
   it('is idempotent', () => {

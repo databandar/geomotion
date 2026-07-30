@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useStore, useSelectedKeyframe, useSelectedLayer } from '../store';
-import type { CloudsLayer, ImageLayer, MarkerLayer, RegionsLayer, RouteLayer, ShapeLayer, TextLayer } from '@geomotion/document';
+import type {
+  CloudsLayer,
+  ImageLayer,
+  MarkerLayer,
+  RegionsLayer,
+  RegionTour,
+  RouteLayer,
+  ShapeLayer,
+  TextLayer,
+} from '@geomotion/document';
 import { regionSet } from '../lib/regions';
 import { tourDuration } from '../lib/scene';
 import { RAMPS, getRamp, rampColor } from '../lib/palettes';
@@ -556,6 +565,9 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
   const set = regionSet(layer, getBasemap(basemap).dark);
   const tourLength = tourDuration(layer, getBasemap(basemap).dark);
   const apply = (p: Partial<RegionsLayer>, key?: string) => update<RegionsLayer>(layer.id, p, key);
+  /** Merge into the nested tour behaviour, so one control cannot drop the rest. */
+  const applyTour = (t: Partial<RegionTour>, key?: string) =>
+    apply({ tour: { ...layer.tour, ...t } }, key);
 
   /** Accept "Name, value" / "Name<tab>value" per line, and JSON objects too. */
   const importValues = (raw: string, replace: boolean) => {
@@ -734,7 +746,7 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
           <Slider value={layer.fillOpacity} onChange={(fillOpacity) => apply({ fillOpacity }, 'fo')} min={0} max={1} />
         </Field>
         <Field label="Dim others" hint="How far unvisited regions fade back">
-          <Slider value={layer.dimOthers} onChange={(dimOthers) => apply({ dimOthers }, 'dim')} min={0} max={0.9} />
+          <Slider value={layer.tour.dimOthers} onChange={(dimOthers) => applyTour({ dimOthers }, 'dim')} min={0} max={0.9} />
         </Field>
         <Field label="No-data colour">
           <Color value={layer.noDataColor} onChange={(noDataColor) => apply({ noDataColor })} />
@@ -765,32 +777,32 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
       <Section title="Opening & closing">
         <p className="hint">The tour opens on the whole map, visits each region, then pulls back out.</p>
         <Field label="Intro" hint="Overview held before the first region">
-          <Num value={layer.intro} onChange={(intro) => apply({ intro: Math.max(0, intro) })} step={0.5} min={0} suffix="s" />
+          <Num value={layer.tour.intro} onChange={(intro) => applyTour({ intro: Math.max(0, intro) })} step={0.5} min={0} suffix="s" />
         </Field>
         <Field label="Draw borders" hint="Every border draws itself on during the intro">
-          <Toggle value={layer.introTrace} onChange={(introTrace) => apply({ introTrace })} />
+          <Toggle value={layer.tour.introTrace} onChange={(introTrace) => applyTour({ introTrace })} />
         </Field>
         <Field label="Outro" hint="Overview held after the last region">
-          <Num value={layer.outro} onChange={(outro) => apply({ outro: Math.max(0, outro) })} step={0.5} min={0} suffix="s" />
+          <Num value={layer.tour.outro} onChange={(outro) => applyTour({ outro: Math.max(0, outro) })} step={0.5} min={0} suffix="s" />
         </Field>
         <Field label="Label everything" hint="Show every region's value in the closing overview">
-          <Toggle value={layer.labelAll} onChange={(labelAll) => apply({ labelAll })} />
+          <Toggle value={layer.tour.labelAll} onChange={(labelAll) => applyTour({ labelAll })} />
         </Field>
-        {layer.labelAll && (
+        {layer.tour.labelAll && (
           <Field label="Label size">
-            <Slider value={layer.labelSize} onChange={(labelSize) => apply({ labelSize }, 'ls')} min={8} max={40} step={1} precision={0} />
+            <Slider value={layer.tour.labelSize} onChange={(labelSize) => applyTour({ labelSize }, 'ls')} min={8} max={40} step={1} precision={0} />
           </Field>
         )}
       </Section>
 
       <Section title="Tour">
         <Field label="Enabled">
-          <Toggle value={layer.tour} onChange={(tour) => apply({ tour })} />
+          <Toggle value={layer.tour.enabled} onChange={(enabled) => applyTour({ enabled })} />
         </Field>
         <Field label="Order">
           <Select
-            value={layer.order}
-            onChange={(order) => apply({ order })}
+            value={layer.tour.order}
+            onChange={(order) => applyTour({ order })}
             options={[
               { value: 'valueDesc', label: 'Highest value first' },
               { value: 'valueAsc', label: 'Lowest value first' },
@@ -800,45 +812,45 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
             ]}
           />
         </Field>
-        {layer.order === 'custom' && (
+        {layer.tour.order === 'custom' && (
           <Text
-            value={layer.customOrder.join('\n')}
-            onChange={(v) => apply({ customOrder: v.split('\n').filter((x) => x.trim()) })}
+            value={layer.tour.customOrder.join('\n')}
+            onChange={(v) => applyTour({ customOrder: v.split('\n').filter((x) => x.trim()) })}
             multiline
             placeholder={'Kerala\nTamil Nadu\n…'}
           />
         )}
         <Field label="Seconds each">
-          <Num value={layer.dwell} onChange={(dwell) => apply({ dwell: Math.max(0.3, dwell) })} step={0.1} min={0.3} suffix="s" />
+          <Num value={layer.tour.dwell} onChange={(dwell) => applyTour({ dwell: Math.max(0.3, dwell) })} step={0.1} min={0.3} suffix="s" />
         </Field>
         <Field label="Fly time" hint="Camera travel at the start of each stop">
-          <Num value={layer.moveTime} onChange={(moveTime) => apply({ moveTime: Math.max(0, moveTime) })} step={0.1} min={0} suffix="s" />
+          <Num value={layer.tour.moveTime} onChange={(moveTime) => applyTour({ moveTime: Math.max(0, moveTime) })} step={0.1} min={0} suffix="s" />
         </Field>
         <Field label="Drive camera" hint="The tour overrides camera keyframes while it runs">
-          <Toggle value={layer.driveCamera} onChange={(driveCamera) => apply({ driveCamera })} />
+          <Toggle value={layer.tour.driveCamera} onChange={(driveCamera) => applyTour({ driveCamera })} />
         </Field>
-        {layer.driveCamera && (
+        {layer.tour.driveCamera && (
           <>
             <Field label="Framing pad">
-              <Slider value={layer.padding} onChange={(padding) => apply({ padding }, 'pad')} min={0} max={0.45} />
+              <Slider value={layer.tour.padding} onChange={(padding) => applyTour({ padding }, 'pad')} min={0} max={0.45} />
             </Field>
             <Field label="Max zoom" hint="Keeps very small regions from filling the frame with empty context">
-              <Slider value={layer.maxZoom} onChange={(maxZoom) => apply({ maxZoom }, 'mz')} min={2} max={16} step={0.5} precision={1} />
+              <Slider value={layer.tour.maxZoom} onChange={(maxZoom) => applyTour({ maxZoom }, 'mz')} min={2} max={16} step={0.5} precision={1} />
             </Field>
             <Field label="Pitch">
-              <Slider value={layer.tourPitch} onChange={(tourPitch) => apply({ tourPitch }, 'tp')} min={0} max={70} step={1} precision={0} />
+              <Slider value={layer.tour.pitch} onChange={(pitch) => applyTour({ pitch }, 'tp')} min={0} max={70} step={1} precision={0} />
             </Field>
           </>
         )}
         <Field label="Count up">
-          <Toggle value={layer.countUp} onChange={(countUp) => apply({ countUp })} />
+          <Toggle value={layer.tour.countUp} onChange={(countUp) => applyTour({ countUp })} />
         </Field>
 
         {set.order.length > 0 && (
           <>
             <p className="hint">
-              {set.order.length} stops · {tourLength.toFixed(1)}s total (intro {layer.intro}s + tour{' '}
-              {(set.order.length * layer.dwell).toFixed(1)}s + outro {layer.outro}s), ending at{' '}
+              {set.order.length} stops · {tourLength.toFixed(1)}s total (intro {layer.tour.intro}s + tour{' '}
+              {(set.order.length * layer.tour.dwell).toFixed(1)}s + outro {layer.tour.outro}s), ending at{' '}
               {(layer.in + tourLength).toFixed(1)}s
             </p>
             <div className="row-buttons">
@@ -864,7 +876,7 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
                   <button
                     key={r.id}
                     className="stop"
-                    onClick={() => setTime(layer.in + layer.intro + i * layer.dwell + Math.min(layer.moveTime + 0.3, layer.dwell - 0.05))}
+                    onClick={() => setTime(layer.in + layer.tour.intro + i * layer.tour.dwell + Math.min(layer.tour.moveTime + 0.3, layer.tour.dwell - 0.05))}
                     title={`Stop ${i + 1} — jump the playhead here`}
                   >
                     <span className="swatch" style={{ background: r.value === null ? layer.noDataColor : r.fill }} />

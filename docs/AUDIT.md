@@ -97,7 +97,7 @@ Ordered by risk × cost of delay.
 | D1 | ~~Zero tests~~ | — | **Closed in M3**: 157 tests over the six pure modules |
 | D2 | ~~No monorepo / package boundaries~~ | — | **Closed in M5**: workspace in M4, first packages + enforced dependency law in M5 |
 | D3 | ~~Document mutations clone the whole project~~ | — | **Closed in M6**: `transact` with structural sharing; history is a patch log |
-| D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
+| D4 | ~~`RegionsLayer` monolith~~ | — | **Closed in M10**: the tour is one nested behaviour; the layer went 46 -> 26 fields |
 | D5 | ~~`mapref.ts` module-global map handle~~ | — | **Closed in M7**: an explicit `RenderHost`, provided by whoever owns the canvas |
 | D6 | ~~Renderer reads the document through `Scene`~~ | — | **Closed in M8**: scene items carry a declared `style`, and an import ban keeps it that way |
 | D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
@@ -158,6 +158,36 @@ headless browser instead:
 | --- | --- |
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
+### 6.10 The tour becomes a behaviour (M10)
+
+`RegionsLayer` carried 46 fields where no other layer has more than 13, and
+ENGINEERING_GUIDE §3.8 names the reason directly: *"never add mode flags that fork
+a type's meaning."* `tour: boolean` forked it in the plainest way — a static
+choropleth and a self-touring one are different objects, and twenty-one of the
+layer's fields meant nothing unless that flag was set.
+
+Those twenty-one are now a nested `RegionTour`, and the layer has 26 fields. §3.8
+also says what this should eventually become — "a new behavior/graph node" — so the
+shape is chosen to be lifted out unchanged when the behaviour stack exists. Three
+fields lost prefixes that only existed to disambiguate siblings they no longer have:
+`tourPitch` -> `pitch`, `cameraOvershoot` -> `overshoot`, `cameraBow` -> `bow`.
+
+**The harness earned its place here.** Typecheck was clean and all 182 unit tests
+passed with the tour completely broken. Two writers set the flat fields and neither
+was type-checked into telling us:
+
+| Where | Why the compiler stayed quiet |
+| --- | --- |
+| `apps/studio/src/lib/fixtures.ts` | The object was cast `as Partial<Layer>`, and a cast erases excess-property checking. Now cast to `Partial<RegionsLayer>`, which is what would have caught it. |
+| `apps/pipeline/lib/compose.mjs` | Plain `.mjs`; there is no checking to do. The flat keys were simply ignored and the tour silently fell back to defaults. |
+
+`golden:check` reported 5 of 10 frames changed, up to 100% of cells. Nothing else in
+the repository would have noticed until someone watched a finished video.
+
+One bug in the migration itself, found by its own test: `filled.tour` is the *legacy
+boolean* for a pre-M9 document, so `current ?? defaultTour()` kept the boolean —
+`??` guards null, not the wrong type — and every default read as `undefined`.
 
 ### 6.9 What the attribution fix actually took (M9)
 
@@ -294,6 +324,11 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M10.** D4 is closed. The remaining flat surface on `RegionsLayer` is
+genuinely per-layer state — geometry, the value join, the colour scale, borders and
+readouts — and the tour sits beside it as the behaviour §3.8 asks for, ready to move
+into a behaviour stack as a lift rather than a redesign.
 
 **Update after M9.** D13 and D14 are closed, and D12 is partly closed: `apps/pipeline`
 has its first 11 tests, covering the two properties that a render surfaced and nothing

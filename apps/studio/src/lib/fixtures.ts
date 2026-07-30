@@ -1,5 +1,5 @@
-import { createLayer, emptyProject, keyframe } from '@geomotion/document';
-import type { Layer, LngLat, Project } from '@geomotion/document';
+import { createLayer, defaultTour, emptyProject, keyframe } from '@geomotion/document';
+import type { Layer, LngLat, Project, RegionsLayer } from '@geomotion/document';
 import indiaStates from '../data/india-states-official.json';
 import anemia from '../data/india-anemia-sample.json';
 import indiaOutline from '../data/india-outline-official.json';
@@ -132,15 +132,18 @@ export function indiaTourProject(): Project {
     unit: anemia._unit,
     decimals: 1,
     ramp: 'ember',
-    order: 'valueDesc',
-    dwell,
-    moveTime: 0.9,
-    padding: 0.24,
-    intro,
-    introTrace: true,
-    outro,
-    labelAll: true,
-    labelSize: 15,
+    tour: {
+      ...defaultTour(),
+      order: 'valueDesc',
+      dwell,
+      moveTime: 0.9,
+      padding: 0.24,
+      intro,
+      introTrace: true,
+      outro,
+      labelAll: true,
+      labelSize: 15,
+    },
     // Imagery is busy, so the state borders need a bit more weight than they
     // would over a flat vector basemap.
     borderWidth: 1.2,
@@ -148,7 +151,10 @@ export function indiaTourProject(): Project {
     out: duration,
     fade: 0.6,
     legendTitle: `${anemia._metric} (${anemia._unit})`,
-  } as Partial<Layer>);
+    // Typed as the specific layer, not Partial<Layer>: the loose cast is what let
+    // the flat tour fields survive here unnoticed when they stopped existing —
+    // excess-property checking is the thing that would have caught it.
+  } as Partial<RegionsLayer>);
 
   const title = createLayer('text', 0.4, {
     name: 'Title',

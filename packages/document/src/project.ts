@@ -1,5 +1,5 @@
 import { createId } from '@geomotion/core';
-import type { CameraKeyframe, Layer, LayerType, LngLat, Project } from './types.ts';
+import type { CameraKeyframe, Layer, LayerType, LngLat, Project, RegionOrder, RegionTour } from './types.ts';
 
 /**
  * Construction and migration for document nodes.
@@ -39,6 +39,38 @@ export function keyframe(t: number, center: LngLat, zoom: number, extra: Partial
     easing: 'easeInOutCubic',
     dip: 0,
     ...extra,
+  };
+}
+
+/**
+ * Tour defaults, in one place so `createLayer` and `migrate` agree.
+ *
+ * These are the values the demo was tuned with, not neutral ones: a 2.2s dwell and
+ * a 0.9s move are what make a stop feel visited rather than flicked past.
+ */
+export function defaultTour(): RegionTour {
+  return {
+    enabled: true,
+    order: 'valueDesc',
+    customOrder: [],
+    dwell: 2.2,
+    stopDurations: [],
+    moveTime: 0.9,
+    driveCamera: true,
+    padding: 0.22,
+    maxZoom: 8,
+    pitch: 0,
+    overshoot: true,
+    bow: 0.35,
+    sequenceReveal: true,
+    countUp: true,
+    dimOthers: 0.45,
+    intro: 4,
+    introTrace: true,
+    outro: 5,
+    labelAll: true,
+    labelSize: 15,
+    labelAt: -1,
   };
 }
 
@@ -146,28 +178,8 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         highlightColor: '#ffffff',
         highlightWidth: 3.5,
         traceBorder: true,
-        sequenceReveal: true,
-        cameraOvershoot: true,
-        cameraBow: 0.35,
         borderCasing: true,
-        dimOthers: 0.45,
-        intro: 4,
-        introTrace: true,
-        outro: 5,
-        labelAll: true,
-        labelSize: 15,
-        labelAt: -1,
-        tour: true,
-        order: 'valueDesc',
-        customOrder: [],
-        dwell: 2.2,
-        stopDurations: [],
-        moveTime: 0.9,
-        driveCamera: true,
-        padding: 0.22,
-        maxZoom: 8,
-        tourPitch: 0,
-        countUp: true,
+        tour: defaultTour(),
         showCallout: true,
         calloutSize: 100,
         showRank: true,
@@ -230,6 +242,82 @@ export function emptyProject(): Project {
   };
 }
 
+/**
+ * The flat tour fields a pre-M9 document carries, where `tour` was a boolean.
+ *
+ * Named rather than inlined so the old schema is legible: this is the contract the
+ * importer honours, and deleting a line here silently drops a user's setting.
+ */
+interface LegacyRegions {
+  tour?: boolean | RegionTour;
+  order?: RegionOrder;
+  customOrder?: string[];
+  dwell?: number;
+  stopDurations?: number[];
+  moveTime?: number;
+  driveCamera?: boolean;
+  padding?: number;
+  maxZoom?: number;
+  tourPitch?: number;
+  countUp?: boolean;
+  sequenceReveal?: boolean;
+  cameraOvershoot?: boolean;
+  cameraBow?: number;
+  dimOthers?: number;
+  intro?: number;
+  introTrace?: boolean;
+  outro?: number;
+  labelAll?: boolean;
+  labelSize?: number;
+  labelAt?: number;
+}
+
+/**
+ * Lift a pre-M9 region layer's flat tour settings into the nested behaviour.
+ *
+ * A document written before the split has `tour: true` and twenty-one siblings;
+ * one written after has `tour: { … }`. Both must open with every value the user
+ * set intact — a migration that quietly resets someone's pacing to the defaults is
+ * data loss that looks like a preference change.
+ */
+function migrateTour(legacy: LegacyRegions, current: RegionTour): RegionTour {
+  // Already nested: fill any field a newer build added and leave the rest alone.
+  if (legacy.tour && typeof legacy.tour === 'object') return { ...defaultTour(), ...legacy.tour };
+
+  const pick = <T,>(value: T | undefined, fallback: T): T => (value === undefined ? fallback : value);
+  // `current` came from spreading the legacy layer over a fresh one, so for a
+  // pre-M9 document it is the old boolean, not a tour. `??` would keep it — it
+  // guards null, not the wrong type — and every default would read as undefined.
+  const d = current && typeof current === 'object' ? current : defaultTour();
+  return {
+    // `tour` was the on/off flag; absent means an even older document, and those
+    // all toured — that was the only thing the layer did.
+    enabled: legacy.tour === undefined ? d.enabled : legacy.tour === true,
+    order: pick(legacy.order, d.order),
+    customOrder: pick(legacy.customOrder, d.customOrder),
+    dwell: pick(legacy.dwell, d.dwell),
+    stopDurations: pick(legacy.stopDurations, d.stopDurations),
+    moveTime: pick(legacy.moveTime, d.moveTime),
+    driveCamera: pick(legacy.driveCamera, d.driveCamera),
+    padding: pick(legacy.padding, d.padding),
+    maxZoom: pick(legacy.maxZoom, d.maxZoom),
+    // Renamed on the way in: the `tour`/`camera` prefixes were only there to
+    // disambiguate names that are no longer siblings of anything.
+    pitch: pick(legacy.tourPitch, d.pitch),
+    overshoot: pick(legacy.cameraOvershoot, d.overshoot),
+    bow: pick(legacy.cameraBow, d.bow),
+    sequenceReveal: pick(legacy.sequenceReveal, d.sequenceReveal),
+    countUp: pick(legacy.countUp, d.countUp),
+    dimOthers: pick(legacy.dimOthers, d.dimOthers),
+    intro: pick(legacy.intro, d.intro),
+    introTrace: pick(legacy.introTrace, d.introTrace),
+    outro: pick(legacy.outro, d.outro),
+    labelAll: pick(legacy.labelAll, d.labelAll),
+    labelSize: pick(legacy.labelSize, d.labelSize),
+    labelAt: pick(legacy.labelAt, d.labelAt),
+  };
+}
+
 export function migrate(input: unknown): Project {
   const p = { ...emptyProject(), ...(input as Project) };
   if (p.audio && (!p.audio.url || !Array.isArray(p.audio.cues))) delete p.audio;
@@ -240,6 +328,7 @@ export function migrate(input: unknown): Project {
       filled.marker = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).marker, ...filled.marker };
       filled.follow = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).follow, ...filled.follow };
     }
+    if (filled.type === 'regions') filled.tour = migrateTour(l as unknown as LegacyRegions, filled.tour);
     return filled;
   });
   return p;

@@ -155,18 +155,73 @@ export interface RegionsLayer extends LayerBase {
   highlightColor: string;
   highlightWidth: number;
   traceBorder: boolean;
-  /** stagger the reveal: border, then fill, then glow, then the number */
-  sequenceReveal: boolean;
-  /** camera overshoots and settles into each stop */
-  cameraOvershoot: boolean;
-  /** sideways bow on the path between stops, 0..1 */
-  cameraBow: number;
   /** dark casing under the base borders — the only way they read over satellite imagery */
   borderCasing: boolean;
+
+  /** the self-touring behaviour; see RegionTour */
+  tour: RegionTour;
+
+  /* readouts */
+  showCallout: boolean;
+  calloutSize: number;
+  showRank: boolean;
+  showLegend: boolean;
+  legendTitle: string;
+}
+
+/**
+ * The tour: a choropleth that visits its own regions one at a time.
+ *
+ * This used to be twenty-one flat fields on `RegionsLayer` alongside a
+ * `tour: boolean`, which ENGINEERING_GUIDE §3.8 rules out directly — "never add
+ * mode flags that fork a type's meaning". It forked the type in the plainest way:
+ * a static choropleth and a self-touring one are different objects, and two thirds
+ * of the layer's fields meant nothing unless the flag was set. The layer went from
+ * 46 fields to 26.
+ *
+ * §3.8 also says what this should eventually be: "a new behavior/graph node ...
+ * preferred for visual effects". This is the shape of that behaviour, held on the
+ * layer until the behaviour stack exists to hold it — at which point moving it is
+ * a lift, not a redesign.
+ */
+export interface RegionTour {
+  enabled: boolean;
+
+  /* which regions, in what order */
+  order: RegionOrder;
+  customOrder: string[];
+
+  /* pacing */
+  /** seconds each region holds the screen */
+  dwell: number;
+  /**
+   * Per-stop hold times, in tour order. Empty means every stop uses `dwell`;
+   * set it to give each region exactly as long as its narration needs.
+   */
+  stopDurations: number[];
+  /** seconds of camera travel at the start of each region's slot */
+  moveTime: number;
+
+  /* camera */
+  driveCamera: boolean;
+  /** framing padding as a fraction of the frame, 0..0.45 */
+  padding: number;
+  /** stops tiny regions (a single city, an island chain) filling the frame with context-free ocean */
+  maxZoom: number;
+  pitch: number;
+  /** camera overshoots and settles into each stop */
+  overshoot: boolean;
+  /** sideways bow on the path between stops, 0..1 */
+  bow: number;
+
+  /* how a stop reveals */
+  /** stagger the reveal: border, then fill, then glow, then the number */
+  sequenceReveal: boolean;
+  countUp: boolean;
   /** how far non-active regions fade back, 0..1 */
   dimOthers: number;
 
-  /* opening and closing beats */
+  /* the opening and closing beats, which exist only because of the tour */
   /** seconds of overview before the tour starts */
   intro: number;
   /** draw every border on during the intro */
@@ -178,34 +233,6 @@ export interface RegionsLayer extends LayerBase {
   labelSize: number;
   /** absolute second the all-region labels start arriving; -1 = start of outro */
   labelAt: number;
-
-  /* the tour */
-  tour: boolean;
-  order: RegionOrder;
-  customOrder: string[];
-  /** seconds each region holds the screen */
-  dwell: number;
-  /**
-   * Per-stop hold times, in tour order. Empty means every stop uses `dwell`;
-   * set it to give each region exactly as long as its narration needs.
-   */
-  stopDurations: number[];
-  /** seconds of camera travel at the start of each region's slot */
-  moveTime: number;
-  driveCamera: boolean;
-  /** framing padding as a fraction of the frame, 0..0.45 */
-  padding: number;
-  /** stops tiny regions (a single city, an island chain) filling the frame with context-free ocean */
-  maxZoom: number;
-  tourPitch: number;
-  countUp: boolean;
-
-  /* readouts */
-  showCallout: boolean;
-  calloutSize: number;
-  showRank: boolean;
-  showLegend: boolean;
-  legendTitle: string;
 }
 
 /** Drifting cloud cover — an opening beat that parts to reveal the map. */

@@ -203,7 +203,7 @@ function formatValue(v: number, decimals: number, unit: string): string {
 function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const { style, set } = r;
   if (style.showLegend && set.withValues > 0) drawLegend(f, r);
-  if (r.phase === 'outro' && style.labelAll) drawAllLabels(f, r);
+  if (r.phase === 'outro' && style.tour.labelAll) drawAllLabels(f, r);
   if (!style.showCallout || r.calloutAlpha <= 0 || r.activeId === null) return;
 
   const region = set.regions.find((x) => x.id === r.activeId);
@@ -337,7 +337,7 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
 function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
   const { style, set } = r;
   const { ctx } = f;
-  const size = style.labelSize * f.scale;
+  const size = style.tour.labelSize * f.scale;
 
   ctx.save();
   ctx.textAlign = 'center';

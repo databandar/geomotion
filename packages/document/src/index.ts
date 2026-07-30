@@ -11,7 +11,7 @@
  * put underneath it. The write path is now the thing that changes, not the shape.
  */
 
-export { createLayer, emptyProject, keyframe, migrate } from './project.ts';
+export { createLayer, defaultTour, emptyProject, keyframe, migrate } from './project.ts';
 export { History } from './history.ts';
 export { applyPatches, isNoop, transact, type Patch, type Transaction } from './transact.ts';
 export type * from './types.ts';

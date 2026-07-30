@@ -230,10 +230,10 @@ const GLOW_TIME = 0.75;
 function tourCamera(layer: RegionsLayer, set: RegionSet, project: Project, stop: number): CameraState {
   if (stop < 0 || stop >= set.order.length) {
     // Half the per-region pad: the overview is meant to fill the frame.
-    return fitBounds(set.bounds, project.width, project.height, Math.max(0.06, layer.padding * 0.5), 0);
+    return fitBounds(set.bounds, project.width, project.height, Math.max(0.06, layer.tour.padding * 0.5), 0);
   }
   const region = set.regions[set.order[stop]];
-  return fitBounds(region.bounds, project.width, project.height, layer.padding, layer.tourPitch, layer.maxZoom);
+  return fitBounds(region.bounds, project.width, project.height, layer.tour.padding, layer.tour.pitch, layer.tour.maxZoom);
 }
 
 /**
@@ -275,16 +275,16 @@ function blendCamera(a: CameraState, b: CameraState, e: number, bow = 0): Camera
  * closing overview where the whole picture is on screen at once.
  */
 export function tourPhases(layer: RegionsLayer, stops: number) {
-  const dwell = Math.max(0.2, layer.dwell);
-  const intro = Math.max(0, layer.intro);
-  const outro = Math.max(0, layer.outro);
+  const dwell = Math.max(0.2, layer.tour.dwell);
+  const intro = Math.max(0, layer.tour.intro);
+  const outro = Math.max(0, layer.tour.outro);
   const tourStart = layer.in + intro;
 
   // Per-stop times let a narrated tour give each region exactly as long as its
   // line takes; falling back to a uniform dwell keeps hand-built tours simple.
   const holds: number[] = [];
   for (let i = 0; i < stops; i++) {
-    const d = layer.stopDurations?.[i];
+    const d = layer.tour.stopDurations?.[i];
     holds.push(typeof d === 'number' && d > 0.05 ? d : dwell);
   }
   const offsets: number[] = [0];
@@ -308,12 +308,12 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
   const set = regionSet(layer, dark);
   const stops = set.order.length;
   const { intro, outro, tourStart, tourEnd, holds, offsets } = tourPhases(layer, stops);
-  const touring = layer.tour && stops > 0;
+  const touring = layer.tour.enabled && stops > 0;
 
   let phase: RegionPhase = 'tour';
   let activeIndex = -1;
   let local = 0;
-  let hold = Math.max(0.2, layer.dwell);
+  let hold = Math.max(0.2, layer.tour.dwell);
 
   if (!touring || time < tourStart) {
     phase = 'intro';
@@ -327,7 +327,7 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
   }
 
   // A stop shorter than the fly-in would never settle, so cap the move.
-  const move = Math.max(0, Math.min(layer.moveTime, hold * 0.6));
+  const move = Math.max(0, Math.min(layer.tour.moveTime, hold * 0.6));
   const settled = Math.max(0, local - move);
   const render: RegionsRender = {
     style: layer,
@@ -340,36 +340,36 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
     fillIn:
       activeIndex < 0
         ? 1
-        : layer.sequenceReveal
+        : layer.tour.sequenceReveal
           ? ease('easeOut', (settled - FILL_DELAY) / FILL_TIME)
           : 1,
     // Rises with the fill, then decays — a flash, not a permanent halo.
     glow:
-      activeIndex < 0 || !layer.sequenceReveal
+      activeIndex < 0 || !layer.tour.sequenceReveal
         ? 0
         : Math.sin(Math.PI * clamp01((settled - FILL_DELAY) / GLOW_TIME)),
     // With the trace switched off the borders are simply present from frame one —
     // a cold open has nothing to draw on.
     introTrace:
-      phase === 'intro' && layer.introTrace
+      phase === 'intro' && layer.tour.introTrace
         ? ease('easeInOutCubic', clamp01((time - layer.in) / Math.max(0.2, intro * 0.75)))
         : 1,
     outroProgress:
       phase === 'outro'
-        ? clamp01((time - (layer.labelAt >= 0 ? layer.labelAt : tourEnd)) / Math.max(0.2, outro * 0.4))
+        ? clamp01((time - (layer.tour.labelAt >= 0 ? layer.tour.labelAt : tourEnd)) / Math.max(0.2, outro * 0.4))
         : 0,
-    reveal: layer.countUp ? ease('easeOut', (settled - COUNT_DELAY) / COUNT_TIME) : 1,
+    reveal: layer.tour.countUp ? ease('easeOut', (settled - COUNT_DELAY) / COUNT_TIME) : 1,
     calloutAlpha: activeIndex >= 0 ? clamp01((settled - 0.18) / 0.3) : 0,
     pop: activeIndex >= 0 ? 0.86 + 0.14 * ease('easeOutBack', clamp01((settled - 0.18) / 0.42)) : 1,
     legendFill:
       phase === 'intro' ? ease('easeInOutCubic', clamp01((time - layer.in) / Math.max(0.3, intro * 0.5))) : 1,
     // In the overview beats every region is the subject, so nothing is dimmed.
-    dim: phase === 'tour' ? layer.dimOthers : 0,
+    dim: phase === 'tour' ? layer.tour.dimOthers : 0,
     flip: layer.flipRamp ?? dark,
   };
 
   let camera: CameraState | null = null;
-  if (layer.driveCamera && stops > 0 && alpha > 0) {
+  if (layer.tour.driveCamera && stops > 0 && alpha > 0) {
     const overview = tourCamera(layer, set, project, -1);
     if (phase === 'intro' || phase === 'outro') {
       camera = overview;
@@ -378,8 +378,8 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
       const from = activeIndex === 0 ? overview : tourCamera(layer, set, project, activeIndex - 1);
       // easeOutBack overshoots and settles, which is what makes the move feel
       // like it has weight instead of braking to a stop.
-      const curve: EasingName = layer.cameraOvershoot ? 'easeOutBack' : 'easeInOutCubic';
-      camera = move <= 0 ? to : blendCamera(from, to, ease(curve, clamp01(local / move)), layer.cameraBow);
+      const curve: EasingName = layer.tour.overshoot ? 'easeOutBack' : 'easeInOutCubic';
+      camera = move <= 0 ? to : blendCamera(from, to, ease(curve, clamp01(local / move)), layer.tour.bow);
     }
     // Ease back out to the overview rather than cutting to it.
     if (phase === 'outro' && stops > 0) {

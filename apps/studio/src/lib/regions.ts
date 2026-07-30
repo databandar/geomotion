@@ -104,8 +104,8 @@ export function regionSet(layer: RegionsLayer, basemapIsDark: boolean): RegionSe
     layer.ramp,
     String(layer.flipRamp),
     layer.autoDomain ? 'auto' : `${layer.min}-${layer.max}`,
-    layer.order,
-    layer.customOrder.join('|'),
+    layer.tour.order,
+    layer.tour.customOrder.join('|'),
     basemapIsDark,
     layer.noDataColor,
   ].join('~');
@@ -195,7 +195,7 @@ function buildOrder(layer: RegionsLayer, regions: Region[]): number[] {
   const idx = regions.map((_, i) => i);
   const val = (i: number) => regions[i].value;
 
-  switch (layer.order) {
+  switch (layer.tour.order) {
     case 'valueDesc':
       // Regions without a value would otherwise lead the tour; park them last.
       return idx
@@ -209,7 +209,7 @@ function buildOrder(layer: RegionsLayer, regions: Region[]): number[] {
       return idx.sort((a, b) => regions[a].name.localeCompare(regions[b].name));
     case 'custom': {
       const byName = new Map(regions.map((r, i) => [r.name.toLowerCase(), i]));
-      const picked = layer.customOrder
+      const picked = layer.tour.customOrder
         .map((n) => byName.get(n.trim().toLowerCase()))
         .filter((i): i is number => i !== undefined);
       return picked.length ? picked : idx;

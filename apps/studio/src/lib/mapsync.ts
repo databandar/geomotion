@@ -229,7 +229,7 @@ export function syncScene(map: MLMap, scene: Scene) {
     // Intro: every border draws itself on at once.
     const introId = `${src}-intro-line`;
     const introSrc = `${src}-intro`;
-    if (r.phase === 'intro' && style.introTrace && r.introTrace > 0 && r.introTrace < 1) {
+    if (r.phase === 'intro' && style.tour.introTrace && r.introTrace > 0 && r.introTrace < 1) {
       wanted.add(introSrc);
       ensureSource(map, introSrc, EMPTY);
       (map.getSource(introSrc) as GeoJSONSource | undefined)?.setData({

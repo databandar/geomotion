@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Layer, Project, RegionsLayer, TextLayer } from '@geomotion/document';
-import { createLayer, emptyProject, keyframe } from '@geomotion/document';
+import type { Layer, Project, RegionsLayer, RegionTour, TextLayer } from '@geomotion/document';
+import { createLayer, defaultTour, emptyProject, keyframe } from '@geomotion/document';
 import { demoProject, indiaTourProject } from './fixtures';
 import { cameraAt, clearPathCache, evaluate, layerAlpha, tourPhases } from './scene';
 import { clearRegionCache } from './regions';
@@ -197,9 +197,13 @@ describe('cameraAt — keyframe interpolation', () => {
 });
 
 describe('tourPhases — story timing', () => {
-  function tour(patch: Partial<RegionsLayer>): RegionsLayer {
+  function tour(patch: Partial<RegionTour>): RegionsLayer {
     const l = createLayer('regions', 3) as RegionsLayer;
-    return Object.assign(l, { intro: 4, outro: 5, dwell: 2, stopDurations: [] }, patch);
+    // The tour is one nested behaviour now, so a case overrides fields of it
+    // rather than of the layer.
+    return Object.assign(l, {
+      tour: { ...defaultTour(), intro: 4, outro: 5, dwell: 2, stopDurations: [], ...patch },
+    });
   }
 
   it('lays out intro, per-stop dwell, and outro end to end', () => {

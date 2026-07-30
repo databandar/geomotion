@@ -148,7 +148,7 @@ describe('transact', () => {
     const tx = transact(doc, (d) => {
       const l = d.layers[0] as RegionsLayer;
       l.values = { Kerala: 1 };
-      l.customOrder.push('Kerala');
+      l.tour.customOrder.push('Kerala');
     });
     expect((tx.next.layers[0] as RegionsLayer).values).toEqual({ Kerala: 1 });
     expect(applyPatches(tx.next, tx.backward)).toEqual(doc);

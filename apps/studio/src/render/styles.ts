@@ -93,9 +93,16 @@ export interface RegionsStyle {
   highlightColor: string;
   highlightWidth: number;
   borderCasing: boolean;
-  introTrace: boolean;
-  labelAll: boolean;
-  labelSize: number;
+  /**
+   * Only the three tour fields the renderer actually draws from. The rest of the
+   * behaviour — pacing, camera, ordering — is the evaluator's business and is
+   * already resolved into the scene by the time a frame is drawn.
+   */
+  tour: {
+    introTrace: boolean;
+    labelAll: boolean;
+    labelSize: number;
+  };
   showCallout: boolean;
   calloutSize: number;
   showRank: boolean;

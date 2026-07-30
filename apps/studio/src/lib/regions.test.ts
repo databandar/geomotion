@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { RegionsLayer } from '@geomotion/document';
-import { createLayer } from '@geomotion/document';
+import type { RegionsLayer, RegionTour } from '@geomotion/document';
+import { createLayer, defaultTour } from '@geomotion/document';
 import { clearRegionCache, fitBounds, regionSet } from './regions';
 
 /**
@@ -37,6 +37,11 @@ function twoSquares() {
       },
     ],
   });
+}
+
+/** A tour with just the fields a case cares about, defaults for the rest. */
+function tourWith(patch: Partial<RegionTour>): RegionTour {
+  return { ...defaultTour(), ...patch };
 }
 
 function layerWith(patch: Partial<RegionsLayer> = {}): RegionsLayer {
@@ -112,39 +117,39 @@ describe('regionSet — parsing and the data join', () => {
     const values = { Alpha: 10, Beta: 99 };
 
     it('valueDesc visits the highest first', () => {
-      const set = regionSet(layerWith({ values, order: 'valueDesc' }), false);
+      const set = regionSet(layerWith({ values, tour: tourWith({ order: 'valueDesc' }) }), false);
       expect(set.order.map((i) => set.regions[i].name)).toEqual(['Beta', 'Alpha']);
     });
 
     it('valueAsc visits the lowest first', () => {
-      const set = regionSet(layerWith({ values, order: 'valueAsc' }), false);
+      const set = regionSet(layerWith({ values, tour: tourWith({ order: 'valueAsc' }) }), false);
       expect(set.order.map((i) => set.regions[i].name)).toEqual(['Alpha', 'Beta']);
     });
 
     it('value orderings exclude unvalued regions so they cannot lead the tour', () => {
-      const set = regionSet(layerWith({ values: { Alpha: 10 }, order: 'valueDesc' }), false);
+      const set = regionSet(layerWith({ values: { Alpha: 10 }, tour: tourWith({ order: 'valueDesc' }) }), false);
       expect(set.order.map((i) => set.regions[i].name)).toEqual(['Alpha']);
     });
 
     it('alpha sorts by name, and geojson keeps file order', () => {
       expect(
-        regionSet(layerWith({ values, order: 'alpha' }), false).order,
+        regionSet(layerWith({ values, tour: tourWith({ order: 'alpha' }) }), false).order,
       ).toEqual([0, 1]);
       expect(
-        regionSet(layerWith({ values, order: 'geojson' }), false).order,
+        regionSet(layerWith({ values, tour: tourWith({ order: 'geojson' }) }), false).order,
       ).toEqual([0, 1]);
     });
 
     it('custom order follows the list, case-insensitively, dropping unknown names', () => {
       const set = regionSet(
-        layerWith({ values, order: 'custom', customOrder: ['beta', 'Nowhere', 'Alpha'] }),
+        layerWith({ values, tour: tourWith({ order: 'custom', customOrder: ['beta', 'Nowhere', 'Alpha'] }) }),
         false,
       );
       expect(set.order.map((i) => set.regions[i].name)).toEqual(['Beta', 'Alpha']);
     });
 
     it('custom order falls back to every region when nothing matches', () => {
-      const set = regionSet(layerWith({ values, order: 'custom', customOrder: ['Nowhere'] }), false);
+      const set = regionSet(layerWith({ values, tour: tourWith({ order: 'custom', customOrder: ['Nowhere'] }) }), false);
       expect(set.order).toHaveLength(2);
     });
   });
