@@ -85,6 +85,8 @@ export interface RegionsStyle {
   metric: string;
   unit: string;
   decimals: number;
+  /** BCP 47 tag; see the document type. Renders must not depend on the machine. */
+  numberLocale: string;
   ramp: string;
   fillOpacity: number;
   noDataColor: string;

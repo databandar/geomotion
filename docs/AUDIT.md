@@ -189,6 +189,30 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.33 A number that depended on the machine (M32)
+
+Extracting the legend's arithmetic turned up a determinism bug. `formatValue` called
+`toLocaleString(undefined, …)`, which reads the *rendering machine's* locale — so one
+project produced `1,234.5` here, `1.234,5` on a German laptop and `12,34,567.8` on an
+Indian one. Different pixels from the same document, which is precisely what §14 says
+cannot happen, and it happens invisibly, in a file someone has already published.
+
+The format is part of the composition, so it now lives in the document:
+`RegionsLayer.numberLocale`, defaulting to `en-US`, with a Grouping control beside
+Decimals. Old projects pick it up through the existing default-spread in `migrate`.
+Ironically the lakh/crore grouping the shipped India demo wants was previously
+unreachable *and* would have appeared by accident for anyone whose laptop was set to
+`hi-IN`.
+
+The rest of the legend — box and bar sizing, tick and callout placement — moved to
+`legend.ts` with 16 tests. Two properties worth having pinned: the box grows *upward*
+for its no-data row, so adding one never pushes the tick labels off frame; and
+`scaleAt` survives a zero-width domain, which is ordinary data (every region carrying
+the same number) and previously divided to `NaN`, drawing no callout at all.
+
+Each test was checked by breaking the code deliberately. Goldens unchanged — this
+machine is `en-US`, which is now the explicit default rather than an accident.
+
 ### 6.32 The dashed toggle never worked (M31)
 
 `mapsync.ts` was 340 lines of stateful GL orchestration with no coverage — the app's

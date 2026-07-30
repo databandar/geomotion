@@ -761,6 +761,16 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
         <Field label="Decimals">
           <Num value={layer.decimals} onChange={(decimals) => apply({ decimals: Math.round(decimals) })} step={1} min={0} max={4} precision={0} />
         </Field>
+        <Field
+          label="Grouping"
+          hint="How digits are grouped and punctuated in the render. Stored in the project, so a video looks the same wherever it is exported."
+        >
+          <Select
+            value={layer.numberLocale}
+            onChange={(numberLocale) => apply({ numberLocale })}
+            options={NUMBER_LOCALES}
+          />
+        </Field>
 
         <p className="hint">Paste one region per line as “Name, value” — or a JSON object.</p>
         <Text value={paste} onChange={setPaste} multiline placeholder={'Kerala, 36.3\nWest Bengal, 71.4'} />
@@ -1178,6 +1188,21 @@ function ImageInspector({ layer }: { layer: ImageLayer }) {
 }
 
 /* ----------------------------------------------------------- composition */
+
+/*
+ * A short list, not every BCP 47 tag.
+ *
+ * These are the four grouping conventions that actually differ — thousands with a
+ * comma, with a dot, with a space, and the Indian lakh/crore grouping the shipped demo
+ * needs. Anything else can be typed into the project file; the point of the control is
+ * that the common cases are one click and the setting is visible at all.
+ */
+const NUMBER_LOCALES = [
+  { value: 'en-US', label: '1,234.5 — comma groups' },
+  { value: 'de-DE', label: '1.234,5 — dot groups' },
+  { value: 'fr-FR', label: '1 234,5 — space groups' },
+  { value: 'hi-IN', label: '12,34,567.8 — lakh / crore' },
+];
 
 const PRESETS: [string, number, number][] = [
   ['1080p landscape', 1920, 1080],

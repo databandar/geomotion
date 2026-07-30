@@ -1,4 +1,5 @@
 import { getRamp, rampColor, withAlpha, type LngLat } from '@geomotion/core';
+import { formatValue, legendMetrics, scaleAt } from './legend.ts';
 import {
   collides,
   labelAppear,
@@ -212,11 +213,6 @@ const INK = '#ffffff';
 const INK_DIM = 'rgba(255,255,255,0.62)';
 const SURFACE = 'rgba(12,16,22,0.86)';
 
-function formatValue(v: number, decimals: number, unit: string): string {
-  const n = v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  return unit ? `${n}${unit.length <= 2 ? '' : ' '}${unit}` : n;
-}
-
 function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const { style, set } = r;
   if (style.showLegend && set.withValues > 0) drawLegend(f, r);
@@ -239,7 +235,7 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const padY = 20 * s;
   const barH = 7 * s;
 
-  const shown = region.value === null ? '—' : formatValue(region.value * r.reveal, style.decimals, style.unit);
+  const shown = region.value === null ? '—' : formatValue(region.value * r.reveal, style.decimals, style.unit, style.numberLocale);
   const name = region.name.toUpperCase();
   const rankText = style.showRank && region.rank ? `RANK #${region.rank} of ${set.withValues}` : '';
   const metricText = style.metric || '';
@@ -373,7 +369,7 @@ function drawAllLabels(f: OverlayFrame, r: RegionsRender) {
     const p = f.project(region.anchor);
     if (offScreen(p, f.width, f.height)) return;
 
-    const value = region.value === null ? '—' : formatValue(region.value, style.decimals, style.unit);
+    const value = region.value === null ? '—' : formatValue(region.value, style.decimals, style.unit, style.numberLocale);
 
     ctx.font = `500 ${size * 0.78}px ${FONT_STACK}`;
     const nameW = ctx.measureText(region.name).width;
@@ -441,17 +437,12 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   const { style, set } = r;
   const { ctx } = f;
   const s = f.scale;
-  const barW = 260 * s;
-  const barH = 12 * s;
-  const pad = 16 * s;
-  const titleSize = 17 * s;
-  const tickSize = 14 * s;
   const hasNoData = set.regions.length > set.withValues;
-
-  const boxW = barW + pad * 2;
-  const boxH = pad * 2 + titleSize + 10 * s + barH + 6 * s + tickSize + (hasNoData ? tickSize + 8 * s : 0);
-  const x = 28 * s;
-  const y = f.height - boxH - 28 * s;
+  const { pad, barW, barH, titleSize, tickSize, boxW, boxH, x, y, barY, noDataY } = legendMetrics(
+    s,
+    f.height,
+    hasNoData,
+  );
 
   ctx.save();
   ctx.globalAlpha = r.alpha;
@@ -464,7 +455,6 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   ctx.textAlign = 'left';
   ctx.fillText(style.legendTitle || style.metric || 'Value', x + pad, y + pad + titleSize * 0.82);
 
-  const barY = y + pad + titleSize + 10 * s;
   const grad = ctx.createLinearGradient(x + pad, 0, x + pad + barW, 0);
   const ramp = getRamp(style.ramp);
   const flip = r.flip;
@@ -483,10 +473,10 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
 
   ctx.font = `500 ${tickSize}px ${FONT_STACK}`;
   ctx.fillStyle = INK_DIM;
-  ctx.fillText(formatValue(set.domain[0], style.decimals, style.unit), x + pad, barY + barH + 6 * s + tickSize * 0.85);
+  ctx.fillText(formatValue(set.domain[0], style.decimals, style.unit, style.numberLocale), x + pad, barY + barH + 6 * s + tickSize * 0.85);
   ctx.textAlign = 'right';
   ctx.fillText(
-    formatValue(set.domain[1], style.decimals, style.unit),
+    formatValue(set.domain[1], style.decimals, style.unit, style.numberLocale),
     x + pad + barW,
     barY + barH + 6 * s + tickSize * 0.85,
   );
@@ -494,8 +484,7 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   // Direct label: where the region on screen right now sits on the scale.
   const active = r.activeId ? set.regions.find((v) => v.id === r.activeId) : undefined;
   if (active && active.value !== null && r.calloutAlpha > 0) {
-    const t = (active.value - set.domain[0]) / Math.max(1e-9, set.domain[1] - set.domain[0]);
-    const tx = x + pad + Math.max(0, Math.min(1, t)) * barW;
+    const tx = x + pad + scaleAt(active.value, set.domain) * barW;
     ctx.globalAlpha = r.alpha * r.calloutAlpha;
     ctx.beginPath();
     ctx.moveTo(tx, barY - 5 * s);
@@ -508,7 +497,7 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   }
 
   if (hasNoData) {
-    const ny = barY + barH + 6 * s + tickSize + 8 * s + tickSize * 0.7;
+    const ny = noDataY;
     ctx.textAlign = 'left';
     ctx.fillStyle = style.noDataColor;
     roundRect(ctx, x + pad, ny - tickSize * 0.72, tickSize * 0.9, tickSize * 0.9, 2 * s);

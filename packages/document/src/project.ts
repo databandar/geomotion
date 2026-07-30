@@ -166,6 +166,9 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         metric: 'Value',
         unit: '',
         decimals: 1,
+        // A fixed default, so a project renders the same everywhere it is opened.
+        // Anyone wanting lakh/crore grouping or a comma decimal picks their own.
+        numberLocale: 'en-US',
         ramp: 'blue',
         flipRamp: null,
         autoDomain: true,

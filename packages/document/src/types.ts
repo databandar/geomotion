@@ -138,6 +138,14 @@ export interface RegionsLayer extends LayerBase {
   metric: string;
   unit: string;
   decimals: number;
+  /**
+   * How numbers are grouped and punctuated — a BCP 47 tag.
+   *
+   * Part of the document rather than the machine: this text is baked into an exported
+   * video, and taking it from the renderer's environment meant the same project read
+   * `1,234.5` on one laptop and `1.234,5` on another.
+   */
+  numberLocale: string;
 
   /* choropleth */
   ramp: string;
