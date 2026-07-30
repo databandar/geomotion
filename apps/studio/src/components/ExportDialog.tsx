@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { canWriteToFolder, exportFrames, exportVideo, ffmpegCommand, type ExportOptions } from '../lib/export';
+import { useRenderHost } from '../render/host';
 
 export default function ExportDialog({ onClose }: { onClose: () => void }) {
   const project = useStore((s) => s.project);
@@ -14,17 +15,21 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
   });
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
+  const host = useRenderHost();
 
   const totalFrames = Math.round(project.duration * project.fps);
   const running = !!status?.active;
 
   const run = async () => {
     setError(null);
+    // The map has to exist before anything can be composited from it.
+    if (!host) return setError('The map is still loading.');
     cancelled.current = false;
     setExportStatus({ active: true, label: 'Preparing…', progress: 0, cancel: () => (cancelled.current = true) });
     try {
       if (mode === 'video') {
         await exportVideo(
+          host,
           project,
           opts,
           (p) => setExportStatus({ active: true, label: 'Recording…', progress: p, cancel: () => (cancelled.current = true) }),
@@ -32,6 +37,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
         );
       } else {
         await exportFrames(
+          host,
           project,
           opts,
           (p, label) => setExportStatus({ active: true, label, progress: p, cancel: () => (cancelled.current = true) }),

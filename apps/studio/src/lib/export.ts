@@ -1,5 +1,5 @@
 import type { Project } from '@geomotion/document';
-import { getMap, getOverlayCanvas, renderFrameAt, waitForIdle } from './mapref';
+import type { RenderHost } from '../render/host';
 import { useStore } from '../store';
 import { ZipWriter } from './zip';
 import { getBasemap } from './basemaps';
@@ -26,11 +26,10 @@ function attributionText(project: Project): string {
   return `© OpenStreetMap contributors · ${base.name}${extra}`;
 }
 
-function composite(target: HTMLCanvasElement, project: Project, opts: ExportOptions) {
-  const map = getMap();
-  const overlay = getOverlayCanvas();
+function composite(host: RenderHost, target: HTMLCanvasElement, project: Project, opts: ExportOptions) {
+  const { map, overlayCanvas: overlay } = host;
   const ctx = target.getContext('2d');
-  if (!map || !overlay || !ctx) return;
+  if (!overlay || !ctx) return;
 
   ctx.clearRect(0, 0, target.width, target.height);
   ctx.fillStyle = project.background;
@@ -59,7 +58,11 @@ function composite(target: HTMLCanvasElement, project: Project, opts: ExportOpti
  * resize — we just suppress the editor-only chrome and give the map a moment to
  * settle before the first capture.
  */
-async function withExportStage<T>(project: Project, run: (canvas: HTMLCanvasElement) => Promise<T>): Promise<T> {
+async function withExportStage<T>(
+  host: RenderHost,
+  project: Project,
+  run: (canvas: HTMLCanvasElement) => Promise<T>,
+): Promise<T> {
   const store = useStore.getState();
   const restoreTime = store.time;
   store.setPlaying(false);
@@ -67,7 +70,7 @@ async function withExportStage<T>(project: Project, run: (canvas: HTMLCanvasElem
 
   await nextFrame();
   await nextFrame();
-  await waitForIdle(getMap()!, 12000);
+  await host.waitForIdle(12000);
 
   const canvas = document.createElement('canvas');
   canvas.width = project.width;
@@ -111,11 +114,17 @@ const safeName = (p: Project) => (p.name.replace(/[^\w-]+/g, '_') || 'animation'
  * always has the right duration, at the cost of dropping frames if the scene is
  * heavy or tiles are still streaming in.
  */
-export async function exportVideo(project: Project, opts: ExportOptions, onProgress: (p: number) => void, isCancelled: () => boolean) {
+export async function exportVideo(
+  host: RenderHost,
+  project: Project,
+  opts: ExportOptions,
+  onProgress: (p: number) => void,
+  isCancelled: () => boolean,
+) {
   const mime = pickMimeType();
   if (!mime) throw new Error('This browser cannot record video. Use the PNG sequence export instead.');
 
-  return withExportStage(project, async (canvas) => {
+  return withExportStage(host, project, async (canvas) => {
     const stream = canvas.captureStream(project.fps);
     const chunks: Blob[] = [];
     const recorder = new MediaRecorder(stream, {
@@ -129,8 +138,8 @@ export async function exportVideo(project: Project, opts: ExportOptions, onProgr
     });
 
     // Pre-roll: get frame zero fully painted before the recorder starts.
-    renderFrameAt(0);
-    await waitForIdle(getMap()!, 10000);
+    host.renderFrameAt(0);
+    await host.waitForIdle(10000);
     await nextFrame();
 
     recorder.start();
@@ -140,16 +149,16 @@ export async function exportVideo(project: Project, opts: ExportOptions, onProgr
     while (t < project.duration) {
       if (isCancelled()) break;
       t = (performance.now() - started) / 1000;
-      renderFrameAt(Math.min(t, project.duration));
+      host.renderFrameAt(Math.min(t, project.duration));
       await nextFrame();
-      composite(canvas, project, opts);
+      composite(host, canvas, project, opts);
       onProgress(Math.min(1, t / project.duration));
     }
 
     // Hold the last frame briefly so the final moment isn't clipped.
-    renderFrameAt(project.duration);
+    host.renderFrameAt(project.duration);
     await nextFrame();
-    composite(canvas, project, opts);
+    composite(host, canvas, project, opts);
     await sleep(250);
 
     recorder.stop();
@@ -202,6 +211,7 @@ async function makeSink(project: Project, opts: ExportOptions): Promise<FrameSin
  * and (optionally) waits for all tiles, so nothing is ever half-loaded.
  */
 export async function exportFrames(
+  host: RenderHost,
   project: Project,
   opts: ExportOptions,
   onProgress: (p: number, label: string) => void,
@@ -211,15 +221,15 @@ export async function exportFrames(
   const total = Math.max(1, Math.round(project.duration * project.fps));
   const pad = String(total).length + 1;
 
-  return withExportStage(project, async (canvas) => {
+  return withExportStage(host, project, async (canvas) => {
     for (let i = 0; i < total; i++) {
       if (isCancelled()) break;
       const t = i / project.fps;
-      renderFrameAt(t);
-      if (opts.waitForTiles) await waitForIdle(getMap()!, 6000);
+      host.renderFrameAt(t);
+      if (opts.waitForTiles) await host.waitForIdle(6000);
       await nextFrame();
       await nextFrame();
-      composite(canvas, project, opts);
+      composite(host, canvas, project, opts);
 
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
       if (blob) await sink.write(`frame_${String(i).padStart(pad, '0')}.png`, blob);

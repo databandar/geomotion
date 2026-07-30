@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MapCanvas from './components/MapCanvas';
 import Timeline from './components/Timeline';
 import LayerPanel from './components/LayerPanel';
@@ -9,19 +9,34 @@ import ExportDialog from './components/ExportDialog';
 import Studio from './studio/Studio';
 import Narration from './components/Narration';
 import { useStore } from './store';
-import { getMap } from './lib/mapref';
+import { RenderHostProvider, type RenderHost } from './render/host';
+import { installHeadlessApi } from './lib/headless';
 
 export default function App() {
   const [showExport, setShowExport] = useState(false);
   // 'min' keeps Studio mounted while you work in the editor, so its script,
   // recordings and preview state survive the round trip.
   const [studio, setStudio] = useState<'closed' | 'open' | 'min'>('closed');
+  /**
+   * The render surface, published by MapCanvas once the map exists. App owns it
+   * because the toolbar, inspector and export dialog are siblings of the canvas,
+   * not children of it.
+   */
+  const [host, setHost] = useState<RenderHost | null>(null);
   usePlayback();
-  useShortcuts();
+  useShortcuts(host);
+
+  // The automation surface the video pipeline drives. Installed here rather than
+  // at module load because it needs the host; the pipeline waits for
+  // `window.geomotion.ready`, which is satisfied as soon as the map is up.
+  useEffect(() => {
+    if (host) installHeadlessApi(host);
+  }, [host]);
 
   const exporting = useStore((s) => s.exporting);
 
   return (
+    <RenderHostProvider value={host}>
     <div className={'app' + (exporting ? ' exporting' : '')}>
       <Toolbar onExport={() => setShowExport(true)} onStudio={() => setStudio('open')} />
 
@@ -32,7 +47,7 @@ export default function App() {
 
         <main className="center">
           <div className="viewport">
-            <MapCanvas />
+            <MapCanvas onHostReady={setHost} />
             {exporting && <div className="export-badge">Rendering — don’t switch tabs</div>}
           </div>
           <Transport />
@@ -60,6 +75,7 @@ export default function App() {
         </button>
       )}
     </div>
+    </RenderHostProvider>
   );
 }
 
@@ -94,7 +110,15 @@ function usePlayback() {
   }, [playing]);
 }
 
-function useShortcuts() {
+function useShortcuts(host: RenderHost | null) {
+  /**
+   * Read through a ref, not the closure. The listener is attached once, so
+   * capturing `host` directly would pin it to its value on first render — null,
+   * before the map exists — and K would forever add a keyframe with default
+   * camera values instead of the current view.
+   */
+  const hostRef = useRef(host);
+  hostRef.current = host;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
@@ -130,7 +154,7 @@ function useShortcuts() {
           break;
         case 'k':
         case 'K': {
-          const map = getMap();
+          const map = hostRef.current?.map;
           if (!map) return s.addKeyframe();
           const c = map.getCenter();
           s.addKeyframe({

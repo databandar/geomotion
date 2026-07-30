@@ -280,8 +280,3 @@ export function useSelectedKeyframe(): CameraKeyframe | undefined {
  */
 export const useCanUndo = () => useStore((s) => s.historyRev >= 0 && history.canUndo);
 export const useCanRedo = () => useStore((s) => s.historyRev >= 0 && history.canRedo);
-
-// The headless renderer reads timeline state through this; see automation.d.ts.
-if (typeof window !== 'undefined') {
-  window.__geomotion_store = useStore;
-}

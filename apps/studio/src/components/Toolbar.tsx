@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useCanRedo, useCanUndo, useStore } from '../store';
-import { getMap } from '../lib/mapref';
+import { useRenderHost } from '../render/host';
 import { emptyProject, migrate } from '@geomotion/document';
 import { demoProject, indiaTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
@@ -13,6 +13,7 @@ interface Place {
 }
 
 export default function Toolbar({ onExport, onStudio }: { onExport: () => void; onStudio: () => void }) {
+  const host = useRenderHost();
   const name = useStore((s) => s.project.name);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
@@ -52,7 +53,7 @@ export default function Toolbar({ onExport, onStudio }: { onExport: () => void; 
         className="tb-btn"
         title="Add a camera keyframe at the playhead from the current view (K)"
         onClick={() => {
-          const map = getMap();
+          const map = host?.map;
           if (!map) return addKeyframe();
           const c = map.getCenter();
           addKeyframe({ center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
@@ -133,6 +134,7 @@ export default function Toolbar({ onExport, onStudio }: { onExport: () => void; 
 }
 
 function PlaceSearch() {
+  const host = useRenderHost();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Place[]>([]);
   const [busy, setBusy] = useState(false);
@@ -169,7 +171,7 @@ function PlaceSearch() {
   };
 
   const goto = (p: Place) => {
-    const map = getMap();
+    const map = host?.map;
     if (!map) return;
     if (p.bbox) {
       map.fitBounds(

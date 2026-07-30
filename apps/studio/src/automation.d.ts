@@ -1,22 +1,15 @@
-import type { Map as MLMap } from 'maplibre-gl';
 import type { useStore } from './store';
 
 /**
- * The window surface the headless renderer drives.
+ * Debug handle, dev builds only.
  *
- * `apps/pipeline/lib/render.mjs` steps the composition frame by frame through
- * these globals, so they are a real API contract with a consumer outside this
- * app — not debug leftovers. They were previously attached through `as any`,
- * which meant renaming one would have broken rendering with no typecheck error.
- *
- * ARCHITECTURE §14 replaces this with an explicit render host; until then, the
- * contract is at least written down.
+ * The *supported* automation surface is `window.geomotion` (see lib/headless.ts),
+ * which the video pipeline drives. An earlier `window.__geomotion_*` family sat
+ * alongside it for frame stepping and map access; nothing ever consumed it, so it
+ * was removed with `lib/mapref.ts` rather than documented.
  */
 declare global {
   interface Window {
-    __geomotion_renderFrameAt?: (t: number) => void;
-    __geomotion_getMap?: () => MLMap | null;
-    __geomotion_waitForIdle?: (m: MLMap, timeoutMs?: number) => Promise<void>;
-    __geomotion_store?: typeof useStore;
+    __store?: typeof useStore;
   }
 }

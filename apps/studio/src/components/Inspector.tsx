@@ -7,7 +7,7 @@ import { RAMPS, getRamp, rampColor } from '../lib/palettes';
 import indiaStatesOfficial from '../data/india-states-official.json';
 import indiaStatesNE from '../data/india-states.json';
 import { EASING_NAMES } from '../lib/easing';
-import { getMap } from '../lib/mapref';
+import { useRenderHost } from '../render/host';
 import { BASEMAPS, getBasemap } from '../lib/basemaps';
 import { Color, Field, Num, Section, Select, Slider, Text, Toggle } from './ui';
 import { haversine, measure, buildPath } from '@geomotion/geometry';
@@ -65,13 +65,14 @@ function TimingInspector() {
 /* -------------------------------------------------------------- keyframe */
 
 function KeyframeInspector() {
+  const host = useRenderHost();
   const kf = useSelectedKeyframe()!;
   const update = useStore((s) => s.updateKeyframe);
   const remove = useStore((s) => s.removeKeyframe);
   const duration = useStore((s) => s.project.duration);
 
   const captureView = () => {
-    const map = getMap();
+    const map = host?.map;
     if (!map) return;
     const c = map.getCenter();
     update(kf.id, {
@@ -83,7 +84,7 @@ function KeyframeInspector() {
   };
 
   const applyToMap = () => {
-    getMap()?.jumpTo({ center: kf.center, zoom: kf.zoom, bearing: kf.bearing, pitch: kf.pitch });
+    host?.map.jumpTo({ center: kf.center, zoom: kf.zoom, bearing: kf.bearing, pitch: kf.pitch });
   };
 
   return (
@@ -134,6 +135,7 @@ function KeyframeInspector() {
 /* ----------------------------------------------------------------- route */
 
 function RouteInspector({ layer }: { layer: RouteLayer }) {
+  const host = useRenderHost();
   const update = useStore((s) => s.updateLayer);
   const setTool = useStore((s) => s.setTool);
   const tool = useStore((s) => s.tool);
@@ -201,7 +203,7 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
           <button
             className="mini"
             onClick={() => {
-              const c = getMap()?.getCenter();
+              const c = host?.map.getCenter();
               if (c) set({ coords: [...layer.coords, [c.lng, c.lat]] });
             }}
           >
@@ -211,7 +213,7 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
             className="mini"
             disabled={layer.coords.length < 2}
             onClick={() => {
-              const map = getMap();
+              const map = host?.map;
               if (!map || layer.coords.length < 2) return;
               const b = layer.coords.reduce(
                 (acc, c) => [Math.min(acc[0], c[0]), Math.min(acc[1], c[1]), Math.max(acc[2], c[0]), Math.max(acc[3], c[1])],
@@ -340,6 +342,7 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
 /* ---------------------------------------------------------------- marker */
 
 function MarkerInspector({ layer }: { layer: MarkerLayer }) {
+  const host = useRenderHost();
   const update = useStore((s) => s.updateLayer);
   const setTool = useStore((s) => s.setTool);
   const tool = useStore((s) => s.tool);
@@ -365,13 +368,13 @@ function MarkerInspector({ layer }: { layer: MarkerLayer }) {
           <button
             className="mini"
             onClick={() => {
-              const c = getMap()?.getCenter();
+              const c = host?.map.getCenter();
               if (c) set({ coord: [c.lng, c.lat] });
             }}
           >
             Use map centre
           </button>
-          <button className="mini" onClick={() => getMap()?.flyTo({ center: layer.coord, duration: 700 })}>
+          <button className="mini" onClick={() => host?.map.flyTo({ center: layer.coord, duration: 700 })}>
             Go to
           </button>
         </div>

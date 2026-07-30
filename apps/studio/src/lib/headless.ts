@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { migrate } from '@geomotion/document';
-import { getMap, renderFrameAt, waitForIdle } from './mapref';
+import type { RenderHost } from '../render/host';
 import { evaluate } from './scene';
 import { imagesReady } from './images';
 
@@ -52,7 +52,7 @@ export interface HeadlessApi {
   };
 }
 
-export function installHeadlessApi() {
+export function installHeadlessApi(host: RenderHost) {
   const api: HeadlessApi = {
     ready: true,
 
@@ -61,13 +61,11 @@ export function installHeadlessApi() {
     },
 
     renderFrameAt(t) {
-      renderFrameAt(t);
+      host.renderFrameAt(t);
     },
 
     async waitIdle(timeoutMs = 15000) {
-      const map = getMap();
-      if (!map) return;
-      await waitForIdle(map, timeoutMs);
+      await host.waitForIdle(timeoutMs);
     },
 
     setExporting(v) {
@@ -108,7 +106,7 @@ export function installHeadlessApi() {
           fillOpacity: r.layer.fillOpacity,
         })),
       };
-      const map = getMap();
+      const map = host.map;
       if (!map) return { styleLoaded: false, sources: [], layers: [], scene: sceneInfo };
       const style = map.getStyle();
       const ours = (style?.layers ?? []).filter((l) => l.id.startsWith('gm-'));

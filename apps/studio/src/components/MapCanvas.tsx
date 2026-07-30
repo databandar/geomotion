@@ -6,7 +6,7 @@ import { evaluate, type Scene } from '../lib/scene';
 import { syncScene, resetSyncCache } from '../lib/mapsync';
 import { drawOverlay, scaleFor } from '../lib/overlay';
 import { getBasemap, TERRAIN_SOURCE } from '../lib/basemaps';
-import { setMap, setOverlayCanvas, setRenderAt } from '../lib/mapref';
+import { waitForIdle, type RenderHost } from '../render/host';
 import type { LngLat, MarkerLayer, RouteLayer, TextLayer } from '@geomotion/document';
 
 const seenSyncErrors = new Set<string>();
@@ -22,12 +22,21 @@ type DragTarget =
   | { kind: 'marker'; layerId: string }
   | { kind: 'text'; layerId: string; dx: number; dy: number };
 
-export default function MapCanvas() {
+/**
+ * `onHostReady` hands the render surface up to whoever owns the layout, which
+ * then provides it to the rest of the tree. That direction matters: the canvas
+ * owner publishes, consumers subscribe — nobody imports a global to find the map.
+ */
+export default function MapCanvas({ onHostReady }: { onHostReady?: (host: RenderHost | null) => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const holderRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const dragRef = useRef<DragTarget | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  /** Kept in refs so the published host never closes over a stale render. */
+  const onHostReadyRef = useRef(onHostReady);
+  onHostReadyRef.current = onHostReady;
   const styleIdRef = useRef<string>('');
   /**
    * The frame currently on screen. MapLibre's own `move` event triggers renders
@@ -61,7 +70,6 @@ export default function MapCanvas() {
     // The canvas is already the output size; a device pixel ratio on top of that
     // would quadruple the work for pixels the export never uses.
     map.setPixelRatio(1);
-    setMap(map);
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
     map.on('style.load', () => {
       resetSyncCache();
@@ -69,12 +77,12 @@ export default function MapCanvas() {
       render(true);
     });
     map.on('move', () => render(false));
+    setMapReady(true);
     map.on('mousedown', onMouseDown);
     map.on('click', onClick);
 
     return () => {
-      setMap(null);
-      setRenderAt(null);
+      onHostReadyRef.current?.(null);
       map.remove();
       mapRef.current = null;
     };
@@ -82,6 +90,8 @@ export default function MapCanvas() {
   }, []);
 
   /* ------------------------------------------------------------- rendering */
+  const renderRef = useRef<(applyCamera: boolean, atTime?: number) => void>(() => {});
+
   const render = (applyCamera: boolean, atTime?: number) => {
     const map = mapRef.current;
     const canvas = canvasRef.current;
@@ -198,13 +208,22 @@ export default function MapCanvas() {
     ctx.restore();
   };
 
+  // Published once the map exists. `render` closes over the latest props each
+  // commit, so the host forwards to a ref rather than capturing a stale closure.
+  renderRef.current = render;
+
   useEffect(() => {
-    setRenderAt((t: number) => render(true, t));
-    return () => {
-      setRenderAt(null);
+    const map = mapRef.current;
+    if (!map) return;
+    const host: RenderHost = {
+      map,
+      overlayCanvas: canvasRef.current,
+      renderFrameAt: (t: number) => renderRef.current(true, t),
+      waitForIdle: (timeoutMs?: number) => waitForIdle(map, timeoutMs),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    onHostReadyRef.current?.(host);
+    return () => onHostReadyRef.current?.(null);
+  }, [mapReady]);
 
   /* --------------------------------------------------- react to state change */
   useEffect(() => {
@@ -415,7 +434,7 @@ export default function MapCanvas() {
         style={{ width, height, flex: 'none', transform: `scale(${fitScale})`, transformOrigin: 'center center' }}
       >
         <div className="map-holder" ref={holderRef} />
-        <canvas className="overlay-canvas" ref={(el) => { canvasRef.current = el; setOverlayCanvas(el); }} />
+        <canvas className="overlay-canvas" ref={canvasRef} />
       </div>
     </div>
   );

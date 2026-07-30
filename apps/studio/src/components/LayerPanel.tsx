@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { getMap } from '../lib/mapref';
+import { useRenderHost } from '../render/host';
 import type { LayerType } from '@geomotion/document';
 
 const ADD: { type: LayerType; label: string; glyph: string }[] = [
@@ -13,6 +13,7 @@ const ADD: { type: LayerType; label: string; glyph: string }[] = [
 ];
 
 export default function LayerPanel() {
+  const host = useRenderHost();
   const layers = useStore((s) => s.project.layers);
   const selection = useStore((s) => s.selection);
   const camera = useStore((s) => s.project.camera);
@@ -52,7 +53,7 @@ export default function LayerPanel() {
             title="Add a keyframe at the playhead using the current map view"
             onClick={(e) => {
               e.stopPropagation();
-              const map = getMap();
+              const map = host?.map;
               if (!map) return addKeyframe();
               const c = map.getCenter();
               addKeyframe({

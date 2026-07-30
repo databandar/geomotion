@@ -98,11 +98,11 @@ Ordered by risk × cost of delay.
 | D2 | ~~No monorepo / package boundaries~~ | — | **Closed in M5**: workspace in M4, first packages + enforced dependency law in M5 |
 | D3 | ~~Document mutations clone the whole project~~ | — | **Closed in M6**: `transact` with structural sharing; history is a patch log |
 | D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
-| D5 | `apps/studio/src/lib/mapref.ts` module-global map handle | Named anti-pattern (guide §15); blocks worker rendering and multiplayer | M7 (with the `RenderScene` boundary, which is what replaces it) |
-| D6 | Renderer coupled to React + document (`MapCanvas.tsx` evaluates, syncs GL, draws overlay) | No `RenderScene` boundary; blocks worker export and WebGPU | M7 |
+| D5 | ~~`mapref.ts` module-global map handle~~ | — | **Closed in M7**: an explicit `RenderHost`, provided by whoever owns the canvas |
+| D6 | Renderer reads the document through `Scene`'s live `layer` references | The renderer destructures `layer` at 11 sites and reads ~127 fields off it, so `Scene` is not the structured-clone-safe `RenderScene` §14 specifies. The *mutation* risk is already closed (documents are frozen since M6); what remains is the dependency | M8 |
 | D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
 | D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
-| D9 | Export uses headless-Chrome screenshots (~4 fps) | Design doc §14 specifies WebCodecs in-page (10–20×) | M8 |
+| D9 | Export uses headless-Chrome screenshots | Measured 11 fps at 960×540 draft (1292 frames in 1m58s) — better than the ~4 fps first recorded, but that was full resolution. Design doc §14 specifies WebCodecs in-page | M9 |
 | D10 | `voice bed` mixed at compose time | Retiming desyncs narration (design doc §00, §10) | M6 |
 
 ### 6.0 Debt found after the initial audit
@@ -159,6 +159,30 @@ headless browser instead:
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
 
+### 6.6 Found by removing the global (M7)
+
+| Where | Finding |
+| --- | --- |
+| `App.tsx` `useShortcuts` | Threading the host through a hook introduced a **stale closure**: the keydown listener is attached once with `[]` deps, so capturing `host` directly pinned it to its first-render value of `null`. Pressing K would have added a keyframe with default camera values instead of the current view, silently, forever. Caught by `react-hooks/exhaustive-deps` — the rule installed in M5 that had never been able to run. Now read through a ref. |
+| `mapref.ts`, `store.ts` | The four `window.__geomotion_*` globals had **no consumer**. The video pipeline drives `window.geomotion` (the `HeadlessApi`); the other family was residue from an earlier approach. This corrects the M5 note that described them as "a real cross-process API contract" — they were vestigial, and went with `mapref.ts`. |
+
+The stale closure is the useful lesson: a module global has no dependency array, so
+converting one into a prop or context can silently introduce a staleness bug that the
+global could not have had. Worth expecting on the remaining conversions.
+
+### 6.5 Found by watching a finished render (M6 verification)
+
+A full draft render was run end to end to confirm the M4 path rewrites: 16 narration
+lines measured, an 86.1s timeline composed over 12 stops, voice bed mixed, 1292 frames
+captured at 11 fps, encoded to a valid 9.3 MB H.264/AAC MP4 with subtitles and a
+thumbnail. Looking at the output frame rather than just the exit code turned up two
+defects, both pre-existing and neither caused by the refactors:
+
+| # | Defect | Impact |
+| --- | --- | --- |
+| D13 | The bottom-centre source caption is drawn over the basemap's own attribution line, so the two collide into unreadable overlapping text | Visible in every frame of the outro on the landscape format. Attribution has to stay legible for the tile licence to be satisfied, so this is a licensing question as well as a cosmetic one |
+| D14 | The legend title renders in Devanagari, against the standing instruction that on-screen text stays Latin and Hindi lives only in the audio | Region labels and values already follow the rule; only the legend title and the caption do not |
+
 ### 6.3 Found by turning on the linter (M5)
 
 There was no ESLint configuration at all, so a handful of things had never been checked:
@@ -191,6 +215,17 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M7.** D5 is closed. The live map is no longer reachable by import:
+`RenderHost` is created by the component that owns the canvas and handed down, so
+React consumers take it from context and the export and automation paths take it as
+a parameter — the dependency is visible in their signatures.
+
+D6 is re-scoped rather than done. Its dangerous half — the renderer mutating the
+document through `Scene` — was already closed in M6 by freezing documents. What is
+left is a dependency concern across ~127 field reads, which is a mechanical but large
+change to 1173 lines of rendering code, and the type checker catches every missed
+field. It is M8.
 
 **Update after M6.** D3 is closed. Every document write goes through one
 transaction that produces a patch pair, documents are frozen so a write outside a
