@@ -109,8 +109,8 @@ function inPageSignature(gridLongEdge, mapOnly) {
  * collision dropping.
  */
 export const FIXTURES = [
-  { name: 'demo', fixture: 'demoProject', times: [0, 2.5, 6, 11] },
-  { name: 'tour', fixture: 'indiaTourProject', times: [0.5, 8, 16, 30, 60, 95] },
+  { name: 'demo', times: [0, 2.5, 6, 11] },
+  { name: 'tour', times: [0.5, 8, 16, 30, 60, 95] },
 ];
 
 export async function capture({ url = 'http://localhost:5173/', waitTiles = true } = {}) {
@@ -134,13 +134,14 @@ export async function capture({ url = 'http://localhost:5173/', waitTiles = true
 
     const frames = {};
     const mapOnly = {};
-    for (const { name, fixture, times } of FIXTURES) {
-      await page.evaluate(async (fx) => {
-        const mod = await import('/src/lib/fixtures.ts');
-        window.geomotion.loadProject(JSON.parse(JSON.stringify(mod[fx]())));
+    for (const { name, times } of FIXTURES) {
+      await page.evaluate((fixture) => {
+        // Through the app's own API rather than by importing its sources, so this
+        // drives a production build as readily as a dev server.
+        window.geomotion.loadDemo(fixture);
         // Hide editor-only chrome so a selection outline cannot alter a frame.
         window.geomotion.setExporting(true);
-      }, fixture);
+      }, name);
 
       await page.evaluate(() => window.geomotion.renderFrameAt(0));
       await page.evaluate(() => window.geomotion.waitIdle(30000));

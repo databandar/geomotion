@@ -1,5 +1,6 @@
 import { useStore } from '../store';
 import { migrate } from '@geomotion/document';
+import { demoProject, indiaTourProject } from './fixtures';
 import type { RenderHost } from '../render/host';
 import { evaluate } from '@geomotion/evaluator';
 import { imagesReady } from '@geomotion/renderer';
@@ -14,6 +15,16 @@ export interface HeadlessApi {
   ready: true;
   /** Load a .geomotion.json project (object, not string). */
   loadProject(project: unknown): void;
+  /**
+   * Load one of the bundled example compositions by name.
+   *
+   * The render harness used to reach for `/src/lib/fixtures.ts` directly, which only
+   * resolves against a dev server — against a production build there are no sources to
+   * import. Naming them here lets the same harness drive either.
+   */
+  loadDemo(name: 'demo' | 'tour'): void;
+  /** The names `loadDemo` accepts. */
+  demos(): string[];
   /** Draw one exact frame at the given timeline position. */
   renderFrameAt(t: number): void;
   /** Resolve once tiles for the current view have finished loading. */
@@ -66,6 +77,14 @@ export function installHeadlessApi(host: RenderHost) {
 
     loadProject(project) {
       useStore.getState().replaceProject(migrate(project));
+    },
+
+    loadDemo(name) {
+      useStore.getState().replaceProject(name === 'tour' ? indiaTourProject() : demoProject());
+    },
+
+    demos() {
+      return ['demo', 'tour'];
     },
 
     renderFrameAt(t) {
