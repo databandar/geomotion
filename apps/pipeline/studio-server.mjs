@@ -567,7 +567,7 @@ async function buildProjectAudio(script, built) {
         const clip = await resolveClip(slug, stop.__key, stop.say, script.voice);
         if (clip) {
           clips.push({ file: clip.file, start: t });
-          cues.push({ t: round3(t), d: round3(clip.duration), text: stop.say ?? '' });
+          cues.push({ t: round3(t), d: round3(clip.duration), text: stop.say ?? '', file: clip.file });
         }
         t += stop.duration;
       }
@@ -575,12 +575,15 @@ async function buildProjectAudio(script, built) {
       const clip = await resolveClip(slug, beat.__key, beat.say, script.voice);
       if (clip) {
         clips.push({ file: clip.file, start: beat.start });
-        cues.push({ t: round3(beat.start), d: round3(clip.duration), text: beat.say });
+        cues.push({ t: round3(beat.start), d: round3(clip.duration), text: beat.say, file: clip.file });
       }
     }
   }
   if (!clips.length) return undefined;
 
+  // The bed is a cache for editor playback. The cues above carry each line's own
+  // audio, which is what lets a later render re-mix at whatever positions the
+  // timeline has by then — see planAudio in @geomotion/document.
   const track = path.join(VOICE_ROOT, slug, 'track.wav');
   await buildVoiceTrack(clips, track, built.duration);
   return { url: `/voice-out/${slug}/track.wav?t=${Date.now()}`, file: track, cues };

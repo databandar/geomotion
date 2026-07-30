@@ -287,16 +287,45 @@ export type Layer =
 export type LayerType = Layer['type'];
 
 /**
- * Narration attached to a composition. Purely for authoring — the overlay never
- * draws it and the frame renderer ignores it; it exists so the editor can play
- * the voice against the picture and show where each line falls.
+ * Narration attached to a composition. The overlay never draws it and the frame
+ * renderer ignores it; it exists so the editor can play the voice against the
+ * picture, and so the renderer knows what to mux.
  */
 export interface ProjectAudio {
-  /** URL the editor can play (dev-server route, or a data URL) */
-  url: string;
-  /** absolute path on disk, for the renderer to mux */
+  /**
+   * A URL the editor can play the bed from — a dev-server route or a data URL.
+   *
+   * Optional: the CLI renderer has no server to serve one, and a `file://` URL is
+   * blocked in a page, so it writes the path in `file` and leaves this unset.
+   */
+  url?: string;
+  /** absolute path to the bed on disk, for the renderer to mux */
   file?: string;
-  cues: { t: number; d: number; text: string }[];
+  cues: AudioCue[];
+}
+
+/**
+ * One spoken line, positioned on the timeline.
+ *
+ * `file` is what makes narration retimable, and its absence was a real bug: the
+ * bed was mixed once at compose time and the per-line audio thrown away, so moving
+ * anything in the editor left the picture and the voice permanently out of step
+ * with no way back short of regenerating the whole video. Keep the line's own audio
+ * and a render can re-mix from wherever the cues now sit.
+ */
+export interface AudioCue {
+  /** start on the timeline, seconds */
+  t: number;
+  /** measured duration, seconds */
+  d: number;
+  /** the line as spoken, also used for subtitles */
+  text: string;
+  /**
+   * Absolute path to this line's own audio. Optional because documents written
+   * before this existed have only the bed; those still render, they just cannot
+   * be retimed.
+   */
+  file?: string;
 }
 
 export interface Project {

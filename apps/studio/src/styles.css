@@ -1951,3 +1951,19 @@ textarea.text-input.mono,
 .studio-pill:hover {
   background: #6bcdff;
 }
+
+/* Narration that cannot be retimed — see planAudio in @geomotion/document. */
+.track-voice .warn-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #b45309;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
+}

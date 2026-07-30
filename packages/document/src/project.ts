@@ -320,7 +320,15 @@ function migrateTour(legacy: LegacyRegions, current: RegionTour): RegionTour {
 
 export function migrate(input: unknown): Project {
   const p = { ...emptyProject(), ...(input as Project) };
-  if (p.audio && (!p.audio.url || !Array.isArray(p.audio.cues))) delete p.audio;
+  // Audio survives if there is anything to play or mux. Requiring `url` used to
+  // drop the whole block, so a project rendered by the CLI — which has no server
+  // to serve a URL from — lost its narration the moment it was opened.
+  if (p.audio) {
+    const cues = Array.isArray(p.audio.cues) ? p.audio.cues : null;
+    const usable = !!cues && (!!p.audio.url || !!p.audio.file || cues.some((c) => c.file));
+    if (!usable) delete p.audio;
+    else p.audio.cues = cues;
+  }
   p.camera = (p.camera ?? []).map((k) => ({ ...keyframe(0, [0, 0], 1), ...k }));
   p.layers = (p.layers ?? []).map((l) => {
     const filled = { ...createLayer(l.type, l.in ?? 0), ...l } as Layer;

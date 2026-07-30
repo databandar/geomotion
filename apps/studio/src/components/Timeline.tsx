@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useStore } from '../store';
+import { isRetimable } from '@geomotion/document';
 import type { RouteLayer } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
 
@@ -7,6 +8,8 @@ const GUTTER = 148;
 
 export default function Timeline() {
   const project = useStore((s) => s.project);
+  // Whether the voice will follow if anything is retimed; see planAudio.
+  const retimable = useStore((s) => isRetimable(s.project));
   const time = useStore((s) => s.time);
   const pxPerSec = useStore((s) => s.pxPerSec);
   const selection = useStore((s) => s.selection);
@@ -80,7 +83,22 @@ export default function Timeline() {
         <div className="tl-gutter" style={{ width: GUTTER }} ref={gutterRef}>
           <div className="tl-gutter-row tl-ruler-spacer" />
           <div className="tl-gutter-row track-camera">Camera</div>
-          {project.audio && <div className="tl-gutter-row track-voice">Narration</div>}
+          {project.audio && (
+            <div className="tl-gutter-row track-voice">
+              Narration
+              {!retimable && (
+                <span
+                  className="warn-dot"
+                  title={
+                    'This narration is a single pre-mixed track, so retiming will move the picture ' +
+                    'and leave the voice behind. Regenerate it from Studio to make it follow the timeline.'
+                  }
+                >
+                  !
+                </span>
+              )}
+            </div>
+          )}
           {project.layers.map((l) => (
             <div
               key={l.id}

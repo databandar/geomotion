@@ -18,7 +18,7 @@ export default function Narration() {
   // Follow play/pause.
   useEffect(() => {
     const el = ref.current;
-    if (!el || !audio) return;
+    if (!el || !audio?.url) return;
     if (playing) {
       el.currentTime = Math.max(0, useStore.getState().time);
       el.play().catch(() => {
@@ -43,6 +43,8 @@ export default function Narration() {
     return unsub;
   }, []);
 
-  if (!audio) return null;
+  // A project rendered by the CLI carries the bed as a path, not a URL, so there
+  // is nothing a page can play until Studio regenerates it.
+  if (!audio?.url) return null;
   return <audio ref={ref} src={audio.url} muted={muted} preload="auto" style={{ display: 'none' }} />;
 }

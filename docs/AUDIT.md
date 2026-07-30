@@ -103,7 +103,7 @@ Ordered by risk × cost of delay.
 | D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
 | D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
 | D9 | Export uses headless-Chrome screenshots | Measured 11 fps at 960×540 draft (1292 frames in 1m58s) — better than the ~4 fps first recorded, but that was full resolution. Design doc §14 specifies WebCodecs in-page | M9 |
-| D10 | `voice bed` mixed at compose time | Retiming desyncs narration (design doc §00, §10) | M6 |
+| D10 | ~~voice bed mixed at compose time~~ | — | **Closed in M11**: cues keep their own audio, and a render re-mixes from their current positions |
 
 ### 6.0 Debt found after the initial audit
 
@@ -158,6 +158,38 @@ headless browser instead:
 | --- | --- |
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
+### 6.11 Un-freezing the narration (M11)
+
+The mix was always position-driven — each line is delayed to its cue and summed. The
+only thing missing was keeping the positions, and each line's audio, in the document.
+So the fix is small: `AudioCue` gains a `file`, and `planAudio` decides between
+re-mixing from the cues and falling back to the bed.
+
+Three separate bugs turned out to be hiding behind the one register entry:
+
+| # | Bug |
+| --- | --- |
+| 1 | **The bed could not be retimed.** As recorded: mixed once at compose time, per-line audio discarded, so any later edit moved the picture and left the voice behind for good. |
+| 2 | **The CLI's exported project had no narration at all.** The project JSON was written *before* the voice track was built, so the file the tool invites you to "open in the editor to tweak by hand" carried no audio — the editor played nothing and re-rendering it came out silent. Worse than a desync, and nobody had noticed. |
+| 3 | **`migrate` deleted narration that had no playback URL.** It required `audio.url`, which the CLI cannot produce (no server to serve one, and a page may not load `file://`). Fixing bug 2 would have walked straight into this: the audio block would have been dropped the moment the project was opened. |
+
+Measured, not assumed. Shifting every cue 5s and re-mixing moves the first speech
+onset from **0.357s to 5.357s** — exactly the 5s the cues moved, per `silencedetect`.
+The editor-export path logs `re-mixed 16 narration clips at their current cue times`
+and renders 91.1s with narration.
+
+Also found: **the document package was not importable from plain node.** `History`
+used a constructor parameter property, which node's strip-only type stripping cannot
+handle — it needs code transformation, not just removal. Since the pipeline is `.mjs`
+and `apps/render-cli` will be, the whole package was unusable there, failing with a
+message that named neither the file nor the feature. Now a plain field, with a test
+that imports the package from `.mjs` because no typecheck can catch this.
+
+Still open: the editor previews the *bed*, so it plays the narration as originally
+mixed even when the cues have moved. The exported video is correct; the preview is
+not. Per-cue playback needs the Web Audio graph the design doc specifies, and the
+timeline now shows a warning marker when a composition's narration cannot follow it.
 
 ### 6.10 The tour becomes a behaviour (M10)
 
@@ -324,6 +356,11 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M11.** D10 is closed and the register has no open user-facing
+correctness items left. What remains is all structural: `packages/renderer` and
+`packages/map` (a move now that the type boundary is gone), WebCodecs export (D9),
+the two strict flags (D11), and the rest of the pipeline's coverage (D12).
 
 **Update after M10.** D4 is closed. The remaining flat surface on `RegionsLayer` is
 genuinely per-layer state — geometry, the value join, the colour scale, borders and

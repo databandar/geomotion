@@ -35,6 +35,9 @@ importers:
 
   apps/pipeline:
     dependencies:
+      '@geomotion/document':
+        specifier: workspace:*
+        version: link:../../packages/document
       puppeteer-core:
         specifier: ^23.0.0
         version: 23.11.1

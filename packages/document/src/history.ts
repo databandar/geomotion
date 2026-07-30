@@ -27,8 +27,19 @@ export class History {
   private past: Step[] = [];
   private future: Step[] = [];
 
-  /** Injectable so the coalescing window is testable without waiting. */
-  constructor(private now: () => number = Date.now) {}
+  /**
+   * Injectable so the coalescing window is testable without waiting.
+   *
+   * Declared as a plain field rather than a constructor parameter property:
+   * node strips types without transforming code, so a parameter property makes the
+   * whole package unimportable from plain `.mjs` — which `apps/render-cli` and the
+   * video pipeline are.
+   */
+  private readonly now: () => number;
+
+  constructor(now: () => number = Date.now) {
+    this.now = now;
+  }
 
   get canUndo() {
     return this.past.length > 0;

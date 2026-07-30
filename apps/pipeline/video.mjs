@@ -109,7 +109,6 @@ step(2, 'Composing timeline');
 const { project, beats, duration } = await compose(script, timings);
 if (script.__draftSize) Object.assign(project, script.__draftSize);
 
-await fs.writeFile(path.join(outDir, `${slug}.geomotion.json`), JSON.stringify(project, null, 2));
 await fs.writeFile(path.join(outDir, `${slug}.srt`), buildSrt(beats));
 ok(`${duration.toFixed(1)}s · ${project.width}×${project.height} @ ${project.fps}fps · ${project.layers.length} layers`);
 for (const b of beats) {
@@ -123,21 +122,60 @@ let voiceTrack = null;
 if (!flag('no-audio')) {
   step(3, 'Building voice track');
   const clips = [];
+  // Keyed by file so the cue can report what was said and how long it ran.
+  const clipDurations = new Map();
+  const clipTexts = new Map();
+  const note = (key, file, text) => {
+    clipDurations.set(file, timings.get(key) ?? 0);
+    clipTexts.set(file, text ?? '');
+  };
   for (const beat of beats) {
     if (beat.kind === 'tour') {
       let t = beat.start;
       for (const stop of beat.stops) {
-        if (clipFiles.has(stop.__key)) clips.push({ file: clipFiles.get(stop.__key), start: t });
+        if (clipFiles.has(stop.__key)) {
+          const file = clipFiles.get(stop.__key);
+          clips.push({ file, start: t });
+          note(stop.__key, file, stop.say);
+        }
         t += stop.duration;
       }
     } else if (clipFiles.has(beat.__key)) {
-      clips.push({ file: clipFiles.get(beat.__key), start: beat.start });
+      const file = clipFiles.get(beat.__key);
+      clips.push({ file, start: beat.start });
+      note(beat.__key, file, beat.say);
     }
   }
   voiceTrack = path.join(outDir, 'voice.wav');
   await buildVoiceTrack(clips, voiceTrack, duration);
   ok(`${clips.length} clips mixed onto a ${duration.toFixed(1)}s bed`);
+
+  /*
+   * Attach the narration to the project, keeping each line's own audio.
+   *
+   * Two bugs closed here. The project used to be written out *before* this step,
+   * so the file the CLI invites you to "open in the editor to tweak by hand" had
+   * no narration at all — the editor played nothing, and re-rendering it came out
+   * silent. And the bed alone cannot be retimed: with each cue's file kept, a
+   * later render re-mixes at whatever positions the timeline has by then (see
+   * planAudio in @geomotion/document).
+   */
+  const round3 = (n) => Math.round(n * 1000) / 1000;
+  project.audio = {
+    // No `url`: there is no server here to serve one, and a page may not load a
+    // file:// resource — the headless renderer logs it as an error if you try.
+    file: voiceTrack,
+    cues: clips.map((c) => ({
+      t: round3(c.start),
+      d: round3(clipDurations.get(c.file) ?? 0),
+      text: clipTexts.get(c.file) ?? '',
+      file: c.file,
+    })),
+  };
 }
+
+// Written after the voice track so it carries the narration with it.
+await fs.writeFile(path.join(outDir, `${slug}.geomotion.json`), JSON.stringify(project, null, 2));
 
 /* -------------------------------------------------------------- 4. build */
 

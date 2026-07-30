@@ -42,10 +42,25 @@ describe('migrate', () => {
     expect(p.duration).toBe(99);
   });
 
-  it('drops a malformed audio block instead of shipping a broken track', () => {
+  it('drops an audio block with nothing to play or mux', () => {
     expect(migrate({ audio: { cues: [] } }).audio).toBeUndefined();
     expect(migrate({ audio: { url: 'a.mp3' } }).audio).toBeUndefined();
+  });
+
+  it('keeps audio that has a playable URL', () => {
     expect(migrate({ audio: { url: 'a.mp3', cues: [] } }).audio).toEqual({ url: 'a.mp3', cues: [] });
+  });
+
+  it('keeps audio that has only a file, as the CLI renderer writes it', () => {
+    // Requiring `url` used to delete this, so a project rendered on the command
+    // line lost its narration the moment it was opened in the editor.
+    const audio = { file: '/abs/voice.wav', cues: [{ t: 0, d: 1, text: 'hi' }] };
+    expect(migrate({ audio }).audio).toEqual(audio);
+  });
+
+  it('keeps audio whose only asset is per-cue clips', () => {
+    const audio = { cues: [{ t: 0, d: 1, text: 'hi', file: '/abs/1.wav' }] };
+    expect(migrate({ audio }).audio).toEqual(audio);
   });
 
   it('fills camera keyframe defaults without discarding the authored values', () => {

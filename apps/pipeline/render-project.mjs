@@ -16,6 +16,8 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
+import { buildVoiceTrack } from './lib/tts.mjs';
+import { planAudio } from '@geomotion/document';
 
 const run = promisify(execFile);
 // Path anchors. Named explicitly because a single ambiguous "ROOT" is what broke
@@ -56,10 +58,43 @@ await fs.mkdir(outDir, { recursive: true });
 
 /* -------------------------------------------------------------- audio */
 
+/*
+ * Narration is re-mixed from the document's cue positions whenever it can be.
+ *
+ * This is the point of D10: the project you are rendering may have been retimed in
+ * the editor since the script was composed, and a bed mixed at compose time would
+ * put the voice where the picture used to be. An explicit --audio still wins, and a
+ * document whose cues have no per-line audio falls back to its bed.
+ */
 let audio = opt('audio', null);
-if (!audio && project.audio?.file) audio = project.audio.file;
 if (audio) {
   audio = path.resolve(REPO, audio);
+} else {
+  const plan = planAudio(project);
+  if (plan.kind === 'remix') {
+    const missing = [];
+    for (const c of plan.clips) {
+      try {
+        await fs.access(c.file);
+      } catch {
+        missing.push(c.file);
+      }
+    }
+    if (missing.length) {
+      console.warn(`    ! ${missing.length} narration clip(s) missing — falling back to the mixed bed`);
+      audio = project.audio?.file ?? null;
+    } else {
+      audio = path.join(outDir, 'voice.wav');
+      await buildVoiceTrack(plan.clips, audio, plan.duration);
+      console.log(`    re-mixed ${plan.clips.length} narration clips at their current cue times`);
+    }
+  } else if (plan.kind === 'bed') {
+    audio = plan.file;
+    console.log(`    using the pre-mixed bed (${plan.reason}); retiming will not move the voice`);
+  }
+}
+
+if (audio) {
   try {
     await fs.access(audio);
   } catch {

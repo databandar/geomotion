@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@geomotion/document": "workspace:*",
     "puppeteer-core": "^23.0.0"
   },
   "devDependencies": {
