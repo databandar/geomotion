@@ -1,0 +1,82 @@
+{
+  "title": "भारत में एनीमिया — टॉप 5 राज्य",
+  "slug": "anemia-india-short",
+  "format": "short",
+  "fps": 30,
+  "basemap": "satellite-labels",
+  "dataset": "india-official",
+  "values": "anemia-sample",
+  "ramp": "ember",
+  "credit": "सीमाएँ: भारत सरकार का चित्रण · नक्शा: Esri, OSM · आंकड़े: नमूना",
+  "voice": {
+    "engine": "say",
+    "voice": "Lekha",
+    "rate": 176
+  },
+  "metric": {
+    "label": "एनीमिया — महिलाएँ 15–49",
+    "unit": "%",
+    "decimals": 1,
+    "legend": "एनीमिया, महिलाएँ 15–49 (%)"
+  },
+  "zoom": 3.9,
+  "padding": 0.13,
+  "flyTime": 0.6,
+  "beatGap": 0.2,
+  "tailOut": 1.2,
+  "beats": [
+    {
+      "kind": "clouds",
+      "id": "hook",
+      "say": "भारत के किस राज्य में एनीमिया सबसे ज़्यादा है?",
+      "onScreen": "एनीमिया\nटॉप 5 राज्य",
+      "pad": 0.5,
+      "minLength": 2.4
+    },
+    {
+      "kind": "overview",
+      "id": "setup",
+      "say": "गहरा रंग मतलब ज़्यादा एनीमिया। एक-एक करके देखिए।",
+      "pad": 0.4
+    },
+    {
+      "kind": "tour",
+      "id": "tour",
+      "stopPad": 0.35,
+      "minStop": 1.8,
+      "stops": [
+        {
+          "region": "Ladakh",
+          "say": "नंबर एक, लद्दाख। {value} प्रतिशत।"
+        },
+        {
+          "region": "Lakshadweep",
+          "say": "नंबर दो, लक्षद्वीप। {value} प्रतिशत।"
+        },
+        {
+          "region": "West Bengal",
+          "say": "नंबर तीन, पश्चिम बंगाल। {value} प्रतिशत।"
+        },
+        {
+          "region": "Tripura",
+          "say": "नंबर चार, त्रिपुरा। {value} प्रतिशत।"
+        },
+        {
+          "region": "Assam",
+          "say": "नंबर पाँच, असम। {value} प्रतिशत।"
+        },
+        {
+          "region": "Kerala",
+          "say": "और सबसे कम? केरल। सिर्फ़ {value} प्रतिशत।"
+        }
+      ]
+    },
+    {
+      "kind": "labels",
+      "id": "close",
+      "labelAll": true,
+      "say": "पूरी लिस्ट के लिए फ़ॉलो करें।",
+      "pad": 0.9
+    }
+  ]
+}

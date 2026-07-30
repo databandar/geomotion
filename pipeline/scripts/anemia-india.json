@@ -1,0 +1,109 @@
+{
+  "title": "भारत में एनीमिया — राज्यवार तस्वीर",
+  "slug": "anemia-india",
+  "format": "landscape",
+  "fps": 30,
+  "basemap": "satellite-labels",
+  "dataset": "india-official",
+  "values": "anemia-sample",
+  "ramp": "ember",
+  "credit": "सीमाएँ: भारत सरकार का आधिकारिक चित्रण · नक्शा: Esri, OpenStreetMap · आंकड़े: नमूना — अपना स्रोत लगाएँ",
+  "voice": {
+    "engine": "say",
+    "voice": "Lekha",
+    "rate": 168
+  },
+  "metric": {
+    "label": "एनीमिया — महिलाएँ 15–49",
+    "unit": "%",
+    "decimals": 1,
+    "legend": "एनीमिया, महिलाएँ 15–49 (%)"
+  },
+  "beatGap": 0.3,
+  "tailOut": 1.6,
+  "beats": [
+    {
+      "kind": "clouds",
+      "id": "hook",
+      "say": "भारत में हर दूसरी महिला के खून में आयरन की कमी है। लेकिन यह कमी हर राज्य में एक जैसी नहीं है।",
+      "onScreen": "भारत में एनीमिया",
+      "pad": 0.8
+    },
+    {
+      "kind": "outline",
+      "id": "outline",
+      "say": "अट्ठाईस राज्य, आठ केंद्र शासित प्रदेश। और इनके बीच का फ़र्क़ हैरान कर देता है।",
+      "pad": 0.6
+    },
+    {
+      "kind": "overview",
+      "id": "setup",
+      "say": "गहरा रंग मतलब ज़्यादा एनीमिया। अब चलिए, सबसे ऊपर से शुरू करें।",
+      "onScreen": "महिलाएँ, 15 से 49 वर्ष",
+      "pad": 0.5
+    },
+    {
+      "kind": "tour",
+      "id": "tour",
+      "stopPad": 0.5,
+      "minStop": 2.2,
+      "stops": [
+        {
+          "region": "Ladakh",
+          "say": "पहले नंबर पर लद्दाख। {value} प्रतिशत। यह पूरे देश में सबसे ऊँचा आंकड़ा है।"
+        },
+        {
+          "region": "Lakshadweep",
+          "say": "दूसरे नंबर पर लक्षद्वीप। {value} प्रतिशत।"
+        },
+        {
+          "region": "West Bengal",
+          "say": "पश्चिम बंगाल, {value} प्रतिशत। बड़े राज्यों में सबसे ऊपर।"
+        },
+        {
+          "region": "Tripura",
+          "say": "त्रिपुरा, {value} प्रतिशत।"
+        },
+        {
+          "region": "Assam",
+          "say": "असम, {value} प्रतिशत।"
+        },
+        {
+          "region": "Jammu and Kashmir",
+          "say": "जम्मू और कश्मीर, {value} प्रतिशत।"
+        },
+        {
+          "region": "Jharkhand",
+          "say": "झारखंड, {value} प्रतिशत।"
+        },
+        {
+          "region": "Gujarat",
+          "say": "गुजरात, {value} प्रतिशत। एक समृद्ध राज्य, फिर भी यहाँ हालत ख़राब है।"
+        },
+        {
+          "region": "Odisha",
+          "say": "ओडिशा, {value} प्रतिशत।"
+        },
+        {
+          "region": "Bihar",
+          "say": "और बिहार, {value} प्रतिशत।"
+        },
+        {
+          "region": "Kerala",
+          "say": "अब दूसरे सिरे पर चलें। केरल, सिर्फ़ {value} प्रतिशत — देश में सबसे कम।"
+        },
+        {
+          "region": "Nagaland",
+          "say": "नागालैंड और मणिपुर भी तीस प्रतिशत के आसपास हैं।"
+        }
+      ]
+    },
+    {
+      "kind": "labels",
+      "id": "close",
+      "labelAll": true,
+      "say": "यह है पूरी तस्वीर। उत्तर-पूर्व और केरल में सबसे कम, और उत्तर-पूर्व के मैदानों में सबसे ज़्यादा। अगर यह जानकारी काम की लगी, तो चैनल को सब्सक्राइब करें।",
+      "pad": 1.2
+    }
+  ]
+}

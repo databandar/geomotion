@@ -1,0 +1,101 @@
+{
+  "title": "Where is child marriage highest in India?",
+  "slug": "child-marriage-short",
+  "format": "short",
+  "fps": 30,
+  "basemap": "satellite",
+  "dataset": "india-official",
+  "terrain": true,
+  "values": {
+    "nfhs": "Women age 20-24 years married before age 18 years (%)",
+    "round": "total"
+  },
+  "ramp": "crimson",
+  "flipRamp": false,
+  "credit": "Data: NFHS-6 · Boundaries: Govt. of India depiction · Imagery: Esri",
+  "voice": {
+    "engine": "voicebox",
+    "vbEngine": "kokoro",
+    "presetVoice": "hf_alpha",
+    "language": "hi",
+    "profileName": "GeoMotion Hindi (hf_alpha)"
+  },
+  "metric": {
+    "label": "Women 20–24 married before 18",
+    "unit": "%",
+    "decimals": 1,
+    "legend": "Married before 18 (%)"
+  },
+  "zoom": 3.9,
+  "padding": 0.13,
+  "pitch": 34,
+  "flyTime": 0.7,
+  "cameraBow": 0.4,
+  "beatGap": 0.18,
+  "tailOut": 1.0,
+  "beats": [
+    {
+      "kind": "hook",
+      "id": "hook",
+      "say": "भारत में हर पाँच में से एक लड़की की शादी अठारह साल से पहले हो जाती है।",
+      "onScreen": "CHILD MARRIAGE\nIN INDIA",
+      "pad": 0.4,
+      "minLength": 2.6
+    },
+    {
+      "kind": "overview",
+      "id": "setup",
+      "say": "गहरा रंग मतलब ज़्यादा बाल विवाह। सबसे ऊपर कौन?",
+      "onScreen": "Darker = higher",
+      "pad": 0.35
+    },
+    {
+      "kind": "tour",
+      "id": "tour",
+      "stopPad": 0.4,
+      "minStop": 2.0,
+      "stops": [
+        {
+          "region": "West Bengal",
+          "say": "नंबर एक — पश्चिम बंगाल। {value} प्रतिशत।"
+        },
+        {
+          "region": "Bihar",
+          "say": "नंबर दो — बिहार। {value} प्रतिशत।"
+        },
+        {
+          "region": "Tripura",
+          "say": "नंबर तीन — त्रिपुरा। {value} प्रतिशत।"
+        },
+        {
+          "region": "Jharkhand",
+          "say": "नंबर चार — झारखंड। {value} प्रतिशत।"
+        },
+        {
+          "region": "Assam",
+          "say": "नंबर पाँच — असम। {value} प्रतिशत।"
+        },
+        {
+          "region": "Kerala",
+          "say": "और सबसे कम? केरल। सिर्फ़ {value} प्रतिशत।"
+        }
+      ]
+    },
+    {
+      "kind": "ranking",
+      "id": "board",
+      "top": 5,
+      "heading": "TOP 5 HIGHEST",
+      "say": "यह है टॉप पाँच।",
+      "pad": 0.8,
+      "minLength": 2.6
+    },
+    {
+      "kind": "labels",
+      "id": "close",
+      "labelAll": true,
+      "say": "पूरे भारत की तस्वीर। फ़ॉलो करें।",
+      "pad": 0.9
+    }
+  ]
+}

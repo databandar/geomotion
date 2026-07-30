@@ -1,0 +1,776 @@
+<title>GeoMotion v2 — Design Document</title>
+<style>
+  :root {
+    --paper: #fafbfc;
+    --paper-2: #f1f4f6;
+    --ink: #16202b;
+    --ink-2: #4a5866;
+    --ink-3: #7b8794;
+    --hair: #d8dee4;
+    --accent: #0e7c86;
+    --accent-ink: #0a5b63;
+    --accent-wash: rgba(14, 124, 134, 0.07);
+    --decision: #c2571b;
+    --decision-wash: rgba(194, 87, 27, 0.06);
+    --code-bg: #eef1f4;
+    --good: #2e7d4f;
+    --bad: #b3423a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --paper: #0f141a;
+      --paper-2: #151c24;
+      --ink: #e8edf2;
+      --ink-2: #a8b4c0;
+      --ink-3: #6e7c8a;
+      --hair: #26303b;
+      --accent: #2fa8b3;
+      --accent-ink: #52bfc9;
+      --accent-wash: rgba(47, 168, 179, 0.09);
+      --decision: #e07b39;
+      --decision-wash: rgba(224, 123, 57, 0.08);
+      --code-bg: #1a222c;
+      --good: #5cb884;
+      --bad: #e0736a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f141a;
+    --paper-2: #151c24;
+    --ink: #e8edf2;
+    --ink-2: #a8b4c0;
+    --ink-3: #6e7c8a;
+    --hair: #26303b;
+    --accent: #2fa8b3;
+    --accent-ink: #52bfc9;
+    --accent-wash: rgba(47, 168, 179, 0.09);
+    --decision: #e07b39;
+    --decision-wash: rgba(224, 123, 57, 0.08);
+    --code-bg: #1a222c;
+    --good: #5cb884;
+    --bad: #e0736a;
+  }
+  :root[data-theme="light"] {
+    --paper: #fafbfc;
+    --paper-2: #f1f4f6;
+    --ink: #16202b;
+    --ink-2: #4a5866;
+    --ink-3: #7b8794;
+    --hair: #d8dee4;
+    --accent: #0e7c86;
+    --accent-ink: #0a5b63;
+    --accent-wash: rgba(14, 124, 134, 0.07);
+    --decision: #c2571b;
+    --decision-wash: rgba(194, 87, 27, 0.06);
+    --code-bg: #eef1f4;
+    --good: #2e7d4f;
+    --bad: #b3423a;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.65 "Avenir Next", Avenir, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+  .prose { max-width: 46rem; }
+
+  h1, h2, h3 {
+    font-family: "Iowan Old Style", "Palatino Nova", Palatino, "Book Antiqua", Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  h1 { font-size: 2.55rem; line-height: 1.12; margin: 0.4rem 0 0.8rem; }
+  h2 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 0.9rem; }
+  h3 { font-size: 1.16rem; margin: 2.1rem 0 0.5rem; }
+  p { margin: 0 0 1rem; }
+  .lede { font-size: 1.13rem; color: var(--ink-2); max-width: 44rem; }
+  .eyebrow {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent-ink); margin: 0 0 0.35rem;
+  }
+  a { color: var(--accent-ink); text-decoration: none; border-bottom: 1px solid transparent; }
+  a:hover, a:focus-visible { border-bottom-color: var(--accent-ink); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code, .mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+  pre.code {
+    background: var(--code-bg); border: 1px solid var(--hair); border-radius: 8px;
+    padding: 0.9rem 1.1rem; overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.8rem; line-height: 1.6;
+  }
+  pre.code code { background: none; padding: 0; }
+  kbd {
+    font-family: ui-monospace, Menlo, monospace; font-size: 0.78em;
+    border: 1px solid var(--hair); border-bottom-width: 2px; border-radius: 4px;
+    padding: 0.06em 0.4em; background: var(--paper-2);
+  }
+
+  header.doc { padding: 3.5rem 0 2rem; border-bottom: 2px solid var(--ink); }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem;
+    font-size: 0.8rem; color: var(--ink-3); margin-top: 1.2rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .meta-row b { color: var(--ink-2); font-weight: 600; }
+
+  nav.toc {
+    margin: 2rem 0 3rem; padding: 1.2rem 0 1.4rem;
+    border-bottom: 1px solid var(--hair);
+    columns: 2; column-gap: 3rem;
+  }
+  nav.toc a {
+    display: flex; gap: 0.7rem; padding: 0.22rem 0;
+    break-inside: avoid; border-bottom: none; font-size: 0.92rem;
+  }
+  nav.toc a:hover { color: var(--accent-ink); }
+  nav.toc .n { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 0.8rem; padding-top: 0.1em; min-width: 2.2em; }
+  @media (max-width: 640px) { nav.toc { columns: 1; } }
+
+  section.plate { padding: 3rem 0 1rem; border-top: 1px solid var(--hair); scroll-margin-top: 1rem; }
+  section.plate:first-of-type { border-top: none; }
+
+  .tablewrap { overflow-x: auto; margin: 1.2rem 0 1.8rem; border: 1px solid var(--hair); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.86rem; line-height: 1.5; }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--hair); }
+  th {
+    font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 700; background: var(--paper-2); white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.k { font-weight: 600; white-space: nowrap; }
+  td .good { color: var(--good); }
+  td .bad { color: var(--bad); }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .adr {
+    margin: 1.6rem 0; padding: 1rem 1.25rem 1.05rem;
+    background: var(--decision-wash);
+    border-left: 3px solid var(--decision);
+    border-radius: 0 8px 8px 0;
+  }
+  .adr .tag {
+    display: inline-block; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--decision); margin-bottom: 0.35rem;
+  }
+  .adr b.title { display: block; margin-bottom: 0.3rem; }
+  .adr p { margin: 0 0 0.5rem; font-size: 0.92rem; }
+  .adr p:last-child { margin-bottom: 0; }
+  .adr .alt { color: var(--ink-2); font-size: 0.87rem; }
+
+  .note {
+    margin: 1.4rem 0; padding: 0.9rem 1.2rem;
+    background: var(--accent-wash);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    font-size: 0.93rem;
+  }
+  .note b:first-child { color: var(--accent-ink); }
+
+  .lessons { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0.9rem; margin: 1.4rem 0; }
+  .lesson {
+    border: 1px solid var(--hair); border-radius: 8px;
+    padding: 0.95rem 1.1rem; background: var(--paper-2);
+  }
+  .lesson b { display: block; margin-bottom: 0.3rem; font-size: 0.95rem; }
+  .lesson p { margin: 0; font-size: 0.86rem; color: var(--ink-2); }
+  .lesson .was { color: var(--bad); font-weight: 600; }
+  .lesson .now { color: var(--good); font-weight: 600; }
+
+  .fig { margin: 1.6rem 0 2rem; }
+  .fig .mermaid { display: flex; justify-content: center; overflow-x: auto; padding: 0.5rem 0; }
+  .fig figcaption {
+    font-size: 0.8rem; color: var(--ink-3); text-align: center;
+    margin-top: 0.5rem; font-variant-numeric: tabular-nums;
+  }
+
+  ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.35rem; }
+  li::marker { color: var(--ink-3); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.8rem 0 1.2rem; }
+  .chip {
+    font-size: 0.8rem; padding: 0.28rem 0.75rem; border-radius: 999px;
+    border: 1px solid var(--hair); background: var(--paper-2); color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  footer.doc {
+    margin-top: 4rem; padding-top: 1.5rem; border-top: 2px solid var(--ink);
+    font-size: 0.82rem; color: var(--ink-3);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+  }
+</style>
+
+<div class="page">
+
+<header class="doc">
+  <p class="eyebrow">Design document · Draft 2</p>
+  <h1>GeoMotion — the next&#8209;generation map editor</h1>
+  <p class="lede">Not an evolution of the generator we shipped — a professional editing instrument in the lineage of Resolve and Figma, purpose-built for map storytelling. Draft 2 rebuilds the design around five ideas: an editing philosophy that governs every feature, a true scene graph, <b>smart objects</b> as the single source of truth for places, a geometry editor no motion tool has, and one procedural substrate wearing three skins.</p>
+  <div class="meta-row">
+    <span><b>Status</b> proposal, draft 2</span>
+    <span><b>Supersedes</b> draft 1</span>
+    <span><b>Grounding</b> the shipped v1 codebase and its scars</span>
+    <span><b>Constraints</b> browser-first · open source · React + TS · WebGL2→WebGPU</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <a href="#s00"><span class="n">§00</span> Lessons from v1</a>
+  <a href="#s01"><span class="n">§01</span> Product vision</a>
+  <a href="#s02"><span class="n">§02</span> Editing philosophy</a>
+  <a href="#s03"><span class="n">§03</span> Personas</a>
+  <a href="#s04"><span class="n">§04</span> Scene graph</a>
+  <a href="#s05"><span class="n">§05</span> Smart objects</a>
+  <a href="#s06"><span class="n">§06</span> Motion engine — one substrate, three skins</a>
+  <a href="#s07"><span class="n">§07</span> Map system</a>
+  <a href="#s08"><span class="n">§08</span> Geometry editor</a>
+  <a href="#s09"><span class="n">§09</span> Camera rigs</a>
+  <a href="#s10"><span class="n">§10</span> Scenes, storytelling &amp; timeline</a>
+  <a href="#s11"><span class="n">§11</span> Assets &amp; the animation library</a>
+  <a href="#s12"><span class="n">§12</span> AI copilot</a>
+  <a href="#s13"><span class="n">§13</span> UX &amp; panels</a>
+  <a href="#s14"><span class="n">§14</span> Rendering engine</a>
+  <a href="#s15"><span class="n">§15</span> Plugin SDK &amp; marketplace</a>
+  <a href="#s16"><span class="n">§16</span> Collaboration &amp; cloud</a>
+  <a href="#s17"><span class="n">§17</span> Competitive analysis</a>
+  <a href="#s18"><span class="n">§18</span> Roadmap</a>
+</nav>
+
+<!-- ============================================================ -->
+<section class="plate" id="s00">
+  <p class="eyebrow">§00</p>
+  <h2>Lessons from v1</h2>
+  <div class="prose">
+    <p>We shipped a working v1 — data in, narrated MP4 out, editable in between. Its value to this document is the scar tissue. Six lessons anchor every position below:</p>
+  </div>
+  <div class="lessons">
+    <div class="lesson"><b>The monolith layer</b><p><span class="was">Was:</span> one "regions" layer with ~40 fused fields. <span class="now">Now:</span> a scene graph of small nodes; the tour decomposes into a camera rig plus a scene sequence.</p></div>
+    <div class="lesson"><b>The time-source bug</b><p><span class="was">Was:</span> a stray map event re-rendered export frames at the wrong t. <span class="now">Principle:</span> one deterministic clock; every evaluator is a pure function of (document, t).</p></div>
+    <div class="lesson"><b>The frozen voice bed</b><p><span class="was">Was:</span> narration mixed once; any retime broke sync forever. <span class="now">Now:</span> audio clips are scene children; the mix renders from clips at export. Ripple works both ways.</p></div>
+    <div class="lesson"><b>LLMs typed the numbers</b><p><span class="was">Was:</span> the model wrote figures literally and once spoke "{previous}" aloud. <span class="now">Principle:</span> facts belong to smart objects (§05); models write words around references; everything AI emits is validated.</p></div>
+    <div class="lesson"><b>The join was fragile</b><p><span class="was">Was:</span> datasets joined to geometry by name-matching, per project, with alias tables. <span class="now">Now:</span> joins happen once, into entities with stable IDs. The whole bug class dies.</p></div>
+    <div class="lesson"><b>WYSIWYG or nothing</b><p><span class="was">Right, kept:</span> preview renders at output resolution; one render path for screen and export. There is never a second backend to drift.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s01">
+  <p class="eyebrow">§01</p>
+  <h2>Product vision</h2>
+  <div class="prose">
+    <p><b>GeoMotion is the editor where the world is the scene graph and every place is an object that knows itself.</b> In After Effects a map is pixels; in GeoLayers it is a plugin inside a host built for something else; in Flourish it is a template with a ceiling. In GeoMotion, West Bengal is a first-class object — with geometry you can edit, facts it carries (population, capital, election result, flag), animations you can drop onto it, and a camera that can be told to look at it. Labels, callouts, charts, narration, and thumbnails all bind to that one object. Change the object; everything downstream follows.</p>
+    <p>The problem: the people best at explaining the world spend most of their week on tooling — QGIS → Illustrator → AE + GeoLayers → Premiere, re-importing at every seam, joining data by hand, timing narration by eye. One border revision means redoing four stages. GeoMotion is one document where geometry, data, animation, cameras, and voice stay live together.</p>
+    <p>Four commitments define the product:</p>
+    <ul>
+      <li><b>Everything stays editable.</b> No bake step, no "generated then flattened." An AI-drafted camera move is keyframes you drag. A one-click preset is a behavior stack you can open.</li>
+      <li><b>Places are objects, not pixels</b> — smart objects (§05) are the single source of truth every layer binds to.</li>
+      <li><b>The voice drives the clock.</b> Narration is measured and the picture is cut to it — an engine primitive, not editor craft.</li>
+      <li><b>Progressive depth.</b> Drag-drop preset → editable stack → full node graph (§06). Beginners never see the graph; experts never hit a ceiling. Flourish's first minute, without Flourish's wall.</li>
+    </ul>
+  </div>
+  <h3>Why choose it over…</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Instead of</th><th>Their frame</th><th>Our answer</th></tr>
+    <tr><td class="k">After Effects</td><td>Universal compositor; maps are dumb pixels</td><td>Geo-native objects, data-aware everything, narration timing, geometry editing — none of which AE can retrofit</td></tr>
+    <tr><td class="k">GeoLayers</td><td>Excellent maps chained to AE's licence, model, renderer</td><td>The map depth without the host — plus data, voice, and a geometry editor GeoLayers cannot have inside AE</td></tr>
+    <tr><td class="k">DaVinci Resolve</td><td>The reference timeline; zero geo awareness</td><td>We copy its edit grammar (§10) and add the map engine; export to Resolve for the final cut if you like</td></tr>
+    <tr><td class="k">Blender</td><td>Infinite 3D, weeks-deep curve, geo via fragile add-ons</td><td>An election map in an hour; and our node graph (§06) is opt-in, not the front door</td></tr>
+    <tr><td class="k">Flourish</td><td>60-second gratification, hard ceiling</td><td>Same first minute; then the ceiling opens into a real editor</td></tr>
+    <tr><td class="k">QGIS</td><td>Real GIS, zero motion</td><td>The 20% of GIS this audience needs (§08), inside the motion tool</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s02">
+  <p class="eyebrow">§02</p>
+  <h2>Editing philosophy</h2>
+  <div class="prose">
+    <p>Resolve is not a feature list; it is an editing grammar. These principles are normative — every future feature is reviewed against them, and a feature that violates one needs a written excuse.</p>
+  </div>
+
+  <h3>One click (or one gesture)</h3>
+  <ul>
+    <li><b>Double-click any region → the camera frames it</b> (the framing solver, §09). This is the signature gesture of the whole product.</li>
+    <li>Drop a preset on a layer → it animates. Drop a dataset column on a property → it binds. Drop a voice line on a scene → it times.</li>
+    <li>Solo / mute / lock a layer; switch 16:9 ↔ 9:16; play from here; add a keyframe at the playhead.</li>
+  </ul>
+
+  <h3>Never a dialog</h3>
+  <ul>
+    <li>Color, scale, and easing edit in popovers <em>on the canvas or timeline</em>, live-previewing while open. Style never goes modal.</li>
+    <li>Region assignment, binding retargets, and preset parameters edit inline in the inspector.</li>
+    <li>Dialogs are reserved for genuinely destructive or file-system acts: deleting an asset in use, importing from disk. Export of a <em>draft</em> is one click with defaults; the full deliver page (§14) is a workspace, not a dialog.</li>
+  </ul>
+
+  <h3>Always draggable</h3>
+  <ul>
+    <li>Every number scrubs. Every keyframe and handle drags. Camera paths drag <em>on the map itself</em>.</li>
+    <li>Layer bars trim and slide; story blocks ripple; scene thumbnails reorder like slides.</li>
+    <li>Assets drag from the browser onto canvas, layers, or properties — a flag onto a callout, a column onto a fill.</li>
+  </ul>
+
+  <h3>Always on the keyboard</h3>
+  <ul>
+    <li><kbd>Space</kbd> / <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> transport · <kbd>V</kbd> select · <kbd>H</kbd> pan world · <kbd>P</kbd> pen (§08) · <kbd>C</kbd> camera</li>
+    <li><kbd>⌘K</kbd> command palette reaching every command, node, entity, and dataset column · <kbd>U</kbd> reveals animated properties (AE's best idea) · <kbd>[</kbd> <kbd>]</kbd> trim · <kbd>⌘D</kbd> duplicate · <kbd>F</kbd> frame selection</li>
+  </ul>
+
+  <h3>Latency budgets are features</h3>
+  <div class="prose"><p>Drag feedback &lt; 16 ms; click acknowledgement &lt; 100 ms; seek-and-show &lt; 250 ms at proxy resolution. A budget miss is a bug, triaged like one. The document is never invisible behind a mode; AI actions are ordinary undoable edits; autosave is always on.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s03">
+  <p class="eyebrow">§03</p>
+  <h2>Personas</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Persona</th><th>Workflow</th><th>Frustrations today</th><th>Must-haves</th></tr>
+    <tr><td class="k">Geography / history YouTuber <span style="color:var(--ink-3)">(primary)</span></td><td>Research → script → VO → map animation → edit → thumbnail; 1–3 videos a week, solo or duo</td><td>AE render times; GeoLayers+AE cost stack; hand-syncing voice; redoing historical borders; hand-placing labels</td><td>Narration-first scenes; historical boundary sets; animation library (§11); camera rigs; fast drafts; 16:9+9:16 from one project</td></tr>
+    <tr><td class="k">Data journalist / graphics desk</td><td>Dataset at 14:00, animated map for the 18:00 bulletin and the site embed</td><td>Join errors found on air; house style enforced by hand; broadcast and web are two builds</td><td>CSV → smart objects with loud diagnostics; org libraries; MP4 + alpha overlay + embed from one project; approvals (§16)</td></tr>
+    <tr><td class="k">Election war room</td><td>Scenes pre-built per state; live feeds repaint on the night while an operator drives cameras</td><td>Live data is duct tape; two people can't share an AE project; a wrong colour on air is a career event</td><td>Live sources with validation rails; multiplayer; browser program-out for OBS/vMix; locked approved scenes</td></tr>
+    <tr><td class="k">Educator / NGO / researcher / gov comms</td><td>Occasional, high stakes per video; often non-designers</td><td>Pro tools too deep, simple tools too shallow; accessibility and citation ignored everywhere</td><td>Template-first start; CVD-safe scale validation (v1's validator, surfaced); provenance and auto-credits (§05); SVG/still export</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s04">
+  <p class="eyebrow">§04</p>
+  <h2>Scene graph</h2>
+  <div class="prose">
+    <p>A real scene graph, the way cinema software means it: content lives in a world; <b>cameras observe it</b>, they don't contain it. Every node inherits transforms from its parent; every node declares its space — <code>world</code> (geographic: lng/lat/altitude) or <code>screen</code> (composition pixels), with camera-relative anchoring as a constraint for HUD-like elements.</p>
+  </div>
+  <figure class="fig">
+    <pre class="mermaid">
+flowchart TD
+  P[Project] --> S1[Scene 1]
+  P --> S2[Scene 2 …]
+  S1 --> CAMS[Cameras<br/>A · B · switcher track]
+  S1 --> M[Map context<br/>projection · basemap · terrain]
+  M --> RL[Region layer]
+  M --> MK[Marker layer]
+  M --> HM[Heatmap layer]
+  M --> RT[Route layer]
+  M --> LB[Label layer]
+  M --> IN[Inset map context]
+  S1 --> UI[UI group — screen space<br/>titles · legend · lower thirds]
+  S1 --> AU[Audio group<br/>voice · music · SFX]
+  S1 --> FX[Effects group<br/>adjustment layers · grade]
+    </pre>
+    <figcaption>Fig. 1 — the logical hierarchy. Cameras are siblings of content: observers, not containers.</figcaption>
+  </figure>
+  <div class="prose">
+    <p>Consequences that fall out of the shape: insets are just a nested map context; a second camera is a hard cut away (§09); a group of world-space layers pans with the planet while the UI group holds still; and "which camera is live" is itself an animatable track.</p>
+  </div>
+  <div class="adr">
+    <span class="tag">Decision 01</span>
+    <b class="title">Logical tree, flat storage</b>
+    <p>The scene graph above is the <em>logical</em> model. Physically, nodes live in a flat <code>Map&lt;NodeId, Node&gt;</code> with <code>parentId</code> + fractional-index order — Figma's shape. Undo is an inverse-patch log; AI proposals are patch sets; multiplayer (§16) becomes a per-property CRDT problem instead of a tree-merge nightmare. v1's nested JSON — which deep-cloned the whole project per keystroke — is the rejected alternative.</p>
+  </div>
+  <h3>Every property is a track</h3>
+  <pre class="code"><code>Node  { id, type, name, parentId, order, space: 'world'|'screen',
+        props: Record&lt;string, Track&gt;, locked, hidden }
+
+Track = { kind: 'static',    value }
+      | { kind: 'keyframed', keys: Keyframe[] }
+      | { kind: 'bound',     ref: EntityRef | DatasetRef, path, scale }   // §05
+      | { kind: 'expr',      source, inputs }                             // §06
+
+// value(t) = behaviors( expr( base(t) ) )  — one pipeline for the whole app</code></pre>
+  <div class="prose">
+    <p>The inspector shows a source pip on every property — grey static, teal keyframed, violet bound, amber expression — and any property can be retargeted between kinds in place. Assets are content-addressed blobs (OPFS) referenced by hash; the project file is small, diffable, versioned JSON with per-version migrations (v1's importer is the first).</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s05">
+  <p class="eyebrow">§05</p>
+  <h2>Smart objects</h2>
+  <div class="prose">
+    <p>The keystone of the product. A <b>smart object</b> is an entity with a stable ID — <code>in-wb</code> is West Bengal, forever — that owns three things:</p>
+    <ul>
+      <li><b>Geometry, in versions.</b> Official depiction, Natural Earth, historical snapshots by date, and any user-edited variant from the geometry editor (§08). A project sets a boundary policy; layers reference the entity, not a file.</li>
+      <li><b>Facts, with provenance.</b> A typed table — population, capital, leader, GDP, election result, flag asset, article link — where every fact carries <code>{value, source, asOf}</code>. Imported datasets merge in as fact columns through one join, with loud diagnostics. Computed facts (rank, delta vs previous round) derive automatically.</li>
+      <li><b>Bindings out.</b> Anything can reference <code>{entity.capital}</code>, <code>{entity.population|compact}</code>, <code>{entity.rank}</code> — labels, callout fields, chart series, narration lines, thumbnail text, legend domains.</li>
+    </ul>
+  </div>
+  <figure class="fig">
+    <pre class="mermaid">
+flowchart LR
+  E["Smart object<br/><b>West Bengal</b> · in-wb<br/>geometry versions<br/>facts + provenance"]
+  E --> L[Label — name, value]
+  E --> C[Callout — auto-populated]
+  E --> N["Narration — {entity.capital}…"]
+  E --> CH[Chart series]
+  E --> LG[Legend domain]
+  E --> TH[Thumbnail text]
+  E --> CAM[Camera — look at entity]
+  E --> MSK[Region mask]
+    </pre>
+    <figcaption>Fig. 2 — one object, one source of truth; every surface binds to it.</figcaption>
+  </figure>
+  <div class="prose">
+    <p>This is v1's <code>{value}</code> placeholder system grown up: narration that says <code>{entity.population}</code> re-synthesises when the fact changes; a label cannot disagree with the callout because both read the same cell. It also finishes what the placeholder normaliser started — the AI copilot (§12) writes <em>references</em>, and the fact engine fills them, so narration structurally cannot contradict the map.</p>
+    <p>Provenance is not decoration: the credits line can be <em>generated</em> from the facts actually used in the video — a journalism feature no competitor has. A Wikidata/Wikipedia connector proposes facts; the user approves; the fact lands with source and date. Nothing is ever silently fetched into a document.</p>
+  </div>
+  <div class="adr">
+    <span class="tag">Decision 02</span>
+    <b class="title">Entities are the join; layers never join data themselves</b>
+    <p>Datasets join once, into entity facts, at import — with unmatched-key diagnostics at that single choke point. Every layer, label, chart, and narration line then binds by entity ID. v1 joined by name inside the regions layer, and every dataset re-fought the same alias battles (DNHDD, "A &amp; N Islands"…). That entire bug class collapses into one reviewed join per dataset.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s06">
+  <p class="eyebrow">§06</p>
+  <h2>Motion engine — one substrate, three skins</h2>
+  <div class="prose">
+    <p>Underneath, every animation is a <b>procedural graph</b>: typed nodes transforming geometry, paths, values, and pixels. Almost nobody should have to see that. The same substrate wears three skins, and you can drop down a level at any time without conversion:</p>
+    <ol>
+      <li><b>Preset</b> — drag "Trace Border" from the library (§11) onto a region. Done. Internally it instantiated a graph.</li>
+      <li><b>Stack</b> — the inspector shows that preset as an ordered list of behaviors with parameters — reorder, retime, tweak, toggle. Apple Motion's great idea, kept linear.</li>
+      <li><b>Graph</b> — "Open as graph" reveals the full node editor for branching, merging, and custom wiring. Blender Geometry Nodes energy, strictly opt-in.</li>
+    </ol>
+  </div>
+  <figure class="fig">
+    <pre class="mermaid">
+flowchart LR
+  RB[Region border<br/>from entity] --> NZ[Noise<br/>seeded]
+  NZ --> TP[Trim path<br/>0→100%]
+  TP --> GL[Glow]
+  GL --> RP[Repeat<br/>offset ×3]
+  RP --> MK[Mask to region]
+  MK --> OUT[Composite]
+    </pre>
+    <figcaption>Fig. 3 — the expert skin: a border trace as an editable graph. The preset and stack views are projections of this same structure.</figcaption>
+  </figure>
+  <div class="tablewrap"><table>
+    <tr><th style="width:11rem">Capability</th><th>Design</th></tr>
+    <tr><td class="k">Keyframes &amp; curves</td><td>Per-channel bezier + hold + linear; graph editor as a timeline drawer; preset curves (v1's easing set, including the overshoot); roving keys for constant-speed paths.</td></tr>
+    <tr><td class="k">Spatial paths</td><td>Position keys form a draggable bezier in the layer's own space — world-space paths interpolate on the great circle, screen paths in pixels.</td></tr>
+    <tr><td class="k">Parenting &amp; constraints</td><td>Transform inheritance within a space; cross-space attachment (screen card following a world anchor) is a constraint resolved after projection.</td></tr>
+    <tr><td class="k">Masks &amp; mattes</td><td>Path masks, alpha/luma mattes, and <b>region masks by entity reference</b> — satellite footage clipped inside a tracing border is one drop.</td></tr>
+    <tr><td class="k">Blend modes, groups, components</td><td>GPU blend passes; groups inherit transform/opacity; Figma-style components with typed overridable props (callout, legend, lower-third ship as the first masters).</td></tr>
+    <tr><td class="k">Expressions</td><td>A small deterministic, side-effect-free DSL (numbers, vectors, colors; <code>time</code>, property refs, entity facts; seeded noise). Deterministic because export correctness and multiplayer both demand identical results for identical (doc, t). Sandboxed JS rejected for that reason.</td></tr>
+    <tr><td class="k">Bake anywhere</td><td>Any preset, stack, or graph can bake to raw keyframes — one-way door, clearly labelled, for the "I just want to nudge this one frame" moments.</td></tr>
+  </table></div>
+  <div class="adr">
+    <span class="tag">Decision 03</span>
+    <b class="title">Graphs are the substrate, never the front door</b>
+    <p>Draft 1 rejected node-graph-first authoring (the Fusion problem) — that stands. What changed: the graph now officially exists <em>underneath</em>, as the common representation of presets and behavior stacks, exposed only on request. One implementation, progressive disclosure, no ceiling.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s07">
+  <p class="eyebrow">§07</p>
+  <h2>Map system</h2>
+  <div class="prose">
+    <p>The map is a context node, not a background: it defines projection, basemap, and terrain; world-space descendants project through it. Insets are nested contexts; projection is an animatable property.</p>
+  </div>
+  <div class="tablewrap"><table>
+    <tr><th style="width:11rem">Element</th><th>Design</th></tr>
+    <tr><td class="k">Boundaries</td><td>Entity-referenced (§05): countries, states, districts, cities in multiple depictions and historical snapshots; PMTiles at scale; user edits become geometry versions (§08).</td></tr>
+    <tr><td class="k">Region layers</td><td>Bind fills/strokes/opacity to entity facts through validated scales (lightness-monotonic, CVD-checked — v1's validator promoted to the scale editor). Legends are components bound to the same scale object; they cannot disagree with the map.</td></tr>
+    <tr><td class="k">Animated borders &amp; fills</td><td>Stroke-draw on true topology (shared edges trace once — v1's dissolve, now engine-level); fills sweep from centroid, flood from a border, or stagger by rank. All presets in the library, all graphs underneath.</td></tr>
+    <tr><td class="k">Points, routes, flows</td><td>Geodesic/arc routes with travelling markers and camera-follow (v1 parity); flow maps — OD arc bundles, width bound to volume, animated particles.</td></tr>
+    <tr><td class="k">Labels</td><td>An engine, not hand placement: deterministic collision solver, leader lines for small regions, per-label persistent overrides. Names come from entities — they are never typed twice.</td></tr>
+    <tr><td class="k">Heatmaps / hexbins</td><td>GPU aggregation over point datasets.</td></tr>
+    <tr><td class="k">Terrain &amp; imagery</td><td>DEM terrain with animatable exaggeration (flat map rising into relief is two keyframes); satellite/hybrid basemaps.</td></tr>
+    <tr><td class="k">Projection changes</td><td>Vector layers morph between projections (d3-style interpolation); raster basemaps cannot reproject live, so they crossfade through the morph — an honest limitation, staged with craft.</td></tr>
+  </table></div>
+  <div class="adr">
+    <span class="tag">Decision 04</span>
+    <b class="title">MapLibre renders the ground; GeoMotion renders everything that moves</b>
+    <p>MapLibre keeps tiles, terrain, and projection math. Data layers, regions, labels, and all animation move into our compositor — v1 spent real effort fighting <code>setPaintProperty</code> caches and feature-state for per-frame animation, and that model caps out. Forking MapLibre (maintenance trap) and building tiles from scratch (five years of edge cases) both rejected.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s08">
+  <p class="eyebrow">§08</p>
+  <h2>Geometry editor</h2>
+  <div class="prose">
+    <p>The biggest gap in draft 1, and the feature no motion tool has ever shipped: creators should not need QGIS to fix a border. GeoMotion becomes <b>QGIS-lite</b> — the 20% of GIS editing this audience actually uses, native, non-destructive, and animatable the moment the edit lands.</p>
+    <p>The organising principle is <b>topology first</b>. Region geometry is stored as a planar arrangement — shared edges exist once, referenced by the regions on either side. Move the Bengal–Jharkhand border and both regions update; no slivers, no gaps, ever. (v1's border-dissolve already proved real datasets carry clean shared-edge structure; we make it the storage model rather than a render trick.)</p>
+  </div>
+  <div class="tablewrap"><table>
+    <tr><th style="width:11rem">Tool</th><th>Design</th></tr>
+    <tr><td class="k">Pen <kbd>P</kbd></td><td>Bezier drawing in world space — new regions, disputed lines, custom routes; closes into topology-aware polygons.</td></tr>
+    <tr><td class="k">Vertex editing</td><td>Drag vertices/edges with snapping to vertices, edges, graticule, and other layers; box-select vertex groups; shared edges edited once by construction.</td></tr>
+    <tr><td class="k">Boolean ops</td><td>Union (merge districts), subtract, intersect, split-by-drawn-line — the "carve Telangana out of Andhra" workflow in four clicks.</td></tr>
+    <tr><td class="k">Simplify &amp; smooth</td><td>Topology-preserving simplification (Visvalingam on the shared-edge arrangement) with a live vertex-count/fidelity slider; corner smoothing.</td></tr>
+    <tr><td class="k">Offset / buffer</td><td>Inset & outset paths — coastline glows, territorial-waters bands, exclusion zones.</td></tr>
+    <tr><td class="k">Disputed borders</td><td>Edge classification, not a hack: an edge marked <em>disputed(claimants…)</em> renders per the project's boundary policy — dashed, cased, or claimant-coloured. The Kashmir problem handled as data.</td></tr>
+    <tr><td class="k">Non-destructive</td><td>Every edit session produces a new geometry <em>version</em> on the entity (§05). The official depiction is never mutated; projects pin versions; history channels keep dated snapshots side by side.</td></tr>
+  </table></div>
+  <div class="note"><b>Why this wins:</b> the moment geometry editing lives beside animation, "edit the 1947 border, then animate it changing" is one tool and one afternoon. Today that is QGIS → export → re-import → re-style → re-animate, per revision. No competitor — not GeoLayers, not AE, not Flourish — can follow without becoming a GIS.</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s09">
+  <p class="eyebrow">§09</p>
+  <h2>Camera rigs</h2>
+  <div class="prose">
+    <p>Cameras are nodes observing the scene (§04), and a camera's motion is a <b>rig</b>: an ordered stack of camera modifiers, evaluated top-down like §06 behaviors — because they are §06 behaviors, specialised to the camera. Each is toggleable, keyframable, and saveable; a named stack is a rig preset in the asset browser.</p>
+  </div>
+  <figure class="fig">
+    <pre class="mermaid">
+flowchart TD
+  BASE[Camera base<br/>center · zoom · bearing · pitch · roll tracks]
+  BASE --> FP[Follow path<br/>bezier on the map]
+  FP --> LA[Look at<br/>target: entity in-wb]
+  LA --> OR[Orbit<br/>radius · period]
+  OR --> SH[Shake<br/>seeded handheld]
+  SH --> ZM[Zoom envelope<br/>pull-back mid-move]
+  ZM --> DOF[DOF<br/>stylised tilt-shift]
+  DOF --> VIEW[Rendered view]
+    </pre>
+    <figcaption>Fig. 4 — a rig is a modifier stack; disable any stage, keyframe any parameter, save the stack as a preset.</figcaption>
+  </figure>
+  <div class="prose">
+    <ul>
+      <li><b>Look-at targets are entities</b> — "look at West Bengal" survives a geometry edit, and the framing solver (v1's pure fitBounds math: padding, pitch compensation, small-region zoom clamp) turns the target into framing deterministically. AI and humans produce identical framings from identical inputs.</li>
+      <li><b>Moves:</b> dolly (center path), zoom, tilt/pitch, orbit, roll (compositor-rotated — MapLibre has no roll; documented fake that reads correctly at explainer angles), bezier flight paths dragged directly on the map, altitude riding its own curve.</li>
+      <li><b>DOF</b> is stylised tilt-shift (no depth buffer from MapLibre) — labelled stylised, shipped anyway; it is what the genre uses.</li>
+      <li><b>Multiple cameras + switcher track</b> — election-night pattern: a camera per state, hard cuts on demand, the switcher itself editable on the timeline.</li>
+      <li><b>Double-click any region → flyTo</b> is the philosophy §02 gesture, implemented as a one-block rig.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s10">
+  <p class="eyebrow">§10</p>
+  <h2>Scenes, storytelling &amp; timeline</h2>
+  <div class="prose">
+    <p>The storytelling engine is structural, not a wizard. A project is a <b>sequence of scenes</b>; a scene is a composition — its own cameras, map context, layers, audio — that is also a reusable unit. Two views of the same structure:</p>
+    <ul>
+      <li><b>Storyboard view</b> — scenes as slide thumbnails: reorder by drag, duplicate, borrow a scene from another project, read the narration under each card. Presentation-software ergonomics over real compositions.</li>
+      <li><b>Timeline view</b> — the full editor underneath: tracks, clips, keyframe rows, curves.</li>
+    </ul>
+    <p>Inside scenes live <b>story blocks</b> — v1's beats, kept alive in the document: a time range owning a narration line (text + measured audio) and links to the nodes it choreographs. Dragging a block ripples its children and re-anchors what follows; re-recording a line re-measures and ripples. The frozen-bed bug is structurally impossible, in both directions.</p>
+  </div>
+  <div class="tablewrap"><table>
+    <tr><th style="width:11rem">Feature</th><th>Design</th></tr>
+    <tr><td class="k">Tracks</td><td>Lanes for graphics, cameras, audio (voice/music/SFX), and the story track. Lanes are views — a node owns its timing; lanes organise.</td></tr>
+    <tr><td class="k">Edit grammar</td><td>Ripple, roll, slip; range select; snapping to playhead, edges, block boundaries, audio transients; markers with notes; folders and colours.</td></tr>
+    <tr><td class="k">Audio</td><td>Clips with cached waveform peaks, per-clip gain/fades, music ducking as an audio behavior keyed to voice clips, loudness meter targeting −14 LUFS.</td></tr>
+    <tr><td class="k">Nesting</td><td>Scenes nest as clips with exposed parameters — an "election lower-third" scene with a candidate-name param <em>is</em> a template.</td></tr>
+    <tr><td class="k">Keyframe lane</td><td>Layers expand to per-property rows inline; the curve editor is a drawer, not a modal elsewhere.</td></tr>
+    <tr><td class="k">Transitions</td><td>Transition nodes spanning clips: crossfade, wipe, and the camera-bridge — outgoing camera hands off to the incoming through one interpolated move.</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s11">
+  <p class="eyebrow">§11</p>
+  <h2>Assets &amp; the animation library</h2>
+  <div class="prose">
+    <p>After Effects' quiet failure is that assets live everywhere and nowhere. GeoMotion has one browser — searchable, draggable, provenance-aware — over local, organisation, and community scopes:</p>
+  </div>
+  <div class="chips">
+    <span class="chip">Boundaries &amp; maps</span><span class="chip">Datasets</span><span class="chip">Icons</span><span class="chip">Flags</span><span class="chip">Photos</span><span class="chip">Charts</span><span class="chip">Components</span><span class="chip">Camera rigs</span><span class="chip">Animations</span><span class="chip">Templates / scenes</span><span class="chip">Fonts</span><span class="chip">Voices</span><span class="chip">Music</span>
+  </div>
+  <div class="prose">
+    <p>Every asset carries licence and source fields (the journalism personas demand it; the credits generator (§05) consumes it). Voices are assets too — the v1 Voicebox/Kokoro/cloned-profile flow survives as the Voices shelf.</p>
+    <p>The <b>animation library</b> is the shelf that sells the product — genre moves as drag-drop presets, each opening into a stack, each a graph underneath (§06). Shipping set one:</p>
+  </div>
+  <div class="chips">
+    <span class="chip">Trace Border</span><span class="chip">Country Reveal</span><span class="chip">Zoom Highlight</span><span class="chip">Battle Arrow</span><span class="chip">Radar Sweep</span><span class="chip">Satellite Scan</span><span class="chip">Pulse</span><span class="chip">Flash</span><span class="chip">Heat Ripple</span><span class="chip">Election Swing</span><span class="chip">Migration Flow</span><span class="chip">Count-Up</span><span class="chip">Ken Burns</span><span class="chip">Typewriter</span>
+  </div>
+  <div class="prose"><p>Drag. Drop. Done — and then editable, because a preset is never a dead end.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s12">
+  <p class="eyebrow">§12</p>
+  <h2>AI copilot</h2>
+  <div class="prose">
+    <p>One rule: <b>AI writes patches, never pixels.</b> Every copilot emits a <code>DocumentPatch</code> — the same typed transaction a human edit produces — shown as a reviewable proposal, then accepted, edited, or dismissed. Accepted output is indistinguishable from hand work because it <em>is</em> ordinary document content. Smart objects complete the safety story: models write entity <em>references</em>; the fact engine fills them; narration structurally cannot contradict the map (the v1 lesson, now architecture).</p>
+  </div>
+  <div class="tablewrap"><table>
+    <tr><th style="width:12rem">Copilot</th><th>Proposes</th><th>Stays deterministic</th></tr>
+    <tr><td class="k">Narration writer</td><td>Lines per story block, channel voice, any language</td><td>Region lists, ordering, every number (entity references)</td></tr>
+    <tr><td class="k">Camera choreographer</td><td>Rig stacks and keyframes; "make this feel like RealLifeLore" as curve adjustments</td><td>Framing solver output</td></tr>
+    <tr><td class="k">Highlight scout</td><td>"What's the story here?" — outliers, reversals, movers as draft scenes</td><td>The statistics themselves</td></tr>
+    <tr><td class="k">Label &amp; palette</td><td>Emphasis, styles, ramp moods</td><td>Collision solver; monotonicity + CVD gates</td></tr>
+    <tr><td class="k">Fact scout</td><td>Wikidata/portal facts for entities, drafted joins</td><td>The join + diagnostics; user approves; provenance recorded</td></tr>
+    <tr><td class="k">Timing fitter</td><td>Pad/gap adjustments; dead-air flags</td><td>Measured audio durations</td></tr>
+    <tr><td class="k">Chart &amp; thumbnail</td><td>Chart-layer specs; thumbnail comps as editable stills</td><td>Data pipeline; honesty defaults (illustrative, not fake-documentary)</td></tr>
+  </table></div>
+  <div class="adr">
+    <span class="tag">Decision 05</span>
+    <b class="title">Copilots ride the plugin API</b>
+    <p>AI features consume the same typed, sandboxed document API as plugins and the console (§15). One capability model, one security review — and the community can ship copilots we didn't imagine. Keys stay server-side, exactly as v1's <code>.env.local</code> middleware does today.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s13">
+  <p class="eyebrow">§13</p>
+  <h2>UX &amp; panels</h2>
+  <div class="prose">
+    <p>One window, one document, three workspaces — governed by §02. No modal Studio owning state the editor can't see (the v1 sin, corrected structurally):</p>
+    <ul>
+      <li><b>Story</b> — storyboard view, script and narration per scene, data and fact tables, AI proposals inline. Dataset-first onboarding: pick data → working draft in 60 seconds → every part of it editable.</li>
+      <li><b>Design</b> — canvas centre; left rail tabs Layers / Assets / Data; right inspector with source pips on every property; <kbd>V</kbd> objects vs <kbd>H</kbd> world resolving the "move the map or the thing on it" ambiguity explicitly; geometry tools (§08) live here as a canvas mode, not an app.</li>
+      <li><b>Deliver</b> — formats, render queue, publish targets, reframe review for 16:9→9:16 with per-layer safe-area pinning.</li>
+    </ul>
+    <p>The timeline docks under all three. <kbd>⌘K</kbd> reaches everything. The feel target is Figma: direct manipulation, 60 fps interaction, autosave, undo across everything including AI patches; dense-but-calm panels; AI as quiet buttons, never a takeover.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s14">
+  <p class="eyebrow">§14</p>
+  <h2>Rendering engine</h2>
+  <figure class="fig">
+    <pre class="mermaid">
+flowchart LR
+  E["Evaluate doc at t<br/>(pure, deterministic)"] --> P1[Basemap pass<br/>MapLibre GL]
+  E --> P2[Vector/data pass<br/>own WebGL2/WebGPU]
+  E --> P3[Text/label atlas]
+  P1 --> BL[Blend + mask compositor]
+  P2 --> BL
+  P3 --> BL
+  BL --> FX[Post FX<br/>grade · vignette · DOF]
+  FX --> V[Viewport]
+  FX --> W[WebCodecs encoder]
+  OA[OfflineAudioContext mix] --> MX[Muxer worker]
+  W --> MX --> OUT[MP4 · WebM · PNG seq]
+    </pre>
+    <figcaption>Fig. 5 — one evaluation, two destinations; preview and export share every pass.</figcaption>
+  </figure>
+  <div class="tablewrap"><table>
+    <tr><th style="width:11rem">Concern</th><th>Design</th></tr>
+    <tr><td class="k">Preview</td><td>Dirty-flag evaluation; static subtrees cached to GPU textures; proxy (half-res) toggle. Targets: 60 fps editing at 1080p, 30 fps at 4K.</td></tr>
+    <tr><td class="k">Export</td><td>Deterministic clock; tiles awaited per frame (v1's guarantee); WebCodecs encodes in-page at 10–20× v1's headless-Chrome screenshots; muxing in a worker; audio re-rendered from clips via OfflineAudioContext — retimes stay in sync by construction.</td></tr>
+    <tr><td class="k">Background &amp; queue</td><td>Second evaluator in a worker with OffscreenCanvas — keep editing while the queue drains; per-job format/range/quality.</td></tr>
+    <tr><td class="k">Incremental</td><td>Frame hashes over evaluated scenes: unchanged frames reuse encoded chunks on re-export — the tweak-and-re-export loop that dominates real use gets 10× cheaper.</td></tr>
+    <tr><td class="k">Resolution</td><td>4K native; 8K by tiled render (2×2 stitch) within GPU texture limits — slower, honest, correct. HDR (10-bit HEVC/AV1) experimental until WebCodecs settles.</td></tr>
+    <tr><td class="k">Alpha &amp; formats</td><td>Transparent WebM + PNG sequences for newsroom overlays; ProRes 4444 via the server farm path (§16); GIF and stills trivially; SVG/Lottie for validated pure-vector comps only, with a pre-flight that lists offending layers — a subset promise we can keep.</td></tr>
+    <tr><td class="k">GPU strategy</td><td>Thin RHI: WebGL2 ships (universal), WebGPU lands as a backend for compute label layout and particles when Safari is boring. No WebGPU-only features until then.</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s15">
+  <p class="eyebrow">§15</p>
+  <h2>Plugin SDK &amp; marketplace</h2>
+  <div class="prose">
+    <p>Not a plugin hook — an SDK. A plugin is a sandboxed worker with a typed capability API: read the document, propose transactions, register node types, behaviors, panels, data connectors, and copilots; fetch only declared origins; no DOM, no ambient network. CLI scaffold, hot-reload dev mode, publishable to a reviewed registry. The same API is the automation console and the AI copilots' toolset — one surface, three consumers, one security review.</p>
+    <p><b>Domain packs</b> are the point — whole genres shipped without touching core:</p>
+  </div>
+  <div class="chips">
+    <span class="chip">Earthquakes (USGS feed)</span><span class="chip">Flight radar</span><span class="chip">Weather systems</span><span class="chip">Historical borders</span><span class="chip">Ship tracking (AIS)</span><span class="chip">Trade flows</span><span class="chip">Population pyramids</span><span class="chip">Military units / ORBAT</span><span class="chip">Wildfire perimeters</span>
+  </div>
+  <div class="prose">
+    <p>The <b>marketplace</b> sells packages: assets + components + presets + connectors + copilots bundled. The reference example — an <em>Election Package</em>: animated parliament arc, vote counter, result banner, swing arrows, choropleth presets, and a live-results connector. One click installs it into an org library; every piece opens into the stack view, because nothing in GeoMotion is a black box — including what you buy.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s16">
+  <p class="eyebrow">§16</p>
+  <h2>Collaboration &amp; cloud</h2>
+  <div class="prose">
+    <p>This is where Figma won, and it is a first-class pillar, not a stretch goal. The flat store + patch model (§04) makes each step incremental:</p>
+    <ul>
+      <li><b>Multiplayer</b> — per-property CRDT merge, presence cursors and selections, follow-mode ("watch my screen").</li>
+      <li><b>Comments</b> — anchored to a node <em>and</em> a time range: "this label, at 0:42." Resolve threads from the storyboard.</li>
+      <li><b>Version history</b> — every change patch-logged; visual diffs render two frames side by side. "Who moved Kashmir's label" is answerable in one click.</li>
+      <li><b>Approval workflow</b> — draft → review → approved; approved scenes lock (broadcast's non-negotiable); publishing requires approval in org projects.</li>
+      <li><b>Render cloud</b> — the same deterministic engine on servers: queue 8K/ProRes/batch jobs from Deliver; the browser never blocks.</li>
+      <li><b>Live program-out</b> — a headless viewer URL that OBS/vMix captures as a browser source, driven live from the editor. The election war room becomes: one person on cameras, one on the data feed, one editing tomorrow's graphics — in one project.</li>
+      <li><b>Living embeds</b> — published interactive scenes re-render when their bound data updates; the video and the always-current web version are the same project.</li>
+    </ul>
+    <p>Open source (MIT core) is the wedge: editor and engine free forever; revenue from cloud sync, collaboration, render farm, and the marketplace — the Figma/GitLab shape, aligned with creators.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s17">
+  <p class="eyebrow">§17</p>
+  <h2>Competitive analysis</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Competitor</th><th>Strengths</th><th>Weaknesses</th><th>Copy</th><th>Avoid</th></tr>
+    <tr><td class="k">GeoLayers 3</td><td>Deep map animation; the incumbent for this audience</td><td>Chained to AE's licence, model, renderer; no data, no voice, no geometry editing</td><td><span class="good">Map-object mental model; buffered basemaps</span></td><td><span class="bad">Host-app dependency; pricing stack</span></td></tr>
+    <tr><td class="k">After Effects</td><td>Graph editor, parenting, pre-comps, ecosystem</td><td>No geo awareness; slow renders; opaque projects; assets everywhere</td><td><span class="good">Curve editor; <kbd>U</kbd>; pick-whip (as drag-to-bind)</span></td><td><span class="bad">Modal sprawl; asset chaos; render-queue-as-afterthought</span></td></tr>
+    <tr><td class="k">DaVinci Resolve</td><td>Reference timeline; free tier; deliver page</td><td>Fusion alienates this audience; maps are footage</td><td><span class="good">Edit grammar; proxies; queue</span></td><td><span class="bad">Node-graph-first authoring; page-modal workspaces</span></td></tr>
+    <tr><td class="k">Blender</td><td>Geometry Nodes proves procedural depth can coexist with artists</td><td>Weeks-deep curve; geo via fragile add-ons</td><td><span class="good">Modifier stack; graph-as-substrate</span></td><td><span class="bad">Its UI as a model for anything here</span></td></tr>
+    <tr><td class="k">Cavalry</td><td>Modern procedural 2D; data-driven duplicators</td><td>No geo; desktop; niche</td><td><span class="good">Generators/behaviors split</span></td><td><span class="bad">Gating core features by tier</span></td></tr>
+    <tr><td class="k">Apple Motion</td><td>Behaviors — animation without keyframes; realtime</td><td>Mac-only; stagnant; no data or geo</td><td><span class="good">The behavior concept wholesale</span></td><td><span class="bad">Template-browser identity</span></td></tr>
+    <tr><td class="k">Flourish</td><td>Dataset-first 60-second start; embeds</td><td>Hard ceiling; no timeline, no voice</td><td><span class="good">The onboarding gradient</span></td><td><span class="bad">The ceiling</span></td></tr>
+    <tr><td class="k">QGIS</td><td>Real topology editing, free</td><td>Zero motion, zero story</td><td><span class="good">Topology-aware editing (§08), scoped to 20%</span></td><td><span class="bad">Trying to be a full GIS</span></td></tr>
+  </table></div>
+  <div class="note"><b>The synthesis:</b> Flourish's first minute, Motion's behaviors, AE's curves, Resolve's timeline, Blender's graph-as-substrate, GeoLayers' subject depth — unified by the three things nobody has together: smart objects, a geometry editor inside a motion tool, and a voice track that drives the clock.</div>
+</section>
+
+<!-- ============================================================ -->
+<section class="plate" id="s18">
+  <p class="eyebrow">§18</p>
+  <h2>Roadmap</h2>
+  <div class="prose"><p>Sizes assume 2–3 senior engineers. S &lt; 2 person-weeks · M = 2–6 pw · L = 6–12 pw · XL = quarter-scale. Phase 1 is a foundation rewrite — the honest cost of leaving v1's document model — with the v1 importer keeping every existing project alive. Smart objects move into Phase 1 deliberately: bindings, labels, and narration all depend on them, and retrofitting an entity model later would be a second rewrite.</p></div>
+
+  <h3>Phase 1 — Professional map editor <span class="mono" style="color:var(--ink-3);font-size:0.8rem">(~5–7 months)</span></h3>
+  <div class="tablewrap"><table>
+    <tr><th>Feature</th><th style="width:5rem">Size</th><th>Notes</th></tr>
+    <tr><td>Flat document store, scenes, transactions, undo, versioned format + v1 importer</td><td class="num">L</td><td>The keystone; CRDT-shaped from day one</td></tr>
+    <tr><td>Smart-object core: entity registry, fact tables, provenance, one-join diagnostics, bindings</td><td class="num">L</td><td>Deliberately Phase 1 — everything binds through it</td></tr>
+    <tr><td>Property tracks + single resolution pipeline (static / keys / bound)</td><td class="num">L</td><td>Expressions arrive in P2</td></tr>
+    <tr><td>GPU compositor v1 (WebGL2: layers, opacity, basic blends) over MapLibre</td><td class="num">L</td><td>Decision 04</td></tr>
+    <tr><td>Map layers at v1 parity, decomposed: regions, routes, labels, legend component</td><td class="num">L</td><td>Scale validator surfaced in the editor</td></tr>
+    <tr><td>Timeline + storyboard v1: lanes, clips, keyframe rows, story blocks, audio clips</td><td class="num">L</td><td>Ripple from day one</td></tr>
+    <tr><td>Camera node + framing solver + double-click-to-fly</td><td class="num">M</td><td>The §02 signature gesture</td></tr>
+    <tr><td>WebCodecs export + OfflineAudio mix + render queue (single job) + asset browser v1</td><td class="num">M</td><td>Kills the 8-minute short and the frozen bed</td></tr>
+  </table></div>
+
+  <h3>Phase 2 — Motion graphics &amp; geometry <span class="mono" style="color:var(--ink-3);font-size:0.8rem">(+5–7 months)</span></h3>
+  <div class="tablewrap"><table>
+    <tr><th>Feature</th><th style="width:5rem">Size</th><th>Notes</th></tr>
+    <tr><td>Curve editor, spatial paths, roving keys; parenting, constraints, groups, nested scenes</td><td class="num">L</td><td></td></tr>
+    <tr><td>Behavior stacks + procedural graph substrate + "open as graph" editor</td><td class="num">L</td><td>One substrate, three skins (Decision 03)</td></tr>
+    <tr><td>Animation library v1 (the §11 shipping set) + components with overrides</td><td class="num">M</td><td>The shelf that sells the product</td></tr>
+    <tr><td>Geometry editor: topology store, vertex/pen tools, booleans, simplify, disputed edges, versions</td><td class="num">XL</td><td>The moat; staged — vertex+simplify land first</td></tr>
+    <tr><td>Masks incl. region masks; full blend modes; adjustment layers</td><td class="num">L</td><td>Region masks are the marquee demo</td></tr>
+    <tr><td>Camera rig stacks + presets; expression DSL in a worker</td><td class="num">M</td><td></td></tr>
+    <tr><td>Projection morph, flow maps, fill behaviors; background render + incremental re-export</td><td class="num">L</td><td></td></tr>
+  </table></div>
+
+  <h3>Phase 3 — AI-assisted editor <span class="mono" style="color:var(--ink-3);font-size:0.8rem">(+3–4 months)</span></h3>
+  <div class="tablewrap"><table>
+    <tr><th>Feature</th><th style="width:5rem">Size</th><th>Notes</th></tr>
+    <tr><td>Patch-proposal framework: preview, accept/edit, audit trail</td><td class="num">M</td><td>The chassis for every copilot</td></tr>
+    <tr><td>Narration writer + timing fitter + voice pipeline (v1 engines carried over)</td><td class="num">M</td><td>Voicebox / Kokoro / clone flow survives intact</td></tr>
+    <tr><td>Camera choreographer, highlight scout, label &amp; palette advisors</td><td class="num">M</td><td>Bounded by deterministic solvers</td></tr>
+    <tr><td>Fact scout (Wikidata/portals) with provenance + approval</td><td class="num">M</td><td>Feeds smart objects, never silently</td></tr>
+  </table></div>
+
+  <h3>Phase 4 — Professional studio <span class="mono" style="color:var(--ink-3);font-size:0.8rem">(+6–9 months)</span></h3>
+  <div class="tablewrap"><table>
+    <tr><th>Feature</th><th style="width:5rem">Size</th><th>Notes</th></tr>
+    <tr><td>CRDT multiplayer + presence + comments (node + time anchored)</td><td class="num">XL</td><td>Payoff of Decision 01</td></tr>
+    <tr><td>Cloud projects, version history with visual diffs, approval workflow</td><td class="num">L</td><td></td></tr>
+    <tr><td>Plugin SDK + registry + marketplace packages</td><td class="num">L</td><td>Shared surface with copilots (Decision 05)</td></tr>
+    <tr><td>Live data sources with on-air rails; live program-out; living embeds</td><td class="num">L</td><td>The war-room persona, complete</td></tr>
+    <tr><td>Server render farm (deterministic engine, industrialised)</td><td class="num">M</td><td>8K / ProRes / batch</td></tr>
+  </table></div>
+</section>
+
+<footer class="doc">
+  <span>GeoMotion design document · draft 2</span>
+  <span>Grounded in the v1 codebase · <span class="mono">docs/geomotion-v2-design.html</span></span>
+</footer>
+
+</div>
