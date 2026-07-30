@@ -189,6 +189,34 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.36 A file with the right shape and the wrong types (M35)
+
+Opening a project is guarded by a `try/catch`, so a file that fails to parse — or that
+makes `migrate` throw — shows a message and nothing breaks. The gap is the file that
+does neither: structurally plausible, wrongly typed, accepted by `migrate`, and fatal
+several layers later. `label` arriving as an object rather than a string threw
+`style.label.trim is not a function` inside the render loop, on every frame, long after
+the `try/catch` around Open had returned successfully. Nothing catches that, and
+nothing recovers from it.
+
+The type system cannot help here: a value parsed from JSON is typed by declaration, not
+by what was in the file. So `migrate` now checks each field against the type of its
+default and replaces a mismatch. **The defaults are the schema** — nothing is written
+down twice, and a new field is covered the moment it has one.
+
+`NaN` and `Infinity` are handled too. Both are `typeof number` and pass every other
+check, then propagate through the geometry into coordinates that simply never draw.
+
+Two carve-outs, both deliberate. A `null` default carries no type to check against —
+`flipRamp` is `boolean | null`, where null means "follow the basemap" — so the loaded
+value stands. And array *elements* are not inspected: `coords` and `values` are user
+data whose validation belongs where they are read, and a coordinate list is too hot a
+path to walk twice on load.
+
+Verified in both directions in a real browser: a project full of wrong types loads,
+renders and logs nothing; with the coercion removed, the same file throws on every
+frame. Goldens unchanged — well-formed projects are untouched.
+
 ### 6.35 A glow drawn over its own line (M34)
 
 Every recent bug here surfaced from *running* code rather than reading it, so this

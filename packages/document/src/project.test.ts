@@ -256,3 +256,80 @@ describe('keyframe', () => {
     expect(keyframe(0, [0, 0], 1, { bearing: 45, easing: 'easeIn' }).bearing).toBe(45);
   });
 });
+
+describe('migrate — a file with fields of the wrong type', () => {
+  const load = (layer: Record<string, unknown>) =>
+    migrate({ version: 3, layers: [{ type: 'marker', in: 0, ...layer }], camera: [] } as never)
+      .layers[0] as unknown as Record<string, unknown>;
+  /** The marker defaults, as a bag, so a test can name a field without narrowing. */
+  const markerDefault = createLayer('marker', 0) as unknown as Record<string, unknown>;
+
+  it('replaces a string field holding an object', () => {
+    /*
+     * The case that motivated this. `label` arriving as an object threw
+     * `style.label.trim is not a function` inside the render loop — on every frame,
+     * long after the try/catch around Open had returned successfully.
+     */
+    expect(load({ label: { text: 'Tokyo' } }).label).toBe(markerDefault.label);
+  });
+
+  it('replaces a number field holding a string', () => {
+    expect(load({ size: '14' }).size).toBe(markerDefault.size);
+  });
+
+  it('replaces a boolean field holding a number', () => {
+    expect(load({ pulse: 1 }).pulse).toBe(false);
+  });
+
+  it('rejects NaN and Infinity, which are typeof number and pass every other check', () => {
+    // These propagate through the geometry into coordinates that simply never draw.
+    expect(load({ size: NaN }).size).toBe(markerDefault.size);
+    expect(load({ size: Infinity }).size).toBe(markerDefault.size);
+  });
+
+  it('keeps a correctly typed value, including a deliberate zero', () => {
+    expect(load({ size: 0 }).size).toBe(0);
+    expect(load({ label: 'Tokyo' }).label).toBe('Tokyo');
+    expect(load({ pulse: true }).pulse).toBe(true);
+  });
+
+  it('replaces an array field holding something else', () => {
+    const route = migrate({
+      version: 3, layers: [{ type: 'route', in: 0, coords: 'not an array' }], camera: [],
+    } as never).layers[0] as unknown as Record<string, unknown>;
+    expect(Array.isArray(route.coords)).toBe(true);
+  });
+
+  it('leaves the contents of an array alone', () => {
+    // `coords` and `values` are user data; validating their elements belongs where
+    // they are read, not here — and a coordinate list is too hot a path to walk twice.
+    const route = migrate({
+      version: 3, layers: [{ type: 'route', in: 0, coords: [[1, 2], [3, 4]] }], camera: [],
+    } as never).layers[0] as { coords: unknown };
+    expect(route.coords).toEqual([[1, 2], [3, 4]]);
+  });
+
+  it('repairs a nested object without discarding its good fields', () => {
+    const route = migrate({
+      version: 3,
+      layers: [{ type: 'route', in: 0, marker: { enabled: 'yes', size: 20 } }],
+      camera: [],
+    } as never).layers[0] as { marker: Record<string, unknown> };
+    expect(route.marker.enabled).toBe(true); // the default, not the string
+    expect(route.marker.size).toBe(20); // kept
+  });
+
+  it('keeps a null-defaulted field, which has no type to check against', () => {
+    // `flipRamp` is `boolean | null`, where null means "follow the basemap".
+    const regions = (v: unknown) =>
+      (migrate({ version: 3, layers: [{ type: 'regions', in: 0, flipRamp: v }], camera: [] } as never)
+        .layers[0] as unknown as Record<string, unknown>).flipRamp;
+    expect(regions(true)).toBe(true);
+    expect(regions(null)).toBe(null);
+  });
+
+  it('still fills in a field that is simply missing', () => {
+    expect(load({}).label).toBe(markerDefault.label);
+    expect(load({}).size).toBe(markerDefault.size);
+  });
+});

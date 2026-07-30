@@ -337,8 +337,54 @@ export function migrate(input: unknown): Project {
     }
   }
   p.camera = (p.camera ?? []).map((k) => ({ ...keyframe(0, [0, 0], 1), ...k }));
+/**
+ * Replace any field whose type disagrees with its default.
+ *
+ * `migrate` fills in fields a file is *missing*; this handles fields it has *wrong*.
+ * The two are different failures with very different consequences. A missing field
+ * throws nothing and the spread covers it. A field of the wrong type sails through
+ * every check the type system can make — the value is typed by declaration, not by
+ * what was in the JSON — and lands in the renderer, which is not a place with any
+ * recovery: `label` arriving as an object rather than a string threw
+ * `style.label.trim is not a function` on every frame from then on, well after the
+ * `try/catch` around Open had returned successfully.
+ *
+ * The defaults are the schema. Nothing has to be written down twice, and a new field
+ * is covered the moment it has a default.
+ *
+ * Two things are deliberately left alone. A `null` default carries no type to check
+ * against — `flipRamp` is `boolean | null` and means "follow the basemap" — so the
+ * loaded value stands. And an array's *elements* are not inspected: `coords` and
+ * `values` hold user data whose own validation belongs where it is read, not here.
+ */
+function coerceToDefaults<T>(loaded: T, defaults: T): T {
+  if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return defaults;
+  const out = { ...loaded } as Record<string, unknown>;
+  const base = defaults as Record<string, unknown>;
+
+  for (const key of Object.keys(base)) {
+    const want = base[key];
+    const got = out[key];
+    if (want === null || want === undefined) continue;
+
+    if (Array.isArray(want)) {
+      if (!Array.isArray(got)) out[key] = want;
+    } else if (typeof want === 'object') {
+      out[key] = coerceToDefaults(got, want);
+    } else if (typeof got !== typeof want) {
+      out[key] = want;
+    } else if (typeof want === 'number' && !Number.isFinite(got as number)) {
+      // NaN and Infinity are `typeof number` and survive every other check here, then
+      // propagate silently through the geometry into coordinates that never draw.
+      out[key] = want;
+    }
+  }
+  return out as T;
+}
+
   p.layers = (p.layers ?? []).map((l) => {
-    const filled = { ...createLayer(l.type, l.in ?? 0), ...l } as Layer;
+    const defaults = createLayer(l.type, l.in ?? 0);
+    const filled = coerceToDefaults({ ...defaults, ...l }, defaults) as Layer;
     if (filled.type === 'route') {
       filled.marker = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).marker, ...filled.marker };
       filled.follow = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).follow, ...filled.follow };
