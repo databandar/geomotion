@@ -182,7 +182,7 @@ export function syncScene(map: MLMap, scene: Scene) {
     const bordersIn = r.introTrace >= 1;
     const casingId = `${src}-line-casing`;
     if (style.borderCasing) {
-      ensureLayer(map, { id: casingId, type: 'line', source: src, layout: { 'line-join': 'round' }, paint: {} });
+      ensureLayer(map, { id: casingId, type: 'line', source: src, layout: { 'line-join': 'round' }, paint: {} }, lineId);
       setPaint(map, casingId, 'line-color', 'rgba(0,0,0,0.55)');
       setPaint(map, casingId, 'line-width', style.borderWidth + 1.6);
       setPaint(map, casingId, 'line-opacity', bordersIn ? 0.85 * r.alpha : 0);
@@ -255,13 +255,17 @@ export function syncScene(map: MLMap, scene: Scene) {
 
     const glowId = `${src}-active-glow`;
     if (r.glow > 0.01) {
-      ensureLayer(map, {
-        id: glowId,
-        type: 'line',
-        source: traceSrc,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {},
-      });
+      ensureLayer(
+        map,
+        {
+          id: glowId,
+          type: 'line',
+          source: traceSrc,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {},
+        },
+        activeId,
+      );
       setPaint(map, glowId, 'line-color', style.highlightColor);
       setPaint(map, glowId, 'line-width', style.highlightWidth * 4);
       setPaint(map, glowId, 'line-blur', style.highlightWidth * 3);
@@ -294,7 +298,7 @@ export function syncScene(map: MLMap, scene: Scene) {
     const lineId = `${src}-line`;
 
     if (style.glow) {
-      ensureLayer(map, { id: glowId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
+      ensureLayer(map, { id: glowId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} }, lineId);
       setPaint(map, glowId, 'line-color', style.color);
       setPaint(map, glowId, 'line-width', style.width * 3.2);
       setPaint(map, glowId, 'line-blur', style.width * 2.4);
@@ -334,9 +338,29 @@ function ensureSource(map: MLMap, id: string, data: GeoJSON.FeatureCollection) {
   map.addSource(id, { type: 'geojson', data });
 }
 
-function ensureLayer(map: MLMap, spec: LayerSpecification & { source: string }) {
+/**
+ * Add a layer once, optionally *beneath* an existing one.
+ *
+ * `addLayer` with no anchor appends to the top of the style, which is only correct for
+ * a layer created before its neighbours. Every glow and casing here is conditional, so
+ * the first time one is switched on its partner already exists and it lands on top —
+ * a blurred halo three times the width of the line, drawn over the line.
+ *
+ * Measured on the route glow: built with it on the order is `[glow, line]`, but
+ * switched on afterwards it is `[line, glow]`. So a project rendered one way when
+ * opened and another way when the toggle was flipped, and the editor disagreed with the
+ * export, which always builds its layers fresh. The region casing and the tour's
+ * highlight glow are the same construct and take the same anchor; neither was observed
+ * misordered, because the shipped fixtures do not switch them on mid-session.
+ *
+ * `beneath` is only honoured once that layer exists; MapLibre throws on an unknown
+ * anchor, and on the first pass the partner has not been created yet — in which case
+ * appending is already the right answer.
+ */
+function ensureLayer(map: MLMap, spec: LayerSpecification & { source: string }, beneath?: string) {
   if (map.getLayer(spec.id)) return;
-  map.addLayer(spec as LayerSpecification);
+  if (beneath && map.getLayer(beneath)) map.addLayer(spec as LayerSpecification, beneath);
+  else map.addLayer(spec as LayerSpecification);
 }
 
 function removeLayer(map: MLMap, id: string) {

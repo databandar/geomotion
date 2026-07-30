@@ -238,6 +238,47 @@ describe('syncScene — switching a shape between outline modes', () => {
   });
 });
 
+describe('syncScene — stacking a glow under its line', () => {
+  const glowing = () => withRoute(routeStyle({ glow: true }));
+
+  it('puts the glow beneath the line when the layer is built with it on', () => {
+    sync(glowing());
+    expect(map.order()).toEqual(['gm-route-r1-glow', 'gm-route-r1-line']);
+  });
+
+  it('puts it in the same place when the toggle is flipped later', () => {
+    /*
+     * The bug, measured in a live map before it was fixed: built with glow on, the
+     * order is `[glow, line]`; switched on afterwards it is `[line, glow]`, putting a
+     * blurred halo three times the line's width on top of it. One project therefore
+     * rendered one way when opened and another when the toggle was flipped, and the
+     * editor disagreed with the export, which always builds its layers fresh.
+     */
+    sync(withRoute());
+    map.flush();
+    sync(glowing());
+    expect(map.order()).toEqual(['gm-route-r1-glow', 'gm-route-r1-line']);
+  });
+
+  it('keeps the order through repeated toggling', () => {
+    // The tour's highlight glow is an animated value that crosses its threshold at each
+    // stop when `sequenceReveal` is on, dropping the layer and re-adding it repeatedly.
+    sync(glowing());
+    sync(withRoute());
+    sync(glowing());
+    sync(withRoute());
+    sync(glowing());
+    expect(map.order()).toEqual(['gm-route-r1-glow', 'gm-route-r1-line']);
+  });
+
+  it('removes the glow when it is switched off', () => {
+    sync(glowing());
+    map.flush();
+    sync(withRoute());
+    expect(map.order()).toEqual(['gm-route-r1-line']);
+  });
+});
+
 describe('syncScene — a layer that leaves the composition', () => {
   it('takes its source and layers with it', () => {
     sync(withShape());

@@ -105,8 +105,27 @@ export class FakeMap {
     return this.layers.get(id);
   }
 
-  addLayer(spec: { id: string; source?: string }) {
-    this.layers.set(spec.id, spec);
+  /**
+   * `beforeId` inserts *beneath* that layer, as MapLibre does, and throws on an
+   * unknown one — the fake has to keep both halves of that contract or a test cannot
+   * tell correct stacking from accidental stacking.
+   */
+  addLayer(spec: { id: string; source?: string }, beforeId?: string) {
+    if (beforeId !== undefined && !this.layers.has(beforeId)) {
+      throw new Error(`The layer "${beforeId}" does not exist in the map's style.`);
+    }
+    if (beforeId === undefined) {
+      this.layers.set(spec.id, spec);
+    } else {
+      // Rebuild in order: a Map preserves insertion order and has no way to splice.
+      const rebuilt = new Map<string, unknown>();
+      for (const [id, v] of this.layers) {
+        if (id === beforeId) rebuilt.set(spec.id, spec);
+        rebuilt.set(id, v);
+      }
+      this.layers.clear();
+      for (const [id, v] of rebuilt) this.layers.set(id, v);
+    }
     this.calls.push({ op: 'addLayer', id: spec.id });
   }
 
@@ -133,5 +152,10 @@ export class FakeMap {
   /** Ids of everything currently on the map, for asserting on teardown. */
   state() {
     return { sources: [...this.sources.keys()].sort(), layers: [...this.layers.keys()].sort() };
+  }
+
+  /** Layers bottom to top, which is the order they draw in. */
+  order(): string[] {
+    return [...this.layers.keys()];
   }
 }

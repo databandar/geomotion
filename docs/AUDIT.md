@@ -189,6 +189,34 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.35 A glow drawn over its own line (M34)
+
+Every recent bug here surfaced from *running* code rather than reading it, so this
+milestone ran everything: a sweep that toggles each layer feature in a live map and
+checks the frame actually changes and nothing throws.
+
+The sweep's own first two runs were wrong, which is worth recording. A 48x27 signature
+was too coarse to see a dashed line — it reported "no effect" for a feature already
+verified by eye. And five text features reported nothing because the probe used the
+wrong field names (`content` for `text`, `tracking` for `letterSpacing`) so the layer
+kept rendering its defaults. Both were faults in the instrument, not the app.
+
+What survived was real. `ensureLayer` called `addLayer` with no anchor, which appends
+to the **top** of the style — correct only for a layer created before its neighbours.
+Every glow and casing here is conditional, so the first time one is switched on its
+partner already exists and it lands on top: a blurred halo three times the width of the
+line, drawn over the line. Measured directly on the route glow — built with it on the
+order is `[glow, line]`; switched on afterwards it is `[line, glow]`. A project
+therefore rendered one way when opened and another when the toggle was flipped, and the
+editor disagreed with the export, which always builds its layers fresh.
+
+Fixed by anchoring each under-layer beneath its partner. The fake map now honours
+`beforeId` and throws on an unknown one, as MapLibre does, so a test can tell correct
+stacking from accidental stacking.
+
+Goldens unchanged: the harness loads each fixture fresh, which is exactly the path that
+was already correct.
+
 ### 6.34 The readout card's placement (M33)
 
 The last inline geometry in the renderer. The card wants to sit centred above its
