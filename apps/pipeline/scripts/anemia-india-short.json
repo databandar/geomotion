@@ -1,5 +1,5 @@
 {
-  "title": "भारत में एनीमिया — टॉप 5 राज्य",
+  "title": "Anaemia in India — top 5 states",
   "slug": "anemia-india-short",
   "format": "short",
   "fps": 30,
@@ -7,17 +7,17 @@
   "dataset": "india-official",
   "values": "india-anemia-sample",
   "ramp": "ember",
-  "credit": "सीमाएँ: भारत सरकार का चित्रण · नक्शा: Esri, OSM · आंकड़े: नमूना",
+  "credit": "Imagery: Esri, Maxar · Boundaries: Government of India · Data: sample",
   "voice": {
     "engine": "say",
     "voice": "Lekha",
     "rate": 176
   },
   "metric": {
-    "label": "एनीमिया — महिलाएँ 15–49",
+    "label": "Anaemia — women aged 15–49",
     "unit": "%",
     "decimals": 1,
-    "legend": "एनीमिया, महिलाएँ 15–49 (%)"
+    "legend": "Anaemia, women 15–49 (%)"
   },
   "zoom": 3.9,
   "padding": 0.13,
@@ -29,7 +29,7 @@
       "kind": "clouds",
       "id": "hook",
       "say": "भारत के किस राज्य में एनीमिया सबसे ज़्यादा है?",
-      "onScreen": "एनीमिया\nटॉप 5 राज्य",
+      "onScreen": "Anaemia\nTop 5 states",
       "pad": 0.5,
       "minLength": 2.4
     },

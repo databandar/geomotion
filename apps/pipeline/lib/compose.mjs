@@ -374,11 +374,17 @@ export async function compose(script, timings) {
     x: 0.985,
     y: isShort ? 0.978 : 0.972,
     size: isShort ? 16 : 15,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.88)',
     weight: 400,
     align: 'right',
-    background: false,
-    backgroundColor: '#000000aa',
+    // An opaque chip, not a wash. Drawn bare this collided with the basemap's own
+    // place labels and became unreadable, and illegible attribution does not
+    // satisfy the tile licence. A 45% scrim was not enough either: MapLibre draws
+    // its labels into the GL canvas underneath, so they read straight through a
+    // translucent panel and interleave with the credit's glyphs. Matches the
+    // legend's own panel colour.
+    background: true,
+    backgroundColor: 'rgba(10,13,18,0.82)',
     letterSpacing: 0,
     anim: 'none',
   });

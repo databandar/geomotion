@@ -110,7 +110,7 @@ Ordered by risk × cost of delay.
 | # | Debt | Impact | Proposed milestone |
 | --- | --- | --- | --- |
 | D11 | `strict` is on, but the two flags the guide also mandates — `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` — are not | Guide §2 requires both. Turning them on will surface real indexing and optional-property assumptions across ~12.8k lines | Its own milestone; too noisy to bundle into an infrastructure change |
-| D12 | `apps/pipeline` has no tests | The narration-timing and placeholder-resolution logic is where factual errors reach a published video, and it is unguarded | With the `apps/server` / `apps/render-cli` split |
+| D12 | `apps/pipeline` tests | Composition and attribution are covered as of M9 (11 tests); narration timing, voice mixing and encode are still unguarded | Remainder with the `apps/server` / `apps/render-cli` split |
 
 ### 6.1 Bugs found by the M3 suite
 
@@ -158,6 +158,36 @@ headless browser instead:
 | --- | --- |
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
+
+### 6.9 What the attribution fix actually took (M9)
+
+The audit entry for D13 was wrong about the cause. It recorded "the caption collides
+with the basemap's attribution", implying two of our own texts overlapping. There is
+only one bottom text layer. What actually happens: the pipeline adds a Credit layer —
+the tile attribution, and not optional — at `background: false`, so a 100-character
+Devanagari line was drawn bare, right-aligned across the frame, directly over
+satellite imagery and the basemap's own place labels.
+
+Fixing it took three passes, and only looking at rendered frames showed why:
+
+1. Latin and shorter (69 characters). Better, still unreadable.
+2. A 45% black scrim, matching what the editor's own export path draws. **Still
+   unreadable** — MapLibre draws place labels into the GL canvas *underneath* the
+   overlay, so "Kuala Lumpur" read straight through the translucent panel and
+   interleaved with the credit's glyphs.
+3. An opaque chip at `rgba(10,13,18,0.82)`, the legend's own panel colour. Legible.
+
+Also corrected: the credit named OpenStreetMap while the script uses Esri satellite
+tiles and no OSM data. Crediting a provider whose data you are not using is its own
+kind of licence problem, so the test now checks the providers each **basemap**
+requires rather than asserting a blanket "must say OpenStreetMap".
+
+That test immediately found a third bundled script, `child-marriage-short.json`,
+which nothing in this session had touched — its attribution is correct for its
+basemap, which the rigid version of the assertion would have failed.
+
+A two-minute, 1292-frame render is the wrong loop for "is this dark enough". A
+one-frame shot through the running editor answers it in fifteen seconds.
 
 ### 6.8 D6, closed without a rewrite (M8)
 
@@ -229,8 +259,8 @@ defects, both pre-existing and neither caused by the refactors:
 
 | # | Defect | Impact |
 | --- | --- | --- |
-| D13 | The bottom-centre source caption is drawn over the basemap's own attribution line, so the two collide into unreadable overlapping text | Visible in every frame of the outro on the landscape format. Attribution has to stay legible for the tile licence to be satisfied, so this is a licensing question as well as a cosmetic one |
-| D14 | The legend title renders in Devanagari, against the standing instruction that on-screen text stays Latin and Hindi lives only in the audio | Region labels and values already follow the rule; only the legend title and the caption do not |
+| D13 | ~~Attribution unreadable over imagery~~ | **Closed in M9.** Not a collision between two of our own texts, as first recorded: it is the credit line drawn bare over satellite imagery and the basemap's own place labels |
+| D14 | ~~Devanagari on screen~~ | **Closed in M9.** Six strings, not one: title, credit, metric label, legend title and two beat captions |
 
 ### 6.3 Found by turning on the linter (M5)
 
@@ -264,6 +294,11 @@ No architectural changes were made during this audit.
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
 `project` — and CI enforces it.
+
+**Update after M9.** D13 and D14 are closed, and D12 is partly closed: `apps/pipeline`
+has its first 11 tests, covering the two properties that a render surfaced and nothing
+else could catch — on-screen text is Latin while narration stays Hindi, and the
+attribution is legible, complete for its basemap, and on screen for the whole video.
 
 **Update after M8.** D6 is closed. The renderer sees a declared style contract
 instead of the document, enforced by an import ban, and the render-signature

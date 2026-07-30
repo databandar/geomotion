@@ -38,6 +38,10 @@ importers:
       puppeteer-core:
         specifier: ^23.0.0
         version: 23.11.1
+    devDependencies:
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)
 
   apps/studio:
     dependencies:

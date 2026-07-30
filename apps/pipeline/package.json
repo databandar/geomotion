@@ -11,9 +11,12 @@
   "scripts": {
     "video": "node video.mjs",
     "typecheck": "echo 'plain .mjs, no types to check'",
-    "test": "echo 'no tests yet — see docs/AUDIT.md debt D12'"
+    "test": "vitest run"
   },
   "dependencies": {
     "puppeteer-core": "^23.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
   }
 }

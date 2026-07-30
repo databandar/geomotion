@@ -1,5 +1,5 @@
 {
-  "title": "भारत में एनीमिया — राज्यवार तस्वीर",
+  "title": "Anaemia in India — the state-by-state picture",
   "slug": "anemia-india",
   "format": "landscape",
   "fps": 30,
@@ -7,17 +7,17 @@
   "dataset": "india-official",
   "values": "india-anemia-sample",
   "ramp": "ember",
-  "credit": "सीमाएँ: भारत सरकार का आधिकारिक चित्रण · नक्शा: Esri, OpenStreetMap · आंकड़े: नमूना — अपना स्रोत लगाएँ",
+  "credit": "Imagery: Esri, Maxar · Boundaries: Government of India · Data: sample",
   "voice": {
     "engine": "say",
     "voice": "Lekha",
     "rate": 168
   },
   "metric": {
-    "label": "एनीमिया — महिलाएँ 15–49",
+    "label": "Anaemia — women aged 15–49",
     "unit": "%",
     "decimals": 1,
-    "legend": "एनीमिया, महिलाएँ 15–49 (%)"
+    "legend": "Anaemia, women 15–49 (%)"
   },
   "beatGap": 0.3,
   "tailOut": 1.6,
@@ -26,7 +26,7 @@
       "kind": "clouds",
       "id": "hook",
       "say": "भारत में हर दूसरी महिला के खून में आयरन की कमी है। लेकिन यह कमी हर राज्य में एक जैसी नहीं है।",
-      "onScreen": "भारत में एनीमिया",
+      "onScreen": "Anaemia in India",
       "pad": 0.8
     },
     {
@@ -39,7 +39,7 @@
       "kind": "overview",
       "id": "setup",
       "say": "गहरा रंग मतलब ज़्यादा एनीमिया। अब चलिए, सबसे ऊपर से शुरू करें।",
-      "onScreen": "महिलाएँ, 15 से 49 वर्ष",
+      "onScreen": "Women, ages 15 to 49",
       "pad": 0.5
     },
     {
