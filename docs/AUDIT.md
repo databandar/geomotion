@@ -189,6 +189,31 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.32 The dashed toggle never worked (M31)
+
+`mapsync.ts` was 340 lines of stateful GL orchestration with no coverage — the app's
+only mutation of live map state, and the hardest part to see, because its result is a
+sequence of calls rather than a value. The golden harness proves the pixels are right
+but cannot say *why*: a sync that re-uploads every source every frame renders
+identically to one that does not.
+
+A `FakeMap` records the calls. 35 tests cover creation, the caching that keeps a still
+frame from re-pushing every property, mode switches, and teardown. Each was checked by
+breaking the code deliberately — reverting the cache fix, dropping the cache, removing
+the teardown — and confirming the right test failed each time.
+
+**Two bugs, one behind the other.** The cache compared `get(key) === next`, which cannot
+tell "never set" from "set to `undefined`" — and `undefined` is a real value here, being
+how a property is cleared. Fixing that surfaced the second: `line-dasharray` is a
+**paint** property, and the code sent it to `setLayoutProperty`, which MapLibre rejects
+outright. So the route inspector's Dashed toggle threw inside the render loop every time
+it was switched on, and had since it shipped. It stayed hidden precisely because of the
+first bug: an undashed route's `undefined` was skipped, so the call was never made.
+
+The fake now rejects a paint property sent to the layout setter, the way the real map
+does — the fake accepting it is why this survived the first draft of the tests too.
+`setLayout` had no other caller and is gone.
+
 ### 6.31 Glass (M30)
 
 Requested directly, so built — with the two things that usually go wrong measured

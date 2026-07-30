@@ -31,20 +31,26 @@ const paintCache = new Map<string, unknown>();
 /** Arrays/objects compare by value so we don't re-set line-dasharray every frame. */
 const cacheKeyOf = (v: unknown) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : v);
 
+/**
+ * Skip a property that is already where we want it.
+ *
+ * `has` before `get`, because `undefined` is a real value here — it is how a paint
+ * property is cleared back to its default, and `line-dasharray` is set to it on every
+ * undashed line. A plain `get(key) === next` cannot tell "never set" from "set to
+ * undefined", so the first attempt to clear a property was skipped. Nothing hit it
+ * today only because the cache is reset exactly when the style reloads and every layer
+ * is destroyed with it — a coupling nothing states and nothing enforces.
+ */
+function shouldSkip(key: string, next: unknown): boolean {
+  return paintCache.has(key) && paintCache.get(key) === next;
+}
+
 function setPaint(map: MLMap, layerId: string, prop: string, value: unknown) {
   const key = layerId + '|' + prop;
   const next = cacheKeyOf(value);
-  if (paintCache.get(key) === next) return;
+  if (shouldSkip(key, next)) return;
   paintCache.set(key, next);
   map.setPaintProperty(layerId, prop, value as never);
-}
-
-function setLayout(map: MLMap, layerId: string, prop: string, value: unknown) {
-  const key = layerId + '#' + prop;
-  const next = cacheKeyOf(value);
-  if (paintCache.get(key) === next) return;
-  paintCache.set(key, next);
-  map.setLayoutProperty(layerId, prop, value as never);
 }
 
 export function resetSyncCache() {
@@ -301,7 +307,11 @@ export function syncScene(map: MLMap, scene: Scene) {
     setPaint(map, lineId, 'line-color', style.color);
     setPaint(map, lineId, 'line-width', style.width);
     setPaint(map, lineId, 'line-opacity', r.alpha * style.opacity);
-    setLayout(map, lineId, 'line-dasharray', style.dashed ? [2, 1.6] : undefined);
+    // `line-dasharray` is a *paint* property; MapLibre throws if it arrives through
+    // setLayoutProperty. This went unnoticed because the cache used to skip the very
+    // first `undefined`, so an undashed route never made the call — and a dashed one
+    // threw inside the render loop every time.
+    setPaint(map, lineId, 'line-dasharray', style.dashed ? [2, 1.6] : undefined);
   }
 
   // Drop anything belonging to layers that no longer exist.
