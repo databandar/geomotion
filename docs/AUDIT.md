@@ -189,6 +189,27 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.27 Colours that are not colours (M26)
+
+The inspector's colour field is free text beside the picker, and it commits on every
+keystroke. Typing `#ff0000` therefore passes through `#ff00`, which the renderer's
+`withAlpha` turned into `rgba(255,0,NaN,1)`.
+
+Assigning that to `fillStyle` is a **silent no-op** — verified against real Chrome, not
+assumed: the canvas keeps the previous colour. So the shape drew in whatever the last
+layer left behind, with no error and nothing blank, varying with draw order. `core` had
+a second partial parser with the same flaw feeding `luminance`, which picks readable
+ink by comparing against a threshold — and `NaN` compares false against every
+threshold, so one branch would have been taken forever.
+
+One total parser in `core` now covers all four CSS hex forms and returns `null` rather
+than NaN channels. `#rgba` is a real form, so the mid-typing case is honoured rather
+than papered over. Unparseable hex draws transparent: wrong in a way someone can see,
+rather than wrong in a way that looks deliberate.
+
+All ten golden frames unchanged — the fixtures were already valid, so this is
+hardening, not a fix to what shipped.
+
 ### 6.26 Who drives the camera (M25)
 
 Two behaviours can claim the camera on the same frame — a route's `follow` and a

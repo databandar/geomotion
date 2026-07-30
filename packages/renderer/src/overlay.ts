@@ -1,4 +1,4 @@
-import { clamp01, getRamp, rampColor, type LngLat } from '@geomotion/core';
+import { clamp01, getRamp, rampColor, withAlpha, type LngLat } from '@geomotion/core';
 import type { RouteIconStyle } from './styles.ts';
 import type {
   CloudsRender,
@@ -798,16 +798,4 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
-}
-
-/** Accepts #rgb / #rrggbb / #rrggbbaa and returns an rgba() with the given alpha. */
-function withAlpha(color: string, alpha: number): string {
-  if (!color.startsWith('#')) return color;
-  let hex = color.slice(1);
-  if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const a = hex.length >= 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
-  return `rgba(${r},${g},${b},${a * alpha})`;
 }

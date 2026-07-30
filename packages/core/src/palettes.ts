@@ -53,10 +53,63 @@ export const RAMPS: [Ramp, ...Ramp[]] = [
 
 export const getRamp = (id: string): Ramp => RAMPS.find((r) => r.id === id) ?? RAMPS[0];
 
+/** A colour taken apart: channels 0..255, alpha 0..1. */
+export interface Rgba {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+/**
+ * Parse the four CSS hex forms — `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa` — or `null`.
+ *
+ * Total by contract: every caller here feeds a canvas, and an invalid colour string is
+ * a **silent no-op** on `fillStyle`, so the previous colour keeps drawing. Nothing
+ * throws, nothing looks broken, and the wrong shape is filled with whatever the last
+ * layer happened to leave behind. A `NaN` channel is the usual way in, which is why
+ * this returns `null` rather than a tuple the caller has to check.
+ *
+ * The short forms matter more than they look: the inspector's colour text field
+ * commits on every keystroke, so typing `#ff0000` passes through `#ff00` — a real
+ * `#rgba` — on the way. Rejecting it would flash a fallback mid-word.
+ */
+export function parseHex(color: string): Rgba | null {
+  if (!color.startsWith('#')) return null;
+  let h = color.slice(1);
+  // `#rgb` and `#rgba` double each digit; the long forms are already per-channel.
+  if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join('');
+  if (h.length !== 6 && h.length !== 8) return null;
+  if (!/^[0-9a-fA-F]+$/.test(h)) return null;
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+    a: h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1,
+  };
+}
+
+/**
+ * `color` at `alpha` times its own opacity, as an `rgba()` string.
+ *
+ * Unparseable hex becomes fully transparent rather than an `rgba(…NaN…)` the canvas
+ * will ignore: drawing nothing is wrong in a way someone can see and fix, while
+ * inheriting the previous fill is wrong in a way that looks deliberate. Non-hex
+ * strings pass through — `red` and `rgb(…)` are legitimate and the canvas resolves
+ * them itself.
+ */
+export function withAlpha(color: string, alpha: number): string {
+  const c = parseHex(color);
+  if (!c) return color.startsWith('#') ? 'rgba(0,0,0,0)' : color;
+  return `rgba(${c.r},${c.g},${c.b},${c.a * alpha})`;
+}
+
 const hexToRgb = (hex: string): [number, number, number] => {
-  let h = hex.replace('#', '');
-  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  const c = parseHex(hex);
+  // Black is the safe answer for a colour that is not one: `luminance` uses this to
+  // choose readable ink, and NaN there compares false against every threshold, so the
+  // caller would silently take one branch forever.
+  return c ? [c.r, c.g, c.b] : [0, 0, 0];
 };
 
 const rgbToHex = (r: number, g: number, b: number) =>
