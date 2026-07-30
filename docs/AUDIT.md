@@ -189,6 +189,23 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.29 What people paste into the shape box (M28)
+
+`map` was 513 lines with no tests. The part that most needed them was the one taking
+arbitrary user input: the shape layer's GeoJSON field is a plain textarea that commits
+on every keystroke.
+
+Pasting `{"type":"FeatureCollection"}` — valid JSON, and a reasonable thing to type
+while building one by hand — threw `TypeError: data.features is not iterable` from
+inside `syncScene`, which runs in the render loop. Confirmed against the old code
+rather than inferred. A `FeatureCollection` was trusted to have a `features` array
+purely because it said it was one.
+
+Parsing moved to `geojson.ts` with 15 tests, and now checks the field it is about to
+iterate. The other three accepted forms — bare geometry, bare `Feature`, whole
+collection — are pinned too, along with nested `GeometryCollection`s, which the spec
+permits and QGIS emits.
+
 ### 6.28 The renderer's first tests (M27)
 
 `renderer` was 1239 lines with no unit tests, guarded only by a golden harness whose

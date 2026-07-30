@@ -2,6 +2,7 @@ import type { Map as MLMap, GeoJSONSource, LayerSpecification } from 'maplibre-g
 import type { LngLat } from '@geomotion/core';
 import type { ShapeStyle, Scene } from '@geomotion/renderer';
 import { measure, sliceAt, type MeasuredPath } from '@geomotion/geometry';
+import { outlineOf, parseGeoJSON } from './geojson.ts';
 
 /**
  * Slicing a border every frame would otherwise rebuild its cumulative-length
@@ -72,47 +73,10 @@ function parseShape(style: ShapeStyle): ShapeCacheEntry {
   const hit = shapeCache.get(style.id);
   if (hit && hit.raw === style.geojson) return hit;
 
-  let data: GeoJSON.FeatureCollection = EMPTY;
-  try {
-    const parsed = JSON.parse(style.geojson || 'null');
-    if (parsed) {
-      if (parsed.type === 'FeatureCollection') data = parsed;
-      else if (parsed.type === 'Feature') data = { type: 'FeatureCollection', features: [parsed] };
-      else data = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: parsed }] };
-    }
-  } catch {
-    data = EMPTY;
-  }
-
-  const outline: LngLat[][] = [];
-  for (const f of data.features) collectRings(f.geometry, outline);
-
-  const entry = { raw: style.geojson, data, outline };
+  const data = parseGeoJSON(style.geojson);
+  const entry = { raw: style.geojson, data, outline: outlineOf(data) };
   shapeCache.set(style.id, entry);
   return entry;
-}
-
-function collectRings(g: GeoJSON.Geometry | null, out: LngLat[][]) {
-  if (!g) return;
-  switch (g.type) {
-    case 'Polygon':
-      for (const ring of g.coordinates) out.push(ring as LngLat[]);
-      break;
-    case 'MultiPolygon':
-      for (const poly of g.coordinates) for (const ring of poly) out.push(ring as LngLat[]);
-      break;
-    case 'LineString':
-      out.push(g.coordinates as LngLat[]);
-      break;
-    case 'MultiLineString':
-      for (const l of g.coordinates) out.push(l as LngLat[]);
-      break;
-    case 'GeometryCollection':
-      for (const sub of g.geometries) collectRings(sub, out);
-      break;
-    default:
-      break;
-  }
 }
 
 /* ------------------------------------------------------------------ sync */

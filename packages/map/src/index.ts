@@ -8,3 +8,4 @@
 
 export { resetSyncCache, syncScene } from './mapsync.ts';
 export { BASEMAPS, TERRAIN_SOURCE, getBasemap, type Basemap } from './basemaps.ts';
+export { collectRings, outlineOf, parseGeoJSON } from './geojson.ts';
