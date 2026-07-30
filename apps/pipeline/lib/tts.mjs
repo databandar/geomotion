@@ -290,6 +290,31 @@ export async function clearRecording({ voiceRoot, slug, key }) {
 }
 
 /** Concatenate the per-line wavs, inserting the gaps the timeline assumes. */
+/**
+ * The filter chain for one clip: level, fades, then position.
+ *
+ * Order matters. `afade` counts from the start of *its* input, so fading has to happen
+ * before `adelay` moves the clip — do it after and the fade lands at the head of the
+ * silence instead of the head of the audio.
+ *
+ * Exported for its own tests: this is string construction, and getting it wrong
+ * produces a mix that is quietly at the wrong level rather than an ffmpeg error.
+ */
+export function clipFilter(index, clip) {
+  const ms = Math.round(clip.start * 1000);
+  const stages = [];
+
+  const gain = clip.gain ?? 1;
+  if (gain !== 1) stages.push(`volume=${gain.toFixed(4)}`);
+  if (clip.fadeIn > 0) stages.push(`afade=t=in:st=0:d=${clip.fadeIn.toFixed(3)}`);
+  if (clip.fadeOut > 0 && clip.duration > 0) {
+    stages.push(`afade=t=out:st=${Math.max(0, clip.duration - clip.fadeOut).toFixed(3)}:d=${clip.fadeOut.toFixed(3)}`);
+  }
+  stages.push(`adelay=${ms}|${ms}`);
+
+  return `[${index + 1}:a]${stages.join(',')}[a${index}]`;
+}
+
 export async function buildVoiceTrack(clips, outWav, totalDuration) {
   // A silent bed of exactly the right length, with each clip mixed in at its
   // own start time. Padding this way means audio and video can never drift.
@@ -299,7 +324,7 @@ export async function buildVoiceTrack(clips, outWav, totalDuration) {
 
   clips.forEach((clip, i) => {
     inputs.push('-i', clip.file);
-    filters.push(`[${i + 1}:a]adelay=${Math.round(clip.start * 1000)}|${Math.round(clip.start * 1000)}[a${i}]`);
+    filters.push(clipFilter(i, clip));
   });
 
   const mixLabels = clips.map((_, i) => `[a${i}]`).join('');

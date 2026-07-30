@@ -57,7 +57,7 @@ export async function materialiseClips(clips, dir) {
     if (!clip.source.startsWith('data:')) {
       try {
         await fs.access(clip.source);
-        resolved.push({ file: clip.source, start: clip.start });
+        resolved.push({ ...clip, file: clip.source });
       } catch {
         missing.push(clip.source);
       }
@@ -72,7 +72,7 @@ export async function materialiseClips(clips, dir) {
     await fs.mkdir(dir, { recursive: true });
     const file = path.join(dir, `embedded-${String(i).padStart(3, '0')}${extensionFor(parsed.mime)}`);
     await fs.writeFile(file, parsed.bytes);
-    resolved.push({ file, start: clip.start });
+    resolved.push({ ...clip, file });
     embedded++;
   }
 

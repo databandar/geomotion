@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { useStore, useSelectedKeyframe, useSelectedLayer } from '../store';
+import { useStore, useSelectedCue, useSelectedKeyframe, useSelectedLayer } from '../store';
+import { envelopeOf } from '@geomotion/document';
 import type {
+  AudioCue,
   CloudsLayer,
   ImageLayer,
   MarkerLayer,
@@ -24,9 +26,11 @@ import { haversine, measure, buildPath } from '@geomotion/geometry';
 export default function Inspector() {
   const layer = useSelectedLayer();
   const kf = useSelectedKeyframe();
+  const cue = useSelectedCue();
 
   return (
     <div className="inspector">
+      {cue && <AudioInspector cue={cue} />}
       {kf && <KeyframeInspector />}
       {layer?.type === 'route' && <RouteInspector layer={layer} />}
       {layer?.type === 'marker' && <MarkerInspector layer={layer} />}
@@ -35,10 +39,10 @@ export default function Inspector() {
       {layer?.type === 'regions' && <RegionsInspector layer={layer} />}
       {layer?.type === 'clouds' && <CloudsInspector layer={layer} />}
       {layer?.type === 'image' && <ImageInspector layer={layer} />}
-      {!layer && !kf && (
+      {!layer && !kf && !cue && (
         <div className="empty-hint">
           <p>Nothing selected.</p>
-          <p>Pick a layer or a camera keyframe, or edit the composition below.</p>
+          <p>Pick a layer, a camera keyframe or an audio clip, or edit the composition below.</p>
         </div>
       )}
       {layer && <TimingInspector />}
@@ -48,6 +52,59 @@ export default function Inspector() {
 }
 
 /* ---------------------------------------------------------------- timing */
+
+/**
+ * An audio clip: where it sits, how loud it is, and how it enters and leaves.
+ *
+ * Level and fades are the difference between "two files playing at once" and music
+ * sitting under a voice, which is the main reason to have audio here at all.
+ */
+function AudioInspector({ cue }: { cue: AudioCue }) {
+  const update = useStore((s) => s.updateAudioCue);
+  const remove = useStore((s) => s.removeAudioCue);
+  const setTime = useStore((s) => s.setTime);
+  const set = (patch: Partial<AudioCue>, key?: string) => update(cue.id, patch, key);
+  const env = envelopeOf(cue);
+
+  return (
+    <Section title="Audio clip">
+      <Field label="Name">
+        <input className="text-in" value={cue.text} onChange={(e) => set({ text: e.target.value }, 'name')} />
+      </Field>
+      <Field label="Start">
+        <Num value={cue.t} onChange={(t) => set({ t: Math.max(0, t) }, 't')} step={0.1} min={0} suffix="s" />
+      </Field>
+      <Field label="Length">
+        {/* Measured when the file was decoded; editing it would desync the audio. */}
+        <span className="dim">{cue.d.toFixed(2)}s</span>
+      </Field>
+      <Field label="Level">
+        <Slider
+          value={env.gain}
+          onChange={(gain) => set({ gain }, 'gain')}
+          min={0}
+          max={2}
+          step={0.05}
+          precision={2}
+        />
+      </Field>
+      <Field label="Fade in">
+        <Num value={env.fadeIn} onChange={(fadeIn) => set({ fadeIn }, 'fin')} step={0.1} min={0} suffix="s" />
+      </Field>
+      <Field label="Fade out">
+        <Num value={env.fadeOut} onChange={(fadeOut) => set({ fadeOut }, 'fout')} step={0.1} min={0} suffix="s" />
+      </Field>
+      <div className="row">
+        <button className="mini" onClick={() => setTime(cue.t)}>
+          Jump to start
+        </button>
+        <button className="mini danger" onClick={() => remove(cue.id)}>
+          Remove
+        </button>
+      </div>
+    </Section>
+  );
+}
 
 function TimingInspector() {
   const layer = useSelectedLayer()!;

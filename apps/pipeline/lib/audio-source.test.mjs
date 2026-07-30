@@ -32,7 +32,8 @@ describe('materialiseClips', () => {
     await fs.writeFile(existing, 'x');
 
     const out = await materialiseClips([{ source: existing, start: 2 }], path.join(dir, 'embedded'));
-    expect(out.clips).toEqual([{ file: existing, start: 2 }]);
+    // The envelope travels with the clip; only the resolved file is added.
+    expect(out.clips).toEqual([{ source: existing, file: existing, start: 2 }]);
     expect(out.embedded).toBe(0);
     expect(out.missing).toEqual([]);
   });

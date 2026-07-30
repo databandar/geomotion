@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AudioCue, Project } from './types.ts';
 import { emptyProject } from './project.ts';
-import { canPlayPerCue, isRetimable, planAudio, scheduleFrom } from './audio.ts';
+import { canPlayPerCue, envelopeOf, isRetimable, planAudio, scheduleFrom } from './audio.ts';
 
 /**
  * Behavioural spec for the narration plan (docs/AUDIT.md D10).
@@ -36,8 +36,8 @@ describe('planAudio', () => {
     expect(plan).toEqual({
       kind: 'remix',
       clips: [
-        { source: '/v/1.wav', start: 0 },
-        { source: '/v/2.wav', start: 5 },
+        { source: '/v/1.wav', start: 0, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0 },
+        { source: '/v/2.wav', start: 5, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0 },
       ],
       duration: 60,
     });
@@ -108,7 +108,7 @@ describe('scheduleFrom', () => {
 
   it('schedules future lines at their offset from now', () => {
     const cues = [withUrl(2, 3, '/a.wav'), withUrl(10, 2, '/b.wav')];
-    expect(scheduleFrom(cues, 0)).toEqual([
+    expect(scheduleFrom(cues, 0)).toMatchObject([
       { url: '/a.wav', when: 2, offset: 0, duration: 3 },
       { url: '/b.wav', when: 10, offset: 0, duration: 2 },
     ]);
@@ -117,7 +117,7 @@ describe('scheduleFrom', () => {
   it('starts a line the playhead landed inside immediately, skipped into itself', () => {
     // The case that sounds like a sync bug when it is really an arithmetic one:
     // both halves have to move by the same amount.
-    expect(scheduleFrom([withUrl(10, 4, '/a.wav')], 11.5)).toEqual([
+    expect(scheduleFrom([withUrl(10, 4, '/a.wav')], 11.5)).toMatchObject([
       { url: '/a.wav', when: 0, offset: 1.5, duration: 2.5 },
     ]);
   });
@@ -131,7 +131,7 @@ describe('scheduleFrom', () => {
   });
 
   it('plays a line starting exactly at the playhead from its beginning', () => {
-    expect(scheduleFrom([withUrl(2, 1, '/a.wav')], 2)).toEqual([
+    expect(scheduleFrom([withUrl(2, 1, '/a.wav')], 2)).toMatchObject([
       { url: '/a.wav', when: 0, offset: 0, duration: 1 },
     ]);
   });
@@ -210,7 +210,7 @@ describe('planAudio with audio imported in the editor', () => {
     // Refusing a data URL would mean a CLI render silently dropping everything the
     // user added by hand in the editor.
     const p = withAudio([{ id: 'c1', t: 4, d: 2, text: 'music', url: DATA }]);
-    expect(planAudio(p)).toEqual({ kind: 'remix', clips: [{ source: DATA, start: 4 }], duration: 60 });
+    expect(planAudio(p)).toMatchObject({ kind: 'remix', clips: [{ source: DATA, start: 4, gain: 1 }], duration: 60 });
   });
 
   it('mixes embedded and on-disk clips together', () => {
@@ -237,4 +237,44 @@ describe('planAudio with audio imported in the editor', () => {
   function plan_source(plan: ReturnType<typeof planAudio>) {
     return plan.kind === 'remix' ? plan.clips.map((c) => c.source) : [];
   }
+});
+
+describe('envelopeOf', () => {
+  const cue = (patch: Partial<AudioCue>) => envelopeOf({ d: 10, ...patch });
+
+  it('defaults to full level and no fades', () => {
+    expect(cue({})).toEqual({ gain: 1, fadeIn: 0, fadeOut: 0 });
+  });
+
+  it('passes sensible values through', () => {
+    expect(cue({ gain: 0.3, fadeIn: 1, fadeOut: 2 })).toEqual({ gain: 0.3, fadeIn: 1, fadeOut: 2 });
+  });
+
+  it('clamps gain to something playable rather than distorting', () => {
+    expect(cue({ gain: -1 }).gain).toBe(0);
+    expect(cue({ gain: 99 }).gain).toBe(4);
+    expect(cue({ gain: Number.NaN }).gain).toBe(1);
+  });
+
+  it('never lets a fade exceed the clip', () => {
+    expect(cue({ d: 2, fadeIn: 5 }).fadeIn).toBe(2);
+    expect(cue({ d: 2, fadeOut: 5 }).fadeOut).toBe(2);
+  });
+
+  it('shares a short clip between fades instead of letting them cross', () => {
+    // Two ramps crossing mid-clip would duck it to nothing in the middle, which
+    // sounds like a dropout rather than a fade.
+    const e = cue({ d: 4, fadeIn: 3, fadeOut: 3 });
+    expect(e.fadeIn + e.fadeOut).toBeCloseTo(4, 6);
+    expect(e.fadeIn).toBeCloseTo(2, 6);
+  });
+
+  it('treats nonsense as no fade', () => {
+    expect(cue({ fadeIn: -2 }).fadeIn).toBe(0);
+    expect(cue({ fadeOut: Number.NaN }).fadeOut).toBe(0);
+  });
+
+  it('yields no fades for a clip with no length', () => {
+    expect(envelopeOf({ d: 0, fadeIn: 1, fadeOut: 1 })).toEqual({ gain: 1, fadeIn: 0, fadeOut: 0 });
+  });
 });

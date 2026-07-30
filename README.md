@@ -127,6 +127,11 @@ The clip's length comes from actually decoding the file rather than from its met
 VBR mp3 will misreport itself, and a clip whose length disagrees with its audio makes
 every timing downstream wrong.
 
+Click a clip to select it and the inspector gives you **level** and **fade in / fade
+out** — which is what makes music sit under a voice rather than fight it. Fades are
+clamped so they cannot cross on a short clip, because two ramps meeting in the middle
+ducks it to nothing and reads as a dropout.
+
 Audio is **embedded in the project** as a data URL, so a saved `.json` carries its sound
 and opens with it anywhere. The cost is size — past roughly 4 MB the browser refuses to
 autosave, and the toolbar says **not autosaving** rather than letting you keep working

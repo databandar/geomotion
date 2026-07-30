@@ -33,7 +33,7 @@ describe('@geomotion/document from plain node', () => {
     };
     expect(planAudio(project)).toEqual({
       kind: 'remix',
-      clips: [{ source: '/v/1.wav', start: 3 }],
+      clips: [{ source: '/v/1.wav', start: 3, duration: 2, gain: 1, fadeIn: 0, fadeOut: 0 }],
       duration: 30,
     });
   });

@@ -335,6 +335,16 @@ export interface AudioCue {
    */
   file?: string;
   /**
+   * Playback level, where 1 is the clip as recorded.
+   *
+   * The reason this exists: importing music and narration without it sums them at
+   * full level, so the music fights the voice. Absent means 1.
+   */
+  gain?: number | undefined;
+  /** Seconds of fade at the start and end of the clip. Absent means none. */
+  fadeIn?: number | undefined;
+  fadeOut?: number | undefined;
+  /**
    * A URL the editor can fetch this line from.
    *
    * Separate from `file` because they serve different consumers and neither works

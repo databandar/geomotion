@@ -24,6 +24,12 @@ import type { AudioCue, Project, ProjectAudio } from './types.ts';
 export interface RemixClip {
   source: string;
   start: number;
+  /** Clip length, which a fade-out has to be measured back from. */
+  duration: number;
+  /** Level and fades, already clamped — see `envelopeOf`. */
+  gain: number;
+  fadeIn: number;
+  fadeOut: number;
 }
 
 /** What the renderer should do about narration. */
@@ -70,7 +76,7 @@ export function planAudio(project: Project): AudioPlan {
       kind: 'remix',
       // Sorted so the mix is deterministic regardless of cue order in the file.
       clips: remixable
-        .map(({ cue, source }) => ({ source, start: cue.t }))
+        .map(({ cue, source }) => ({ source, start: cue.t, duration: cue.d, ...envelopeOf(cue) }))
         .sort((a, b) => a.start - b.start || a.source.localeCompare(b.source)),
       duration: project.duration,
     };
@@ -95,9 +101,47 @@ export function planAudio(project: Project): AudioPlan {
  */
 export const isRetimable = (project: Project) => planAudio(project).kind === 'remix';
 
+/** How loud a clip plays, and how it enters and leaves. */
+export interface ClipEnvelope {
+  gain: number;
+  fadeIn: number;
+  fadeOut: number;
+}
+
+/** Louder than this is distortion rather than emphasis. */
+const MAX_GAIN = 4;
+
+/**
+ * The envelope for a clip, with every value clamped to something playable.
+ *
+ * Clamping belongs here rather than in each mixer because there are three of them —
+ * the editor's preview, the editor's export, and ffmpeg — and a value one accepts and
+ * another rejects is a bug that only shows up in the finished file. Fades are also
+ * capped so they cannot overlap: two ramps crossing in the middle of a short clip
+ * would duck it to nothing in the middle, which reads as a dropout.
+ */
+export function envelopeOf(cue: Pick<AudioCue, 'd' | 'gain' | 'fadeIn' | 'fadeOut'>): ClipEnvelope {
+  const clamp = (v: number | undefined, hi: number) =>
+    !Number.isFinite(v ?? NaN) || (v as number) < 0 ? 0 : Math.min(v as number, hi);
+
+  const gain = cue.gain === undefined || !Number.isFinite(cue.gain) ? 1 : Math.min(Math.max(cue.gain, 0), MAX_GAIN);
+  const length = Number.isFinite(cue.d) && cue.d > 0 ? cue.d : 0;
+  let fadeIn = clamp(cue.fadeIn, length);
+  let fadeOut = clamp(cue.fadeOut, length);
+  if (fadeIn + fadeOut > length) {
+    // Share the clip between them rather than letting them cross.
+    const scale = length / (fadeIn + fadeOut);
+    fadeIn *= scale;
+    fadeOut *= scale;
+  }
+  return { gain, fadeIn, fadeOut };
+}
+
 /** One line, ready to hand to an audio clock. */
 export interface ScheduledCue {
   url: string;
+  /** Level and fades for this clip, clamped. */
+  envelope: ClipEnvelope;
   /** seconds from now until it should start; 0 means immediately */
   when: number;
   /** seconds into the clip to begin at, for a line already underway */
@@ -123,11 +167,12 @@ export function scheduleFrom(cues: AudioCue[], time: number): ScheduledCue[] {
     const end = cue.t + cue.d;
     if (end <= time) continue; // already finished
 
+    const envelope = envelopeOf(cue);
     if (cue.t >= time) {
-      out.push({ url: cue.url, when: cue.t - time, offset: 0, duration: cue.d });
+      out.push({ url: cue.url, when: cue.t - time, offset: 0, duration: cue.d, envelope });
     } else {
       const offset = time - cue.t;
-      out.push({ url: cue.url, when: 0, offset, duration: cue.d - offset });
+      out.push({ url: cue.url, when: 0, offset, duration: cue.d - offset, envelope });
     }
   }
   return out.sort((a, b) => a.when - b.when);

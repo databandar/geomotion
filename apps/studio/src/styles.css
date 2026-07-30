@@ -1366,6 +1366,10 @@ textarea.text-input.mono,
 .voice-row .cue {
   cursor: grab;
 }
+.voice-row .cue.sel {
+  outline: 1px solid #60a5fa;
+  outline-offset: -1px;
+}
 .voice-row .cue:active {
   cursor: grabbing;
 }

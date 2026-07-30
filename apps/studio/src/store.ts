@@ -7,7 +7,12 @@ import { clearRegionCache } from './lib/regions';
 import { demoProject } from './lib/fixtures';
 import { loadLocal, saveLocal } from './lib/persistence';
 
-export type Selection = { kind: 'layer'; id: string } | { kind: 'keyframe'; id: string } | null;
+export type Selection =
+  | { kind: 'layer'; id: string }
+  | { kind: 'keyframe'; id: string }
+  /** An audio clip on the timeline. */
+  | { kind: 'cue'; id: string }
+  | null;
 export type Tool = 'select' | 'route' | 'marker';
 
 export interface ExportStatus {
@@ -245,6 +250,8 @@ export const useStore = create<State>((set, get) => ({
       if (cues.length) p.audio.cues = cues;
       else delete p.audio;
     });
+    const sel = get().selection;
+    if (sel?.kind === 'cue' && sel.id === id) set({ selection: null });
   },
 
   addKeyframe: (init) => {
@@ -322,6 +329,13 @@ if (import.meta.env.DEV) {
 /** Selected layer, or undefined. */
 export function useSelectedLayer(): Layer | undefined {
   return useStore((s) => (s.selection?.kind === 'layer' ? s.project.layers.find((l) => l.id === s.selection!.id) : undefined));
+}
+
+/** Selected audio clip, or undefined. */
+export function useSelectedCue(): AudioCue | undefined {
+  return useStore((s) =>
+    s.selection?.kind === 'cue' ? s.project.audio?.cues.find((c) => c.id === s.selection?.id) : undefined,
+  );
 }
 
 export function useSelectedKeyframe(): CameraKeyframe | undefined {

@@ -189,6 +189,32 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.18 Level and fades (M17)
+
+M15b shipped audio import and left the obvious use case broken: import music and
+narration and they sum at full level, so the music fights the voice. `AudioCue` gains
+`gain`, `fadeIn` and `fadeOut`, and clips are selectable so the inspector can offer
+them.
+
+The clamping lives in one pure function, `envelopeOf`, because there are **three**
+mixers — the editor's preview, the editor's export, and ffmpeg — and a value one
+accepts while another rejects is a bug that only appears in the finished file. It also
+caps fades so they cannot cross: two ramps meeting in the middle of a short clip duck
+it to nothing, which sounds like a dropout rather than a fade.
+
+Order matters in the ffmpeg chain and is easy to get wrong silently: `afade` counts
+from the start of *its* input, so fading has to happen before `adelay` moves the clip,
+or the shape lands on the head of the silence. `volume` comes first so a fade ramps to
+the clip's level rather than past it. `clipFilter` is exported and has twelve tests
+precisely because ffmpeg accepts every wrong ordering without complaint.
+
+Both mixers were verified numerically rather than by listening:
+
+| Path | Check | Result |
+| --- | --- | --- |
+| ffmpeg | RMS of the same clip at gain 1 vs 0.25 | −19.83 dB vs −31.88 dB — a difference of 12.04 dB, and 20·log₁₀(0.25) = −12.04 |
+| Web Audio | `applyEnvelope` rendered through an `OfflineAudioContext` over a DC signal, so the output *is* the gain curve | gain 0.25 flat at 0.25; a 2s/2s envelope reads 0 → **0.5 at 1s** → 1.0 at 2s → 1.0 at 5s → **0.5 at 9s** → 0 |
+
 ### 6.17 Closing the CLI gap (M16)
 
 The gap M15b left: `render-project.mjs` muxed from `cue.file`, and audio imported in
