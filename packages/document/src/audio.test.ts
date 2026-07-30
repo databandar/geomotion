@@ -36,8 +36,8 @@ describe('planAudio', () => {
     expect(plan).toEqual({
       kind: 'remix',
       clips: [
-        { file: '/v/1.wav', start: 0 },
-        { file: '/v/2.wav', start: 5 },
+        { source: '/v/1.wav', start: 0 },
+        { source: '/v/2.wav', start: 5 },
       ],
       duration: 60,
     });
@@ -201,4 +201,40 @@ describe('the two capabilities are independent', () => {
     expect(isRetimable(p)).toBe(true);
     expect(canPlayPerCue(p)).toBe(false);
   });
+});
+
+describe('planAudio with audio imported in the editor', () => {
+  const DATA = 'data:audio/wav;base64,AAAA';
+
+  it('re-mixes embedded audio, which is all an imported clip has', () => {
+    // Refusing a data URL would mean a CLI render silently dropping everything the
+    // user added by hand in the editor.
+    const p = withAudio([{ id: 'c1', t: 4, d: 2, text: 'music', url: DATA }]);
+    expect(planAudio(p)).toEqual({ kind: 'remix', clips: [{ source: DATA, start: 4 }], duration: 60 });
+  });
+
+  it('mixes embedded and on-disk clips together', () => {
+    const p = withAudio([
+      { id: 'a', t: 0, d: 2, text: 'line', file: '/abs/1.wav' },
+      { id: 'b', t: 5, d: 2, text: 'music', url: DATA },
+    ]);
+    const plan = planAudio(p);
+    expect(plan.kind === 'remix' && plan.clips.map((c) => c.source)).toEqual(['/abs/1.wav', DATA]);
+  });
+
+  it('prefers the path when a cue has both', () => {
+    // Narration has both; the path costs nothing to read and needs no decoding.
+    const p = withAudio([{ id: 'a', t: 0, d: 2, text: 'x', file: '/abs/1.wav', url: DATA }]);
+    expect(plan_source(planAudio(p))).toEqual(['/abs/1.wav']);
+  });
+
+  it('does not treat a served URL as something a renderer can read', () => {
+    // The CLI has no server to ask for /voice-out/x.wav.
+    const p = withAudio([{ id: 'a', t: 0, d: 2, text: 'x', url: '/voice-out/s/1.wav' }]);
+    expect(planAudio(p).kind).toBe('silent');
+  });
+
+  function plan_source(plan: ReturnType<typeof planAudio>) {
+    return plan.kind === 'remix' ? plan.clips.map((c) => c.source) : [];
+  }
 });

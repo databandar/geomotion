@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
 import { buildVoiceTrack } from './lib/tts.mjs';
+import { materialiseClips } from './lib/audio-source.mjs';
 import { planAudio } from '@geomotion/document';
 
 const run = promisify(execFile);
@@ -72,21 +73,20 @@ if (audio) {
 } else {
   const plan = planAudio(project);
   if (plan.kind === 'remix') {
-    const missing = [];
-    for (const c of plan.clips) {
-      try {
-        await fs.access(c.file);
-      } catch {
-        missing.push(c.file);
-      }
-    }
+    // Audio imported in the editor is embedded in the document, so it has to be
+    // written out before ffmpeg can read it.
+    const { clips, missing, embedded } = await materialiseClips(plan.clips, path.join(outDir, 'audio'));
     if (missing.length) {
-      console.warn(`    ! ${missing.length} narration clip(s) missing — falling back to the mixed bed`);
+      console.warn(`    ! ${missing.length} audio clip(s) could not be read: ${missing.slice(0, 3).join(', ')}`);
+    }
+    if (!clips.length) {
+      console.warn('    ! no readable audio clips — falling back to the mixed bed');
       audio = project.audio?.file ?? null;
     } else {
       audio = path.join(outDir, 'voice.wav');
-      await buildVoiceTrack(plan.clips, audio, plan.duration);
-      console.log(`    re-mixed ${plan.clips.length} narration clips at their current cue times`);
+      await buildVoiceTrack(clips, audio, plan.duration);
+      const note = embedded ? `, ${embedded} embedded in the project` : '';
+      console.log(`    re-mixed ${clips.length} audio clips at their current cue times${note}`);
     }
   } else if (plan.kind === 'bed') {
     audio = plan.file;

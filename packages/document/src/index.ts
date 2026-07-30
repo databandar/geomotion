@@ -18,6 +18,7 @@ export {
   planAudio,
   scheduleFrom,
   type AudioPlan,
+  type RemixClip,
   type ScheduledCue,
 } from './audio.ts';
 export { History } from './history.ts';

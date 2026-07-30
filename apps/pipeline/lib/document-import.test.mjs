@@ -29,11 +29,11 @@ describe('@geomotion/document from plain node', () => {
     const { planAudio } = await import('@geomotion/document');
     const project = {
       duration: 30,
-      audio: { url: '/v/t.wav', file: '/abs/t.wav', cues: [{ t: 3, d: 2, text: 'hi', file: '/v/1.wav' }] },
+      audio: { url: '/v/t.wav', file: '/abs/t.wav', cues: [{ id: 'c1', t: 3, d: 2, text: 'hi', file: '/v/1.wav' }] },
     };
     expect(planAudio(project)).toEqual({
       kind: 'remix',
-      clips: [{ file: '/v/1.wav', start: 3 }],
+      clips: [{ source: '/v/1.wav', start: 3 }],
       duration: 30,
     });
   });

@@ -14,17 +14,39 @@ import type { AudioCue, Project, ProjectAudio } from './types.ts';
  * in the document.
  */
 
+/**
+ * One clip to place in the mix.
+ *
+ * `source` is either a filesystem path or a self-contained `data:` URL. Both are
+ * things a renderer can resolve without a network or a server; a served URL like
+ * `/voice-out/x.wav` is not, which is why it does not qualify below.
+ */
+export interface RemixClip {
+  source: string;
+  start: number;
+}
+
 /** What the renderer should do about narration. */
 export type AudioPlan =
   | { kind: 'silent' }
-  /** Re-mix these lines at these positions. */
-  | { kind: 'remix'; clips: { file: string; start: number }[]; duration: number }
+  /** Re-mix these clips at these positions. */
+  | { kind: 'remix'; clips: RemixClip[]; duration: number }
   /** Use the pre-mixed bed as-is; the document cannot be re-mixed. */
   | { kind: 'bed'; file: string; reason: string };
 
-/** A cue that can be re-mixed: it knows its own audio and where it belongs. */
-function isRemixable(cue: AudioCue): cue is AudioCue & { file: string } {
-  return typeof cue.file === 'string' && cue.file.length > 0 && Number.isFinite(cue.t) && cue.t >= 0;
+/**
+ * Where a cue's audio can be read from by a renderer, or undefined if nowhere.
+ *
+ * A path works, and so does an embedded `data:` URL — audio imported in the editor
+ * has only the latter, and refusing it would mean a CLI render silently dropping
+ * everything the user added by hand. A served URL is deliberately excluded: the
+ * renderer has no server to ask.
+ */
+function remixSource(cue: AudioCue): string | undefined {
+  if (!Number.isFinite(cue.t) || cue.t < 0) return undefined;
+  if (cue.file) return cue.file;
+  if (cue.url?.startsWith('data:')) return cue.url;
+  return undefined;
 }
 
 /**
@@ -40,15 +62,16 @@ export function planAudio(project: Project): AudioPlan {
   if (!audio) return { kind: 'silent' };
 
   const cues = audio.cues ?? [];
-  const remixable = cues.filter(isRemixable);
+  const sources = cues.map((c) => ({ cue: c, source: remixSource(c) }));
+  const remixable = sources.filter((s): s is { cue: AudioCue; source: string } => !!s.source);
 
   if (cues.length > 0 && remixable.length === cues.length) {
     return {
       kind: 'remix',
       // Sorted so the mix is deterministic regardless of cue order in the file.
       clips: remixable
-        .map((c) => ({ file: c.file, start: c.t }))
-        .sort((a, b) => a.start - b.start || a.file.localeCompare(b.file)),
+        .map(({ cue, source }) => ({ source, start: cue.t }))
+        .sort((a, b) => a.start - b.start || a.source.localeCompare(b.source)),
       duration: project.duration,
     };
   }
@@ -57,7 +80,7 @@ export function planAudio(project: Project): AudioPlan {
     const reason =
       cues.length === 0
         ? 'no cues in the document'
-        : `${cues.length - remixable.length} of ${cues.length} cues have no per-line audio`;
+        : `${cues.length - remixable.length} of ${cues.length} cues have no usable audio`;
     return { kind: 'bed', file: audio.file, reason };
   }
 

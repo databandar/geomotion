@@ -189,9 +189,26 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
-Known gap: the CLI renderer muxes from `cue.file`, and imported audio has only a data
-URL, so `render-project.mjs` will not yet include editor-imported audio. The editor's
-own export does.
+### 6.17 Closing the CLI gap (M16)
+
+The gap M15b left: `render-project.mjs` muxed from `cue.file`, and audio imported in
+the editor has only a `data:` URL, so a command-line render silently dropped every
+clip the user had added by hand.
+
+`planAudio` now treats an embedded `data:` URL as a readable source alongside a path,
+and the pipeline writes those out before mixing. A **served** URL is deliberately still
+not a source — the renderer has no server to ask, and accepting one would fail at
+ffmpeg rather than in the plan.
+
+The split follows the boundary that already exists: deciding *whether* audio can be
+read stays in `packages/document`, pure and tested; the filesystem work is
+`apps/pipeline/lib/audio-source.mjs`, with nine tests of its own. A clip that cannot
+be resolved is reported rather than skipped, because a mix quietly short a track is
+worse than one that says so.
+
+Measured end to end: a project whose audio exists *only* as embedded data rendered
+with both clips written to `out/<slug>/audio/`, mixed to exactly the 20s composition
+length, and speech beginning at **2.007s and 11.007s** — the two cue positions.
 
 ### 6.15 The Studio is removed (M15)
 
