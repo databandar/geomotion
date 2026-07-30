@@ -102,7 +102,7 @@ Ordered by risk × cost of delay.
 | D6 | ~~Renderer reads the document through `Scene`~~ | — | **Closed in M8**: scene items carry a declared `style`, and an import ban keeps it that way |
 | D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
 | D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
-| D9 | Export uses headless-Chrome screenshots | Measured 11 fps at 960×540 draft (1292 frames in 1m58s) — better than the ~4 fps first recorded, but that was full resolution. Design doc §14 specifies WebCodecs in-page | M9 |
+| D9 | ~~Export uses headless-Chrome screenshots~~ | — | **Closed in M18**: drafts encode in-page, 113s → 35s. The design doc's 10–20× estimate was wrong; see §6.19 |
 | D10 | ~~voice bed mixed at compose time~~ | — | **Closed in M11**: cues keep their own audio, and a render re-mixes from their current positions |
 
 ### 6.0 Debt found after the initial audit
@@ -188,6 +188,54 @@ Verified in Chrome through the real file input: a 6.278s wav imported at the pla
 came back as `d: 6.278` — matching ffprobe to the millisecond — the chip rendered, a
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
+
+### 6.19 WebCodecs, and what the estimate missed (M18)
+
+Drafts now encode inside the page instead of capturing PNGs over CDP: **113s → 35s**
+for the 1292-frame reference render, with content matching the frame path at every
+sampled moment.
+
+The design doc estimated 10–20×. It is **3.2×**, and the difference is the interesting
+part.
+
+**Where the time actually goes**, measured per frame at 960×540 before changing
+anything:
+
+| Stage | Cost |
+| --- | --- |
+| `renderFrameAt` | 3.6 ms |
+| two rAF waits (four CDP round-trips) | 11.5 ms |
+| `page.screenshot` | **33.6 ms** |
+| encoding the same frame in-page | 0.8 ms |
+
+Replacing only the capture gives 3.1× because those round-trips remain. Moving the
+whole loop into the page removes them — 17.6 ms a frame, 57 fps in a micro-benchmark.
+
+That benchmark was measured on an already-settled scene, and that is what the estimate
+missed. **Waiting for MapLibre is real work the screenshot path was doing by
+accident.** Rendered without any waiting, the draft was missing the outline and the
+choropleth from 8s to 15s: a layer entering the composition means adding a GeoJSON
+source, which has to be parsed and tiled, and two animation frames is nowhere near
+enough. The frame path never noticed because its four CDP round-trips per frame handed
+MapLibre about 48 ms of slack it never asked for.
+
+Waiting on every frame fixed the content and cost the entire advantage — 111s, no
+better than PNGs. The fix is to wait only when the GL **layer count** changes, which is
+exactly when a source is being added and is free the rest of the time.
+
+Three traps found on the way, each of which fails silently:
+
+| Trap | Symptom |
+| --- | --- |
+| `-shortest` with `-c:v copy` | The muxed file has **no audio stream at all**. ffmpeg logs the mapping and exits 0; the copied video "ends" before the audio encoder emits a frame, so the empty stream is dropped. The frame path is immune because libx264 paces the video. Bounded by an explicit `-t` now, with an ffmpeg integration test. |
+| `map.getStyle()` as the change signal | Serialises every source, including the region layer's inlined GeoJSON, on every frame — the render stalled past puppeteer's 180s protocol timeout and failed with "Promise was collected". `getLayersOrder().length` is the cheap equivalent. |
+| Default `protocolTimeout` | One evaluate holding the whole frame loop legitimately outlives 180s on a long composition. Disabled for the render browser. |
+
+**Draft only, deliberately.** A realtime encoder needed 0.6 bits/pixel/frame to look
+comparable to `libx264 -crf 26` — at 0.15 it was visibly soft on satellite imagery and
+small text, SSIM 0.75 against the frame path. The draft is now 33 MB against 9.6 MB.
+That is the right trade for a file rendered constantly and thrown away, and the wrong
+one for the file that gets published, which still goes through libx264.
 
 ### 6.18 Level and fades (M17)
 

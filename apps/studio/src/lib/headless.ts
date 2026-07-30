@@ -39,6 +39,14 @@ export interface HeadlessApi {
    * renderer checks this, because clipping a scaled stage would resample.
    */
   stage(): { x: number; y: number; width: number; height: number; scale: number } | null;
+  /**
+   * How many GL layers and sources the map currently has.
+   *
+   * A renderer uses this to notice that a layer entered the composition, which is
+   * when MapLibre needs real time to parse and tile a new source. Cheap enough to
+   * call every frame, unlike `debug`, which evaluates a whole scene.
+   */
+  shape(): { layers: number };
   /** GL sources/layers we own plus the evaluated scene, for diagnosis. */
   debug(t?: number): {
     styleLoaded: boolean;
@@ -123,6 +131,12 @@ export function installHeadlessApi(host: RenderHost) {
         })),
         scene: sceneInfo,
       };
+    },
+
+    shape() {
+      // getLayersOrder returns ids only. getStyle() would serialise every source,
+      // including the region layer's inlined GeoJSON — hundreds of KB, per call.
+      return { layers: host.map.getLayersOrder().length };
     },
 
     stage() {

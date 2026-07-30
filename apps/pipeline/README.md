@@ -71,7 +71,8 @@ not.
 
 | Flag | Effect |
 | --- | --- |
-| `--draft` | Half frame rate, quarter resolution, no tile waiting. Minutes instead of tens of minutes. Timing and layout are identical, so it's the right way to review an edit. |
+| `--draft` | Half frame rate, quarter resolution, no tile waiting, and encoded inside the page rather than captured as PNGs — 35s against 113s on the reference render. Timing and layout are identical, so it's the right way to review an edit. The picture is softer and the file bigger; the final render still goes through libx264. |
+| `--frames` | Force the PNG path for a draft, which is also the automatic fallback if the browser cannot encode. |
 | `--no-audio` | Skip TTS; estimate line lengths from text length. For checking structure without burning API calls. |
 | `--frames-only` | Stop after the PNGs. |
 | `--keep-frames` | Don't delete frames after encoding. |

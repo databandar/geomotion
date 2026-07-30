@@ -15,7 +15,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { renderFrames } from './lib/render.mjs';
-import { encode, grabThumbnail } from './lib/encode.mjs';
+import { encode, grabThumbnail, muxEncoded } from './lib/encode.mjs';
+import { EncoderUnavailable, renderEncoded } from './lib/render-encoded.mjs';
 import { buildVoiceTrack } from './lib/tts.mjs';
 import { materialiseClips } from './lib/audio-source.mjs';
 import { planAudio } from '@geomotion/document';
@@ -124,30 +125,64 @@ try {
 
 /* ------------------------------------------------------------- render */
 
-step(3, `Rendering ${Math.round(project.duration * project.fps)} frames`);
+const frameCount = Math.round(project.duration * project.fps);
 const t0 = Date.now();
 let last = -1;
-const { pad, problems } = await renderFrames(project, framesDir, {
-  distDir,
-  waitForTiles: !draft,
-  port: Number(opt('port', 5212)),
-  onProgress: (i, total) => {
-    const pct = Math.floor((i / total) * 100);
-    if (pct === last) return;
-    last = pct;
-    const rate = i / ((Date.now() - t0) / 1000);
-    process.stdout.write(`\r    ${pct}%  ${i}/${total}  ${rate.toFixed(1)} fps   `);
-  },
-});
-process.stdout.write('\n');
-ok(`frames in ${Math.round((Date.now() - t0) / 1000)}s`);
-if (problems.length) console.warn(`    ! ${problems.length} page errors: ${problems.slice(0, 3).join(' | ')}`);
+const progress = (i, total) => {
+  const pct = Math.floor((i / total) * 100);
+  if (pct === last) return;
+  last = pct;
+  const rate = i / ((Date.now() - t0) / 1000);
+  process.stdout.write(`\r    ${pct}%  ${i}/${total}  ${rate.toFixed(1)} fps   `);
+};
+const renderOpts = { distDir, waitForTiles: !draft, port: Number(opt('port', 5212)), onProgress: progress };
 
-/* ------------------------------------------------------------- encode */
-
-step(4, 'Encoding');
 const mp4 = path.join(outDir, `${slug}${draft ? '-draft' : ''}.mp4`);
-await encode({ framesDir, pad, fps: project.fps, audio, out: mp4, crf: draft ? 26 : 18 });
+/*
+ * A draft encodes inside the page, which measures about five times faster than
+ * capturing PNGs over CDP. A final render keeps the frame path: libx264 at
+ * `-preset slow -crf 18` is better per byte than a realtime encoder, and the published
+ * file is rendered once while a draft is rendered constantly.
+ *
+ * `--frames` forces the slow path, which is also the automatic fallback if the browser
+ * turns out not to be able to encode.
+ */
+let encoded = null;
+if (draft && !flag('frames')) {
+  step(3, `Rendering ${frameCount} frames (in-page encoder)`);
+  try {
+    encoded = await renderEncoded(project, path.join(outDir, 'draft.h264'), renderOpts);
+  } catch (err) {
+    if (!(err instanceof EncoderUnavailable)) throw err;
+    process.stdout.write('\n');
+    console.warn(`    ! ${err.message} — falling back to frames`);
+  }
+}
+
+let problems = [];
+if (encoded) {
+  process.stdout.write('\n');
+  problems = encoded.problems;
+  ok(`encoded in ${Math.round((Date.now() - t0) / 1000)}s (${(encoded.bytes / 1024 / 1024).toFixed(1)} MB of h264)`);
+  step(4, 'Muxing');
+  await muxEncoded({
+    videoFile: encoded.file,
+    fps: project.fps,
+    duration: frameCount / project.fps,
+    audio,
+    out: mp4,
+  });
+  await fs.rm(encoded.file, { force: true });
+} else {
+  step(3, `Rendering ${frameCount} frames`);
+  const result = await renderFrames(project, framesDir, renderOpts);
+  problems = result.problems;
+  process.stdout.write('\n');
+  ok(`frames in ${Math.round((Date.now() - t0) / 1000)}s`);
+  step(4, 'Encoding');
+  await encode({ framesDir, pad: result.pad, fps: project.fps, audio, out: mp4, crf: draft ? 26 : 18 });
+}
+if (problems.length) console.warn(`    ! ${problems.length} page errors: ${problems.slice(0, 3).join(' | ')}`);
 
 const thumb = path.join(outDir, `${slug}-thumb.png`);
 await grabThumbnail({ video: mp4, at: Math.min(project.duration * 0.94, project.duration - 0.1), out: thumb });

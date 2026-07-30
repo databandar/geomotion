@@ -61,6 +61,104 @@ async function findChrome() {
  * render backend to drift out of agreement. The window is sized so the stage is
  * never CSS-scaled, because clipping a scaled stage would resample it.
  */
+/**
+ * Everything both capture paths need: a served build, a browser, the project loaded,
+ * and a stage measured to render 1:1.
+ *
+ * Extracted so the screenshot path and the in-page encoder share one copy of the
+ * fiddly part — the viewport growing loop that stops frames being resampled — rather
+ * than two that can drift.
+ */
+export async function renderInPage(project, opts = {}) {
+  const {
+    distDir,
+    onProgress = () => {},
+    onChunk = null,
+    port = 5211,
+    run,
+  } = opts;
+
+  const { server } = await serve(distDir, port);
+  const executablePath = await findChrome();
+
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--hide-scrollbars',
+      '--enable-unsafe-swiftshader',
+      '--use-gl=angle',
+      '--force-device-scale-factor=1',
+    ],
+    defaultViewport: { width: project.width + 660, height: project.height + 400, deviceScaleFactor: 1 },
+    // The in-page encoder runs its whole frame loop inside one evaluate, which for a
+    // long composition legitimately outlives the 180s default and fails with
+    // "Promise was collected" — a message that says nothing about the cause.
+    protocolTimeout: 0,
+  });
+
+  const page = await browser.newPage();
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(String(e.message)));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !m.text().includes('404')) problems.push(m.text());
+  });
+
+  const total = Math.max(1, Math.round(project.duration * project.fps));
+  try {
+    if (onChunk) await page.exposeFunction('__gmChunk', onChunk);
+    await page.exposeFunction('__gmProgress', (done) => onProgress(done, total));
+
+    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.waitForFunction('window.geomotion && window.geomotion.ready', { timeout: 30000 });
+    await page.evaluate((p) => {
+      window.geomotion.loadProject(p);
+      window.geomotion.setExporting(true);
+    }, project);
+    await page.evaluate(() => window.geomotion.renderFrameAt(0));
+    await page.evaluate(() => window.geomotion.waitIdle(30000));
+    await sleep(1500);
+
+    const stage = await fitStage(page, project);
+    const value = await run(page, { total, fps: project.fps, stage });
+    return { ...value, total, problems };
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
+/**
+ * Grow the window until the stage renders 1:1.
+ *
+ * The stage shrinks to fit its pane, and capturing a CSS-scaled stage would resample
+ * every frame. Measuring the shortfall beats guessing at the editor's chrome.
+ */
+async function fitStage(page, project) {
+  let vp = page.viewport();
+  let stage = await page.evaluate(() => window.geomotion.stage());
+  for (let attempt = 0; attempt < 4 && stage && stage.scale < 0.999; attempt++) {
+    vp = {
+      width: Math.ceil(vp.width + (project.width - stage.width) + 8),
+      height: Math.ceil(vp.height + (project.height - stage.height) + 8),
+      deviceScaleFactor: 1,
+    };
+    await page.setViewport(vp);
+    await sleep(400);
+    stage = await page.evaluate(() => window.geomotion.stage());
+  }
+
+  if (!stage) throw new Error('stage element not found');
+  if (stage.scale < 0.999) {
+    throw new Error(
+      `stage still CSS-scaled to ${stage.scale.toFixed(3)} at ${vp.width}x${vp.height} — a ` +
+        `${project.width}x${project.height} composition does not fit, so frames would be resampled`,
+    );
+  }
+  return stage;
+}
+
 export async function renderFrames(project, outDir, opts = {}) {
   const { distDir, waitForTiles = true, onProgress = () => {}, port = 5211 } = opts;
 
