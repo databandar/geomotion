@@ -85,5 +85,3 @@ export function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** Ink that stays legible on a given fill — never the series colour itself. */
-export const inkOn = (hex: string): string => (luminance(hex) > 0.42 ? '#0b0b0b' : '#ffffff');

@@ -14,7 +14,7 @@ export interface ProjectFn {
  * scaled from there, so switching the composition between 720p, 1080p and 4K
  * changes the resolution without changing the look.
  */
-export const REFERENCE_HEIGHT = 1080;
+const REFERENCE_HEIGHT = 1080;
 
 export const scaleFor = (renderedHeight: number) => renderedHeight / REFERENCE_HEIGHT;
 
@@ -791,7 +791,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 /** Accepts #rgb / #rrggbb / #rrggbbaa and returns an rgba() with the given alpha. */
-export function withAlpha(color: string, alpha: number): string {
+function withAlpha(color: string, alpha: number): string {
   if (!color.startsWith('#')) return color;
   let hex = color.slice(1);
   if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');

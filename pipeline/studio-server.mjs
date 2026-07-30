@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadNfhs, listIndicators, extract, changes } from './lib/nfhs.mjs';
 import { prepareScript, compose, collectLines, buildSrt, DATASETS } from './lib/compose.mjs';
-import { speak, buildVoiceTrack, lineAudio, saveRecording, clearRecording, manualPath } from './lib/tts.mjs';
+import { buildVoiceTrack, lineAudio, saveRecording, clearRecording } from './lib/tts.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');

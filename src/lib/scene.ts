@@ -16,7 +16,7 @@ import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } fr
 import { fitBounds, regionSet, type RegionSet } from './regions';
 import { getBasemap } from './basemaps';
 
-export const DEFAULT_CAMERA: CameraState = {
+const DEFAULT_CAMERA: CameraState = {
   center: [0, 20],
   zoom: 1.6,
   bearing: 0,
@@ -483,12 +483,3 @@ function overshoot(t: number): number {
   const c = 1.70158 + 1;
   return 1 + c * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
 }
-
-/** Convenience for the type guards used all over the UI. */
-export const isRoute = (l: { type: string }): l is RouteLayer => l.type === 'route';
-export const isMarker = (l: { type: string }): l is MarkerLayer => l.type === 'marker';
-export const isText = (l: { type: string }): l is TextLayer => l.type === 'text';
-export const isShape = (l: { type: string }): l is ShapeLayer => l.type === 'shape';
-export const isRegions = (l: { type: string }): l is RegionsLayer => l.type === 'regions';
-export const isClouds = (l: { type: string }): l is CloudsLayer => l.type === 'clouds';
-export const isImage = (l: { type: string }): l is ImageLayer => l.type === 'image';

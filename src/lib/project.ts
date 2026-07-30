@@ -5,7 +5,7 @@ import indiaOutline from '../data/india-outline-official.json';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
-export const PALETTE = [
+const PALETTE = [
   '#ff5f56',
   '#ffbd2e',
   '#27c93f',

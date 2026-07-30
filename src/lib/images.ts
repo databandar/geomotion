@@ -49,7 +49,3 @@ export async function imagesReady(): Promise<{ total: number; failed: string[] }
   await Promise.all(entries.map(([, e]) => e.promise));
   return { total: entries.length, failed: entries.filter(([, e]) => e.failed).map(([src]) => src) };
 }
-
-export function clearImageCache() {
-  cache.clear();
-}
