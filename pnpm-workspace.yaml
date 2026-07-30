@@ -1,0 +1,14 @@
+# ENGINEERING_GUIDE §2: pnpm workspace + Turborepo.
+#
+# `packages/*` is declared before any package exists. That is deliberate — the
+# workspace is the landing site for the extraction, and declaring it now means
+# the first package to move needs no build-system change, only a directory.
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm 10 refuses to run dependency build scripts unless they are named here.
+# esbuild needs its postinstall to place the platform binary, without which
+# Vite cannot transform anything.
+onlyBuiltDependencies:
+  - esbuild

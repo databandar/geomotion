@@ -18,7 +18,11 @@ import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
 
 const run = promisify(execFile);
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Path anchors. Named explicitly because a single ambiguous "ROOT" is what broke
+// when this pipeline moved under apps/ — each of these means something different.
+const APP = path.dirname(fileURLToPath(import.meta.url)); // apps/pipeline
+const REPO = path.resolve(APP, '../..');
+const STUDIO = path.join(REPO, 'apps/studio');
 
 const argv = process.argv.slice(2);
 const file = argv.find((a) => !a.startsWith('--'));
@@ -46,7 +50,7 @@ if (draft) {
   Object.assign(project, scale);
 }
 
-const outDir = path.join(ROOT, 'pipeline', 'out', slug + (draft ? '-draft' : ''));
+const outDir = path.join(APP, 'out', slug + (draft ? '-draft' : ''));
 const framesDir = path.join(outDir, 'frames');
 await fs.mkdir(outDir, { recursive: true });
 
@@ -55,7 +59,7 @@ await fs.mkdir(outDir, { recursive: true });
 let audio = opt('audio', null);
 if (!audio && project.audio?.file) audio = project.audio.file;
 if (audio) {
-  audio = path.resolve(ROOT, audio);
+  audio = path.resolve(REPO, audio);
   try {
     await fs.access(audio);
   } catch {
@@ -73,13 +77,13 @@ ok(
 /* -------------------------------------------------------------- build */
 
 step(2, 'Building the app');
-const distDir = path.join(ROOT, 'dist');
+const distDir = path.join(STUDIO, 'dist');
 try {
   await fs.access(path.join(distDir, 'index.html'));
   if (flag('rebuild')) throw new Error('forced');
   ok('dist/ present');
 } catch {
-  await run('npm', ['run', 'build'], { cwd: ROOT, maxBuffer: 1024 * 1024 * 32 });
+  await run('pnpm', ['--filter', '@geomotion/studio', 'build'], { cwd: REPO, maxBuffer: 1024 * 1024 * 32 });
   ok('built');
 }
 

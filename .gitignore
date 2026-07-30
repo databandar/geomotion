@@ -10,14 +10,17 @@ dist
 .env.local
 .env*.local
 
+# turborepo cache
+.turbo
+
 # generated pipeline artifacts
-pipeline/out
-pipeline/scripts/_studio-*.json
+apps/pipeline/out
+apps/pipeline/scripts/_studio-*.json
 
 # AI-generated per-slug illustrations: regenerable inputs, kept out of the repo
-# to keep it lean. The convention itself is documented in pipeline/assets/README.md.
-pipeline/assets/*/
-!pipeline/assets/README.md
+# to keep it lean. The convention itself is documented in apps/pipeline/assets/README.md.
+apps/pipeline/assets/*/
+!apps/pipeline/assets/README.md
 
 # OS / editor
 .DS_Store

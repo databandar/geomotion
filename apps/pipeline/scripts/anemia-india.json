@@ -5,7 +5,7 @@
   "fps": 30,
   "basemap": "satellite-labels",
   "dataset": "india-official",
-  "values": "anemia-sample",
+  "values": "india-anemia-sample",
   "ramp": "ember",
   "credit": "सीमाएँ: भारत सरकार का आधिकारिक चित्रण · नक्शा: Esri, OpenStreetMap · आंकड़े: नमूना — अपना स्रोत लगाएँ",
   "voice": {

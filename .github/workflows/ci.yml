@@ -2,10 +2,9 @@
 # tests to be green before review; §11 makes the production bundle a tracked
 # budget, so we build here too rather than discovering breakage at release.
 #
-# Uses npm because the repo is still a single package. When the pnpm + Turborepo
-# monorepo lands (docs/AUDIT.md debt D2/D7), swap the setup steps for
-# `pnpm/action-setup` and `turbo run verify` — the job names stay the same so
-# branch protection does not need reconfiguring.
+# Turborepo fans these out across the workspace, so adding a package needs no
+# change here: a package with a `typecheck`/`test`/`build` script is picked up
+# automatically.
 name: CI
 
 on:
@@ -26,26 +25,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Reads the version from the root package.json "packageManager" field, so
+      # local and CI cannot drift apart.
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      # --frozen-lockfile fails rather than silently resolving a new tree, which
+      # is what makes the lockfile meaningful.
+      - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Test
-        run: npm run test
+        run: pnpm run test
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Report bundle size
-        # Informational for now. It becomes a hard budget once the app is split
-        # into packages and the numbers stop moving with every feature.
-        run: du -sh dist && du -ah dist/assets | sort -rh | head -20
+        # Informational for now. It becomes a hard budget once the extraction
+        # settles and the numbers stop moving with every feature.
+        run: du -sh apps/studio/dist && du -ah apps/studio/dist/assets | sort -rh | head -20
 
   secrets:
     name: no credentials in the tree

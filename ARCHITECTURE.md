@@ -5,8 +5,9 @@
 > numbering that [`ENGINEERING_GUIDE.md`](ENGINEERING_GUIDE.md) cites throughout. If the two
 > disagree, the design doc wins; report the drift.
 >
-> **Implementation status:** the code in `src/` and `pipeline/` is v1 (the shipped prototype
-> this architecture learned from). v2 lives under `apps/` and `packages/`. See
+> **Implementation status:** the code in `apps/studio/` and `apps/pipeline/` is v1 (the
+> shipped prototype this architecture learned from), now inside the §2 workspace and being
+> converted in place. `packages/` is where the engine lands as it is extracted. See
 > [`docs/AUDIT.md`](docs/AUDIT.md) for the migration debt register.
 
 ---

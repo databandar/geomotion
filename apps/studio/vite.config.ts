@@ -1,7 +1,9 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 // @ts-expect-error — plain .mjs server middleware, no types needed
-import { studioServer, voiceStatic, assetStatic } from './pipeline/studio-server.mjs';
+// Imported by package name, not a relative path across the app boundary: the
+// dependency is declared in package.json where the boundary lint can see it.
+import { studioServer, voiceStatic, assetStatic } from '@geomotion/pipeline/studio-server';
 
 export default defineConfig(({ mode }) => {
   // Load .env.local into process.env for the middleware. Nothing is exposed to

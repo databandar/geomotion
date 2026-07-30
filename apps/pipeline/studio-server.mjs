@@ -6,9 +6,12 @@ import { loadNfhs, listIndicators, extract, changes } from './lib/nfhs.mjs';
 import { prepareScript, compose, collectLines, buildSrt, DATASETS } from './lib/compose.mjs';
 import { buildVoiceTrack, lineAudio, saveRecording, clearRecording } from './lib/tts.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '..');
-const VOICE_ROOT = path.join(ROOT, 'pipeline/out/_voice');
+// Path anchors. Named explicitly because a single ambiguous "ROOT" is what broke
+// when this pipeline moved under apps/ — each of these means something different.
+const APP = path.dirname(fileURLToPath(import.meta.url)); // apps/pipeline
+const REPO = path.resolve(APP, '../..');
+const STUDIO = path.join(REPO, 'apps/studio');
+const VOICE_ROOT = path.join(APP, 'out/_voice');
 
 /**
  * Dev-server middleware behind the Studio UI.
@@ -89,7 +92,7 @@ async function handle(route, req, res, url, server) {
     case 'GET /data/regions': {
       const set = DATASETS[url.searchParams.get('dataset') ?? 'india-official'];
       if (!set) return json(res, 400, { error: 'unknown dataset' });
-      const geo = JSON.parse(await fs.readFile(path.join(ROOT, 'src/data', set.states), 'utf8'));
+      const geo = JSON.parse(await fs.readFile(path.join(STUDIO, 'src/data', set.states), 'utf8'));
       const names = geo.features.map((f) => f.properties?.name).filter(Boolean).sort();
       return json(res, 200, { regions: names });
     }
@@ -122,7 +125,7 @@ async function handle(route, req, res, url, server) {
       return json(res, 200, await manualLines(url.searchParams.get('slug') ?? 'studio'));
 
     case 'GET /voice/reference':
-      return json(res, 200, { text: await fs.readFile(path.join(HERE, 'voice-reference-hi.txt'), 'utf8') });
+      return json(res, 200, { text: await fs.readFile(path.join(APP, 'voice-reference-hi.txt'), 'utf8') });
 
     case 'POST /voice/clone':
       return json(res, 200, await cloneVoice(await body(req)));
@@ -416,12 +419,12 @@ async function makeImage({ prompt, model, slug, region, style }) {
 
   let saved = null;
   if (slug && region) {
-    const dir = path.join(HERE, 'assets', slug);
+    const dir = path.join(APP, 'assets', slug);
     await fs.mkdir(dir, { recursive: true });
     const file = path.join(dir, `${region}.jpg`);
     const b64 = img.replace(/^data:[^;]+;base64,/, '');
     await fs.writeFile(file, Buffer.from(b64, 'base64'));
-    saved = { path: path.relative(ROOT, file), url: `/assets-out/${encodeURIComponent(slug)}/${encodeURIComponent(region)}.jpg?t=${Date.now()}` };
+    saved = { path: path.relative(REPO, file), url: `/assets-out/${encodeURIComponent(slug)}/${encodeURIComponent(region)}.jpg?t=${Date.now()}` };
   }
 
   return { dataUrl: saved ? undefined : img, ...saved, prompt: finalPrompt, usage: j.usage ?? null };
@@ -444,7 +447,7 @@ function buildImagePrompt({ prompt, region, style }) {
 }
 
 async function listAssets(slug) {
-  const dir = path.join(HERE, 'assets', slug);
+  const dir = path.join(APP, 'assets', slug);
   try {
     const files = await fs.readdir(dir);
     return {
@@ -462,7 +465,7 @@ async function listAssets(slug) {
 }
 
 async function removeAsset(slug, region) {
-  const dir = path.join(HERE, 'assets', slug);
+  const dir = path.join(APP, 'assets', slug);
   for (const ext of ['jpg', 'jpeg', 'png', 'webp']) {
     await fs.rm(path.join(dir, `${region}.${ext}`), { force: true });
   }
@@ -612,17 +615,17 @@ async function startRender(res, { script, draft = true }, server) {
   if (renderJob?.running) return json(res, 409, { error: 'a render is already running' });
 
   const slug = script.slug ?? 'studio';
-  const file = path.join(ROOT, 'pipeline/scripts', `_studio-${slug}.json`);
+  const file = path.join(APP, 'scripts', `_studio-${slug}.json`);
   await fs.writeFile(file, JSON.stringify(script, null, 2));
 
-  const args = ['pipeline/video.mjs', path.relative(ROOT, file)];
+  const args = ['video.mjs', path.relative(APP, file)];
   if (draft) args.push('--draft');
   return spawnRender(res, args, { slug, draft }, server);
 }
 
 /** Shared plumbing for both render entry points. */
 function spawnRender(res, args, { slug, draft }, server) {
-  const child = spawn('node', args, { cwd: ROOT, env: process.env });
+  const child = spawn('node', args, { cwd: APP, env: process.env });
   renderJob = { child, running: true, log: [], slug, draft, started: Date.now(), exit: null };
 
   const push = (chunk) => {
@@ -655,11 +658,11 @@ async function startProjectRender(res, { project, slug = 'edited', draft = true 
   if (renderJob?.running) return json(res, 409, { error: 'a render is already running' });
   if (!project?.layers) return json(res, 400, { error: 'no project supplied' });
 
-  const file = path.join(ROOT, 'pipeline/out', `_edited-${slug}.geomotion.json`);
+  const file = path.join(APP, 'out', `_edited-${slug}.geomotion.json`);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(project, null, 2));
 
-  const args = ['pipeline/render-project.mjs', path.relative(ROOT, file), `--slug=${slug}`];
+  const args = ['render-project.mjs', path.relative(APP, file), `--slug=${slug}`];
   if (draft) args.push('--draft');
   return spawnRender(res, args, { slug, draft }, server);
 }
@@ -704,7 +707,7 @@ export function assetStatic() {
     configureServer(server) {
       server.middlewares.use('/assets-out', async (req, res) => {
         const rel = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\/+/, '');
-        const root = path.join(HERE, 'assets');
+        const root = path.join(APP, 'assets');
         const file = path.join(root, rel);
         if (!file.startsWith(root)) {
           res.statusCode = 403;
@@ -732,8 +735,8 @@ export function voiceStatic() {
     configureServer(server) {
       server.middlewares.use('/voice-out', async (req, res) => {
         const rel = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\/+/, '');
-        const file = path.join(ROOT, 'pipeline/out/_voice', rel);
-        if (!file.startsWith(path.join(ROOT, 'pipeline/out/_voice'))) {
+        const file = path.join(VOICE_ROOT, rel);
+        if (!file.startsWith(VOICE_ROOT)) {
           res.statusCode = 403;
           return res.end('nope');
         }

@@ -3,30 +3,22 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A browser-based map animation editor \u2014 keyframe camera moves, animated routes, and frame-accurate video export.",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
-    "video": "node pipeline/video.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "verify": "npm run typecheck && npm run test && npm run build"
+  "description": "A browser-based map motion graphics editor — keyframe camera moves, animated routes and region tours, and frame-accurate video export.",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
   },
-  "dependencies": {
-    "maplibre-gl": "^5.6.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "zustand": "^5.0.5"
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:watch": "pnpm --filter @geomotion/studio test:watch",
+    "verify": "turbo run typecheck test build",
+    "video": "pnpm --filter @geomotion/pipeline video"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "puppeteer-core": "^23.0.0",
-    "typescript": "^5.9.0",
-    "vite": "^7.0.0",
-    "vitest": "^3.2.7"
+    "turbo": "^2.5.0",
+    "typescript": "^5.9.0"
   }
 }

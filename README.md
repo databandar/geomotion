@@ -8,30 +8,45 @@ No account, no API key, no server — the whole thing is a static site talking t
 providers.
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173
+corepack enable pnpm   # once per machine; the version comes from package.json
+pnpm install
+pnpm dev               # http://localhost:5173
 ```
 
-`npm run build` produces a static `dist/` you can drop on any host.
+`pnpm build` produces a static `apps/studio/dist/` you can drop on any host.
 
 ```bash
-npm run test      # the engine suite
-npm run verify    # typecheck + test + build, the same gate CI runs
+pnpm test      # the engine suite
+pnpm verify    # typecheck + test + build, the same gate CI runs
 ```
 
-The suites next to each module in [`src/lib/`](src/lib/) are the behavioural contract for
-the pure engine — geometry, easing, colour scales, the region join and framing solver,
-scene evaluation, and document serialisation. They are deliberately implementation-free,
-because those algorithms are slated to move into standalone packages and these assertions
-are what the move must preserve. Run them before you send anything.
+The suites next to each module in [`apps/studio/src/lib/`](apps/studio/src/lib/) are the
+behavioural contract for the pure engine — geometry, easing, colour scales, the region join
+and framing solver, scene evaluation, and document serialisation. They are deliberately
+implementation-free, because those algorithms are slated to move into standalone packages
+and these assertions are what the move must preserve. Run them before you send anything.
 
 There is also a **video pipeline** that turns a written script plus a Hindi (or any
 language) voiceover into a finished, uploadable MP4 — see
-[`pipeline/README.md`](pipeline/README.md).
+[`apps/pipeline/README.md`](apps/pipeline/README.md).
 
 ```bash
-npm run video -- pipeline/scripts/anemia-india.json --draft
+pnpm video -- scripts/anemia-india.json --draft
 ```
+
+## Layout
+
+A pnpm workspace driven by Turborepo, per
+[`ENGINEERING_GUIDE.md`](ENGINEERING_GUIDE.md) §2:
+
+| Path | What it is |
+| --- | --- |
+| [`apps/studio/`](apps/studio/) | The editor. Today this is the v1 codebase, being converted in place rather than rewritten alongside. |
+| [`apps/pipeline/`](apps/pipeline/) | Script → voiceover → MP4, plus the dev-server middleware Studio's API calls hit. Splits into `apps/server` + `apps/render-cli` when the render farm lands. |
+| `packages/` | Declared in the workspace, empty for now: the landing site for the engine extraction. Each package's contract is fixed in the guide's §2 table before any code moves. |
+
+Every task runs through `turbo`, so a new package with `typecheck`/`test`/`build` scripts
+is picked up by both `pnpm verify` and CI with no configuration change.
 
 ---
 

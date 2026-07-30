@@ -5,7 +5,9 @@
 The key words **MUST**, **MUST NOT**, **SHOULD**, and **NEVER** are used as in RFC 2119.
 
 > **Repository status — read this first.**
-> The code currently under `src/` and `pipeline/` is **GeoMotion v1**: the shipped prototype that the design doc learned from. It is legacy reference material. All v2 work happens under `apps/` and `packages/` per §2 of this guide. Do not extend v1 except for critical fixes; do port v1 algorithms (framing solver, great-circle math, border dissolve, scale validator, voice engines) into their v2 packages, with tests, when a feature needs them. The v1 project importer (§3.7) is the compatibility contract.
+> The code under `apps/studio/` and `apps/pipeline/` is **GeoMotion v1**: the shipped prototype that the design doc learned from. It now sits inside the §2 workspace and is being **converted in place** — the editor keeps its address at `apps/studio` while the engine is lifted out beneath it into `packages/`, rather than a parallel v2 app being grown alongside. That choice is deliberate: it keeps one shippable editor at all times and makes every step reviewable.
+>
+> Do not extend v1 except for critical fixes; do port v1 algorithms (framing solver, great-circle math, border dissolve, scale validator, voice engines) into their packages, with tests, when a feature needs them. A package's §2 contract row is fixed before code moves into it. The v1 project importer (§3.7) is the compatibility contract.
 
 ---
 

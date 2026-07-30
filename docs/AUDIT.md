@@ -29,13 +29,17 @@ The design doc was HTML-only. Coding agents cannot usefully grep HTML, and the g
 
 ## 3. Code inventory (v1, ~12.8k lines)
 
+Paths below are as of M4, which moved the tree into the workspace. Sections 4 and 5
+record the state at audit time and keep their original paths.
+
 ```
-src/lib/          engine: geo math, scene evaluation, overlay renderer, mapsync,
-                  regions/framing, palettes, clouds, project/serialisation, export, zip
-src/components/   editor UI: MapCanvas, Timeline, Inspector (1138 lines), Toolbar, panels
-src/studio/       generator UI: 5-step Studio + client API
-src/data/         vendored boundary sets + sample values
-pipeline/         node-side: compose, tts, render, encode, nfhs, studio dev-server
+apps/studio/src/lib/          engine: geo math, scene evaluation, overlay renderer, mapsync,
+                              regions/framing, palettes, clouds, project/serialisation, export, zip
+apps/studio/src/components/   editor UI: MapCanvas, Timeline, Inspector (1138 lines), Toolbar, panels
+apps/studio/src/studio/       generator UI: 5-step Studio + client API
+apps/studio/src/data/         vendored boundary sets + sample values
+apps/pipeline/                node-side: compose, tts, render, encode, nfhs, studio dev-server
+packages/                     declared, empty — the landing site for the extraction
 ```
 
 Architecture as built (v1), mapped to the v2 target:
@@ -91,15 +95,22 @@ Ordered by risk × cost of delay.
 | # | Debt | Impact | Proposed milestone |
 | --- | --- | --- | --- |
 | D1 | ~~Zero tests~~ | — | **Closed in M3**: 157 tests over the six pure modules |
-| D2 | No monorepo / package boundaries | Guide §2 unenforceable; boundary lint impossible; v1 and v2 code will interleave | M4 |
+| D2 | ~~No monorepo~~ | Package **boundaries** are still unenforced — no `eslint-plugin-boundaries` yet, because there are no packages to police | **Workspace closed in M4**; boundary lint lands with the first package (M5) |
 | D3 | Document mutations clone the whole project (`store.ts` `patch()`) | O(document) per keystroke; blocks patches, undo granularity, collaboration | M5 (with `packages/document`) |
 | D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
 | D5 | `src/lib/mapref.ts` module-global map handle | Named anti-pattern (guide §15); blocks worker rendering and multiplayer | M5 |
 | D6 | Renderer coupled to React + document (`MapCanvas.tsx` evaluates, syncs GL, draws overlay) | No `RenderScene` boundary; blocks worker export and WebGPU | M7 |
-| D7 | npm, not pnpm + Turborepo | Guide §2 mismatch; no workspace enforcement | M4 (with monorepo) |
+| D7 | ~~npm, not pnpm + Turborepo~~ | — | **Closed in M4** |
 | D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
 | D9 | Export uses headless-Chrome screenshots (~4 fps) | Design doc §14 specifies WebCodecs in-page (10–20×) | M8 |
 | D10 | `voice bed` mixed at compose time | Retiming desyncs narration (design doc §00, §10) | M6 |
+
+### 6.0 Debt found after the initial audit
+
+| # | Debt | Impact | Proposed milestone |
+| --- | --- | --- | --- |
+| D11 | `strict` is on, but the two flags the guide also mandates — `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` — are not | Guide §2 requires both. Turning them on will surface real indexing and optional-property assumptions across ~12.8k lines | Its own milestone; too noisy to bundle into an infrastructure change |
+| D12 | `apps/pipeline` has no tests | The narration-timing and placeholder-resolution logic is where factual errors reach a published video, and it is unguarded | With the `apps/server` / `apps/render-cli` split |
 
 ### 6.1 Bugs found by the M3 suite
 
@@ -116,6 +127,16 @@ bit-exact, and `headingAt` genuinely varies along a great circle (that is what
 distinguishes a geodesic from a rhumb line). Both tests were corrected to assert the
 real contract, with comments recording it for the port.
 
+### 6.2 Bugs found by the M4 migration
+
+| Where | Defect | Fix |
+| --- | --- | --- |
+| `apps/studio/package.json` | **Phantom dependency.** Source used the global `GeoJSON` type namespace, which was never declared — it arrived via npm hoisting `@types/geojson` out of `maplibre-gl`'s dependency tree. A maplibre release that dropped or renamed that dependency would have broken our typecheck for no visible reason. pnpm's non-hoisted layout turned it into 20 immediate errors. | `@types/geojson` declared directly. |
+| `apps/pipeline/scripts/*.json` | Both bundled example scripts set `"values": "anemia-sample"`, but the data file is `india-anemia-sample.json` — a name that has never existed in any commit. `pnpm video` on either example died on an ENOENT before rendering a frame. | Preset names corrected; `resolveValues` now reports the unknown name and lists the available presets instead of throwing a raw stack trace. |
+
+Both were found by *running* the pipeline, which the build and the unit suite do not do —
+the argument for D12.
+
 ## 7. Conclusion
 
 The v1 codebase is healthier than its size suggests: the pure-evaluation core, the geo
@@ -128,5 +149,12 @@ No architectural changes were made during this audit.
 
 **Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
 contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
-`project` — and CI enforces it. The next blocker is D2/D7: package boundaries, so
-the v2 extraction has somewhere to land.
+`project` — and CI enforces it.
+
+**Update after M4.** D7 is closed and D2 is half closed: the pnpm + Turborepo
+workspace exists, `packages/` is declared, and v1 has moved to `apps/studio` +
+`apps/pipeline` to be converted in place. What is *not* yet true is boundary
+enforcement — the dependency law in guide §2 is still only a document, because there
+are no packages to police. That lands with the first extracted package, which is the
+next milestone: `packages/core` and `packages/geometry`, the two lowest layers and
+the two already covered by the M3 port contract.

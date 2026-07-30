@@ -19,7 +19,11 @@ import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
 
 const run = promisify(execFile);
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Path anchors. Named explicitly because a single ambiguous "ROOT" is what broke
+// when this pipeline moved under apps/ — each of these means something different.
+const APP = path.dirname(fileURLToPath(import.meta.url)); // apps/pipeline
+const REPO = path.resolve(APP, '../..');
+const STUDIO = path.join(REPO, 'apps/studio');
 
 const argv = process.argv.slice(2);
 const scriptPath = argv.find((a) => !a.startsWith('--'));
@@ -52,7 +56,7 @@ if (draft) {
   }
 }
 
-const outDir = path.join(ROOT, 'pipeline', 'out', slug + (draft ? '-draft' : ''));
+const outDir = path.join(APP, 'out', slug + (draft ? '-draft' : ''));
 const framesDir = path.join(outDir, 'frames');
 await fs.mkdir(outDir, { recursive: true });
 
@@ -81,7 +85,7 @@ if (flag('no-audio')) {
   let manualCount = 0;
   for (const line of lines) {
     const { file, duration, cached, manual } = await lineAudio({
-      voiceRoot: path.join(ROOT, 'pipeline/out/_voice'),
+      voiceRoot: path.join(APP, 'out/_voice'),
       slug,
       key: line.key,
       text: line.text,
@@ -138,13 +142,13 @@ if (!flag('no-audio')) {
 /* -------------------------------------------------------------- 4. build */
 
 step(4, 'Building the app');
-const distDir = path.join(ROOT, 'dist');
+const distDir = path.join(STUDIO, 'dist');
 try {
   await fs.access(path.join(distDir, 'index.html'));
   if (flag('rebuild')) throw new Error('forced');
   ok('dist/ present (pass --rebuild to force)');
 } catch {
-  await run('npm', ['run', 'build'], { cwd: ROOT, maxBuffer: 1024 * 1024 * 32 });
+  await run('pnpm', ['--filter', '@geomotion/studio', 'build'], { cwd: REPO, maxBuffer: 1024 * 1024 * 32 });
   ok('built');
 }
 
@@ -187,7 +191,7 @@ await encode({
   audio: voiceTrack,
   out: mp4,
   crf: draft ? 26 : (script.crf ?? 18),
-  music: script.music ? path.resolve(ROOT, script.music) : null,
+  music: script.music ? path.resolve(REPO, script.music) : null,
   musicGain: script.musicGain ?? -22,
 });
 

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.resolve(HERE, '../../src/data');
+const DATA = path.resolve(HERE, '../../studio/src/data');
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -464,8 +464,22 @@ async function resolveValues(spec) {
 
   // A named preset or a path: either a bare {name: value} map or {values, previous}.
   const file = spec.includes('/') ? path.resolve(spec) : path.join(DATA, `${spec}.json`);
-  const d = await readJson(file);
-  return { values: d.values ?? d, previous: d.previous ?? {}, meta: d };
+  try {
+    const d = await readJson(file);
+    return { values: d.values ?? d, previous: d.previous ?? {}, meta: d };
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+    // A mistyped preset used to surface as a bare ENOENT stack trace, which told
+    // you nothing about what you could have written instead.
+    const presets = (await fs.readdir(DATA))
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => f.replace(/\.json$/, ''));
+    throw new Error(
+      `unknown values preset "${spec}" (looked for ${file}).\n` +
+        `Available presets: ${presets.join(', ')}\n` +
+        `Or pass a path containing "/", an inline {region: value} map, or { nfhs: "<indicator>" }.`,
+    );
+  }
 }
 
 const round = (n) => Math.round(n * 1000) / 1000;

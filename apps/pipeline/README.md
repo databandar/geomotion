@@ -1,7 +1,13 @@
 # Video pipeline
 
+> **Structure note.** `ENGINEERING_GUIDE.md` §2 splits this into two apps: `apps/server`
+> (the LLM proxy, voice and render-farm API that Studio talks to) and `apps/render-cli`
+> (the headless renderer and CI golden-frame worker). They live together here for now
+> because they share `lib/`; the split happens when that shared code moves into packages,
+> so it is done once rather than twice.
+
 There are two ways in: the **Studio** (a UI over all of this — click ✦ Studio in the
-editor toolbar, `npm run dev`), or a JSON script on the command line as below. They
+editor toolbar, `pnpm dev`), or a JSON script on the command line as below. They
 share every stage; the Studio just writes the script for you.
 
 Script in, finished MP4 out. Narration is synthesised and **measured first**, and
@@ -10,8 +16,8 @@ animation is fitted to the voice rather than the voice being squeezed into a
 guessed timeline.
 
 ```bash
-npm run video -- pipeline/scripts/anemia-india.json --draft   # fast check
-npm run video -- pipeline/scripts/anemia-india.json           # the real thing
+pnpm video -- scripts/anemia-india.json --draft   # fast check
+pnpm video -- scripts/anemia-india.json           # the real thing
 ```
 
 Outputs land in `pipeline/out/<slug>/`:
@@ -26,7 +32,7 @@ Outputs land in `pipeline/out/<slug>/`:
 
 ## Studio
 
-`npm run dev`, then **✦ Studio** in the toolbar. Five steps, left to right:
+`pnpm dev`, then **✦ Studio** in the toolbar. Five steps, left to right:
 
 | Step | What it does |
 | --- | --- |
@@ -102,7 +108,7 @@ after generation, so the narration can't contradict the map.
 | `--no-audio` | Skip TTS; estimate line lengths from text length. For checking structure without burning API calls. |
 | `--frames-only` | Stop after the PNGs. |
 | `--keep-frames` | Don't delete frames after encoding. |
-| `--rebuild` | Force `npm run build` first. |
+| `--rebuild` | Force `pnpm build` first. |
 | `--port=N` | Static server port (default 5211). |
 
 ## Writing a script
@@ -114,7 +120,7 @@ after generation, so the narration can't contradict the map.
   "format": "landscape",        // landscape | short | square
   "basemap": "satellite-labels",
   "dataset": "india-official",  // or india-natural-earth
-  "values": "anemia-sample",    // preset name, inline {name: value}, or a path
+  "values": "india-anemia-sample",  // preset name, inline {name: value}, or a path
   "ramp": "ember",
   "credit": "…",                // burned in bottom-right, always on
   "voice": { "engine": "say", "voice": "Lekha", "rate": 168 },
@@ -225,7 +231,7 @@ can be an inline object or a path to a `{name: value}` JSON file.
 
 `.env.local` (gitignored) holds `OPENROUTER_API_KEY`. It is read **only** by the
 dev-server middleware — nothing prefixed `VITE_` exists, so the key never reaches
-the browser bundle. `npm run build` produces a static site with no Studio API at
+the browser bundle. `pnpm build` produces a static site with no Studio API at
 all, which is what the renderer loads; rendered frames never depend on it.
 
 ## How the pieces fit

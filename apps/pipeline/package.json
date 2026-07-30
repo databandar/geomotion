@@ -1,0 +1,19 @@
+{
+  "name": "@geomotion/pipeline",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Script -> voiceover -> rendered MP4 pipeline, plus the dev-server middleware Studio talks to.",
+  "exports": {
+    "./studio-server": "./studio-server.mjs",
+    "./video": "./video.mjs"
+  },
+  "scripts": {
+    "video": "node video.mjs",
+    "typecheck": "echo 'plain .mjs, no types to check'",
+    "test": "echo 'no tests yet — see docs/AUDIT.md debt D12'"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.0.0"
+  }
+}
