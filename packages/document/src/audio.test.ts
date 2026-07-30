@@ -15,7 +15,8 @@ import { canPlayPerCue, isRetimable, planAudio, scheduleFrom } from './audio.ts'
  * place. Out of step is bad; missing narration is worse.
  */
 
-const cue = (t: number, text: string, file?: string): AudioCue => ({ t, d: 2, text, ...(file ? { file } : {}) });
+const cue = (t: number, text: string, file?: string): AudioCue =>
+  ({ id: `c-${t}-${text}`, t, d: 2, text, ...(file ? { file } : {}) });
 
 function withAudio(cues: AudioCue[], bed?: { url: string; file?: string }): Project {
   return {
@@ -103,7 +104,7 @@ describe('isRetimable', () => {
 });
 
 describe('scheduleFrom', () => {
-  const withUrl = (t: number, d: number, url: string): AudioCue => ({ t, d, text: '', url });
+  const withUrl = (t: number, d: number, url: string): AudioCue => ({ id: `u-${t}`, t, d, text: '', url });
 
   it('schedules future lines at their offset from now', () => {
     const cues = [withUrl(2, 3, '/a.wav'), withUrl(10, 2, '/b.wav')];
@@ -136,7 +137,7 @@ describe('scheduleFrom', () => {
   });
 
   it('skips cues with no url, since a page cannot fetch a filesystem path', () => {
-    const cues: AudioCue[] = [{ t: 0, d: 2, text: '', file: '/abs/a.wav' }, withUrl(3, 1, '/b.wav')];
+    const cues: AudioCue[] = [{ id: 'a', t: 0, d: 2, text: '', file: '/abs/a.wav' }, withUrl(3, 1, '/b.wav')];
     expect(scheduleFrom(cues, 0).map((c) => c.url)).toEqual(['/b.wav']);
   });
 
@@ -181,7 +182,7 @@ describe('the two capabilities are independent', () => {
    * document can be previewable but not re-mixable, or the reverse — and a real
    * Studio composition is both, which is the case that matters.
    */
-  const both: AudioCue = { t: 1, d: 2, text: 'hi', file: '/abs/1.wav', url: '/voice-out/s/1.wav' };
+  const both: AudioCue = { id: 'b1', t: 1, d: 2, text: 'hi', file: '/abs/1.wav', url: '/voice-out/s/1.wav' };
 
   it('a Studio composition is both re-mixable and previewable per line', () => {
     const p = withAudio([both]);
@@ -190,13 +191,13 @@ describe('the two capabilities are independent', () => {
   });
 
   it('url only: the preview follows the cues, the render cannot', () => {
-    const p = withAudio([{ t: 1, d: 2, text: 'hi', url: '/voice-out/s/1.wav' }]);
+    const p = withAudio([{ id: 'u1', t: 1, d: 2, text: 'hi', url: '/voice-out/s/1.wav' }]);
     expect(canPlayPerCue(p)).toBe(true);
     expect(isRetimable(p)).toBe(false);
   });
 
   it('file only, as the CLI writes it: the render follows the cues, the preview cannot', () => {
-    const p = withAudio([{ t: 1, d: 2, text: 'hi', file: '/abs/1.wav' }]);
+    const p = withAudio([{ id: 'f1', t: 1, d: 2, text: 'hi', file: '/abs/1.wav' }]);
     expect(isRetimable(p)).toBe(true);
     expect(canPlayPerCue(p)).toBe(false);
   });

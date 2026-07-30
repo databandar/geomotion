@@ -92,13 +92,32 @@ describe('localStorage persistence', () => {
     expect(loaded.layers[0]!.visible).toBe(true);
   });
 
-  it('survives a storage quota failure without throwing', () => {
+  it('reports a storage failure rather than throwing or staying quiet', () => {
+    // Reachable in ordinary use now that audio is embedded in the document, and a
+    // project that silently stopped autosaving is worse than one that says so.
     globalThis.localStorage = {
       ...stubStorage(),
       setItem: () => {
-        throw new Error('QuotaExceededError');
+        throw new Error('nope');
       },
     } as Storage;
-    expect(() => saveLocal(demoProject())).not.toThrow();
+    const result = saveLocal(demoProject());
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toMatch(/Save/);
+  });
+
+  it('names embedded audio when the quota is what refused it', () => {
+    globalThis.localStorage = {
+      ...stubStorage(),
+      setItem: () => {
+        throw new DOMException('quota', 'QuotaExceededError');
+      },
+    } as Storage;
+    const result = saveLocal(demoProject());
+    expect(!result.ok && result.reason).toMatch(/audio/);
+  });
+
+  it('reports success on a normal save', () => {
+    expect(saveLocal(demoProject())).toEqual({ ok: true });
   });
 });

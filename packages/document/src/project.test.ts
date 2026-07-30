@@ -59,8 +59,20 @@ describe('migrate', () => {
   });
 
   it('keeps audio whose only asset is per-cue clips', () => {
-    const audio = { cues: [{ t: 0, d: 1, text: 'hi', file: '/abs/1.wav' }] };
+    const audio = { cues: [{ id: 'c1', t: 0, d: 1, text: 'hi', file: '/abs/1.wav' }] };
     expect(migrate({ audio }).audio).toEqual(audio);
+  });
+
+  it('gives every cue an id, so it can be dragged and deleted', () => {
+    const opened = migrate({ audio: { cues: [{ t: 0, d: 1, text: 'a', file: '/1.wav' }, { t: 2, d: 1, text: 'b', file: '/2.wav' }] } });
+    const ids = opened.audio!.cues.map((c) => c.id);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it('leaves an id a document already has', () => {
+    const opened = migrate({ audio: { cues: [{ id: 'keep-me', t: 0, d: 1, text: 'a', file: '/1.wav' }] } });
+    expect(opened.audio!.cues[0]!.id).toBe('keep-me');
   });
 
   it('fills camera keyframe defaults without discarding the authored values', () => {

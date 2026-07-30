@@ -1,5 +1,6 @@
 import type { Project } from '@geomotion/document';
 import type { RenderHost } from '../render/host';
+import { prepareAudioTrack } from './audio-mix';
 import { useStore } from '../store';
 import { ZipWriter } from './zip';
 import { getBasemap } from './basemaps';
@@ -84,14 +85,23 @@ async function withExportStage<T>(
   }
 }
 
-function pickMimeType(): string {
-  const candidates = [
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm',
-    'video/mp4;codecs=avc1',
-    'video/mp4',
-  ];
+/**
+ * The container to record into.
+ *
+ * When the composition has audio, the codec string has to name an audio codec too —
+ * a video-only mime silently records no sound even though the track is in the stream,
+ * which is the kind of failure you only notice on playback.
+ */
+function pickMimeType(withAudio: boolean): string {
+  const candidates = withAudio
+    ? [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4',
+      ]
+    : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4'];
   for (const c of candidates) if (MediaRecorder.isTypeSupported(c)) return c;
   return '';
 }
@@ -121,11 +131,18 @@ export async function exportVideo(
   onProgress: (p: number) => void,
   isCancelled: () => boolean,
 ) {
-  const mime = pickMimeType();
+  const hasAudio = (project.audio?.cues ?? []).some((c) => c.url && c.d > 0);
+  const mime = pickMimeType(hasAudio);
   if (!mime) throw new Error('This browser cannot record video. Use the PNG sequence export instead.');
 
   return withExportStage(host, project, async (canvas) => {
+    // Decoded before the recorder exists: the audio track has to be part of the
+    // stream when MediaRecorder is constructed, and a decode mid-recording would
+    // push its clip late by however long it took.
+    const audio = await prepareAudioTrack(project.audio?.cues ?? []);
     const stream = canvas.captureStream(project.fps);
+    if (audio.track) stream.addTrack(audio.track);
+
     const chunks: Blob[] = [];
     const recorder = new MediaRecorder(stream, {
       mimeType: mime,
@@ -143,6 +160,8 @@ export async function exportVideo(
     await nextFrame();
 
     recorder.start();
+    // Same instant for both clocks, which is what keeps sound and picture together.
+    audio.start();
     const started = performance.now();
     let t = 0;
 
@@ -162,6 +181,7 @@ export async function exportVideo(
     await sleep(250);
 
     recorder.stop();
+    audio.stop();
     const blob = await done;
     const ext = mime.includes('mp4') ? 'mp4' : 'webm';
     download(blob, `${safeName(project)}.${ext}`);

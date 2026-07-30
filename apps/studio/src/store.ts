@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { History, createLayer, keyframe, transact } from '@geomotion/document';
-import type { CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
+import type { AudioCue, CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
 import { clamp, createId } from '@geomotion/core';
 import { clearPathCache } from './lib/scene';
 import { clearRegionCache } from './lib/regions';
@@ -35,6 +35,8 @@ interface State {
   exporting: boolean;
   /** bumped whenever the map should re-read the whole project structure */
   structureRev: number;
+  /** set when the browser refused the last autosave, so the UI can say so */
+  autosaveError: string | null;
 
   patch: (fn: (p: Project) => void, historyKey?: string) => void;
   replaceProject: (p: Project) => void;
@@ -55,6 +57,10 @@ interface State {
   duplicateLayer: (id: string) => void;
   updateLayer: <T extends Layer>(id: string, patch: Partial<T>, historyKey?: string) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
+
+  addAudioCue: (cue: Omit<AudioCue, 'id'>) => void;
+  updateAudioCue: (id: string, patch: Partial<AudioCue>, historyKey?: string) => void;
+  removeAudioCue: (id: string) => void;
 
   addKeyframe: (kf?: Partial<CameraKeyframe>) => void;
   updateKeyframe: (id: string, patch: Partial<CameraKeyframe>, historyKey?: string) => void;
@@ -89,6 +95,7 @@ export const useStore = create<State>((set, get) => ({
   exportStatus: null,
   exporting: false,
   structureRev: 0,
+  autosaveError: null,
 
   patch: (fn, historyKey) => {
     const state = get();
@@ -127,7 +134,8 @@ export const useStore = create<State>((set, get) => ({
       historyRev: s.historyRev + 1,
       structureRev: s.structureRev + 1,
     });
-    saveLocal(p);
+    const saved = saveLocal(p);
+    set({ autosaveError: saved.ok ? null : saved.reason });
   },
 
   setTime: (t) => set({ time: t }),
@@ -199,6 +207,46 @@ export const useStore = create<State>((set, get) => ({
     });
   },
 
+  /**
+   * Audio lives on the project rather than as a layer.
+   *
+   * It has no spatial presence and nothing to draw, so a layer would carry two dozen
+   * fields it never uses — exactly the "mode flags that fork a type's meaning" §3.8
+   * rules out. Cues are the model the narration already used, so imported audio and
+   * generated narration are the same thing to the player and the renderer.
+   */
+  addAudioCue: (cue) => {
+    const id = createId();
+    get().patch((p) => {
+      const cues = p.audio?.cues ?? [];
+      p.audio = { ...p.audio, cues: [...cues, { ...cue, id }] };
+    });
+  },
+
+  updateAudioCue: (id, patch, historyKey) => {
+    get().patch(
+      (p) => {
+        const i = p.audio?.cues.findIndex((c) => c.id === id) ?? -1;
+        if (!p.audio || i < 0) return;
+        const existing = p.audio.cues[i];
+        if (!existing) return;
+        p.audio.cues[i] = { ...existing, ...patch };
+      },
+      historyKey ? `${id}:${historyKey}` : undefined,
+    );
+  },
+
+  removeAudioCue: (id) => {
+    get().patch((p) => {
+      if (!p.audio) return;
+      const cues = p.audio.cues.filter((c) => c.id !== id);
+      // An audio block with no cues has nothing to play; drop it so the timeline
+      // stops showing an empty track.
+      if (cues.length) p.audio.cues = cues;
+      else delete p.audio;
+    });
+  },
+
   addKeyframe: (init) => {
     const { time, project } = get();
     const kf = keyframe(time, [0, 0], 2, init);
@@ -259,7 +307,11 @@ function step(set: (p: Partial<State>) => void, get: () => State, dir: 'undo' | 
 /** Debounced so a drag writes to localStorage once, not per frame. */
 function scheduleSave(get: () => State) {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveLocal(get().project), 500) as unknown as number;
+  saveTimer = setTimeout(() => {
+    const result = saveLocal(get().project);
+    const next = result.ok ? null : result.reason;
+    if (useStore.getState().autosaveError !== next) useStore.setState({ autosaveError: next });
+  }, 500) as unknown as number;
 }
 
 // Handy for poking at state from the console (and for automated smoke tests).

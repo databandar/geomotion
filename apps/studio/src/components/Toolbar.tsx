@@ -4,6 +4,7 @@ import { useRenderHost } from '../render/host';
 import { emptyProject, migrate } from '@geomotion/document';
 import { demoProject, indiaTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
+import { cueFromFile } from '../lib/audio-import';
 
 interface Place {
   name: string;
@@ -24,6 +25,9 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
   const replaceProject = useStore((s) => s.replaceProject);
   const addKeyframe = useStore((s) => s.addKeyframe);
   const fileRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLInputElement>(null);
+  const addAudioCue = useStore((s) => s.addAudioCue);
+  const autosaveError = useStore((s) => s.autosaveError);
   const [demoOpen, setDemoOpen] = useState(false);
 
   return (
@@ -36,6 +40,16 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
       <span className="project-name" title="Rename in the Composition panel">
         {name}
       </span>
+
+      {autosaveError && (
+
+        <span className="tb-warn" title={autosaveError}>
+
+          not autosaving
+
+        </span>
+
+      )}
 
       <div className="tb-group">
         <button className="tb-btn" disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
@@ -70,6 +84,36 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
         <button className="tb-btn" onClick={() => fileRef.current?.click()} title="Open a saved project">
           Open
         </button>
+        <button
+          className="tb-btn"
+          onClick={() => audioRef.current?.click()}
+          title="Add an audio file — music or narration — at the playhead"
+        >
+          + Audio
+        </button>
+        <input
+          ref={audioRef}
+          type="file"
+          accept="audio/*"
+          multiple
+          hidden
+          onChange={async (e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            // Placed one after another from the playhead, so dropping several in at
+            // once gives a sequence rather than a pile at the same instant.
+            let at = useStore.getState().time;
+            for (const f of files) {
+              try {
+                const cue = await cueFromFile(f, at);
+                addAudioCue(cue);
+                at += cue.d;
+              } catch (err) {
+                alert(err instanceof Error ? err.message : `could not import ${f.name}`);
+              }
+            }
+          }}
+        />
         <input
           ref={fileRef}
           type="file"

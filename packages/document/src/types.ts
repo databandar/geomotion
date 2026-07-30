@@ -314,11 +314,19 @@ export interface ProjectAudio {
  * and a render can re-mix from wherever the cues now sit.
  */
 export interface AudioCue {
+  /**
+   * Stable identity, so a cue can be dragged and deleted like any other object.
+   * Filled by `migrate` for documents written before cues were editable.
+   */
+  id: string;
   /** start on the timeline, seconds */
   t: number;
   /** measured duration, seconds */
   d: number;
-  /** the line as spoken, also used for subtitles */
+  /**
+   * What this is: the spoken line for narration, or the file name for audio
+   * imported in the editor. Shown on the timeline chip, and used for subtitles.
+   */
   text: string;
   /**
    * Absolute path to this line's own audio. Optional because documents written

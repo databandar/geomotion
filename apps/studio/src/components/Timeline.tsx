@@ -18,6 +18,8 @@ export default function Timeline() {
   const updateLayer = useStore((s) => s.updateLayer);
   const updateKeyframe = useStore((s) => s.updateKeyframe);
   const removeKeyframe = useStore((s) => s.removeKeyframe);
+  const updateAudioCue = useStore((s) => s.updateAudioCue);
+  const removeAudioCue = useStore((s) => s.removeAudioCue);
   const setPxPerSec = useStore((s) => s.setPxPerSec);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
@@ -85,14 +87,14 @@ export default function Timeline() {
           <div className="tl-gutter-row track-camera">Camera</div>
           {project.audio && (
             <div className="tl-gutter-row track-voice">
-              Narration
+              Audio
               {!retimable && (
                 <span
                   className="warn-dot"
                   title={
-                    'This narration is a single pre-mixed track: retiming moves the picture and ' +
-                    'leaves the voice behind, in the preview and in the export. Regenerate it from ' +
-                    'Studio and the lines will follow the timeline individually.'
+                    'This is a single pre-mixed track, so retiming moves the picture and leaves ' +
+                    'the sound behind — in the preview and in the export. Audio imported here is ' +
+                    'per-clip and follows the timeline.'
                   }
                 >
                   !
@@ -150,12 +152,21 @@ export default function Timeline() {
             {/* Order here must match the gutter above: Camera, then Narration. */}
             {project.audio && (
               <div className="tl-row voice-row" onPointerDown={startScrub}>
-                {project.audio.cues.map((c, i) => (
+                {project.audio.cues.map((c) => (
                   <div
                     className="cue"
-                    key={i}
+                    key={c.id}
                     style={{ left: c.t * pxPerSec, width: Math.max(3, c.d * pxPerSec) }}
-                    title={c.text}
+                    title={`${c.text} · ${c.d.toFixed(2)}s — drag to retime, double-click to remove`}
+                    onPointerDown={(e) => {
+                      // Retiming is the whole point of keeping per-line audio: the
+                      // export re-mixes from these positions, so a drag here moves
+                      // the voice in the finished video too.
+                      e.stopPropagation();
+                      const t0 = c.t;
+                      dragSeconds(e, (dt) => updateAudioCue(c.id, { t: Math.max(0, snap(t0 + dt)) }, 'move'));
+                    }}
+                    onDoubleClick={() => removeAudioCue(c.id)}
                   >
                     <span>{c.text}</span>
                   </div>

@@ -12,12 +12,26 @@ import type { Project } from '@geomotion/document';
 
 const KEY = 'geomotion:project';
 
-/** Autosave, so a reload does not lose work. */
-export function saveLocal(p: Project) {
+/**
+ * Autosave, so a reload does not lose work.
+ *
+ * Reports failure instead of swallowing it. Embedded audio makes this reachable in
+ * ordinary use — a few minutes of music is past the ~5 MB localStorage budget — and a
+ * project that has quietly stopped autosaving while the user keeps editing is the
+ * worst version of this feature. The caller surfaces it; Save still writes a file.
+ */
+export function saveLocal(p: Project): { ok: true } | { ok: false; reason: string } {
   try {
     localStorage.setItem(KEY, JSON.stringify(p));
-  } catch {
-    /* quota — ignore, the user can still export a file */
+    return { ok: true };
+  } catch (err) {
+    const quota = err instanceof DOMException && (err.name === 'QuotaExceededError' || err.code === 22);
+    return {
+      ok: false,
+      reason: quota
+        ? 'This project is too large to autosave in the browser — usually embedded audio. Use Save to keep a copy.'
+        : 'Autosave failed. Use Save to keep a copy.',
+    };
   }
 }
 

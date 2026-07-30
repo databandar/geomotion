@@ -117,6 +117,24 @@ press <kbd>K</kbd>. Repeat. Adjust by dragging the diamonds on the timeline.
 Every layer has an in/out window on the timeline plus a fade ramp at each end. Drag the
 bar to move it, drag its edges to retime it.
 
+### Audio
+
+**+ Audio** imports one or more files and drops them on the timeline at the playhead —
+music, narration, a voice memo. Each becomes a clip you can **drag to retime** and
+**double-click to remove**, and those edits undo like everything else.
+
+The clip's length comes from actually decoding the file rather than from its metadata: a
+VBR mp3 will misreport itself, and a clip whose length disagrees with its audio makes
+every timing downstream wrong.
+
+Audio is **embedded in the project** as a data URL, so a saved `.json` carries its sound
+and opens with it anywhere. The cost is size — past roughly 4 MB the browser refuses to
+autosave, and the toolbar says **not autosaving** rather than letting you keep working
+against a save that is no longer happening. **Save** still writes a file.
+
+Video export includes the audio (WebM with Opus). The PNG sequence cannot — it is a
+frame format — so mux it yourself with the ffmpeg line the export dialog gives you.
+
 ### Camera follow
 
 A route can take over the camera. While it's drawing, the camera rides the leading point

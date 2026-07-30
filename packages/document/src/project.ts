@@ -327,7 +327,11 @@ export function migrate(input: unknown): Project {
     const cues = Array.isArray(p.audio.cues) ? p.audio.cues : null;
     const usable = !!cues && (!!p.audio.url || !!p.audio.file || cues.some((c) => c.file));
     if (!usable) delete p.audio;
-    else p.audio.cues = cues;
+    else {
+      // Cues predate having identity; without an id they cannot be dragged or
+      // deleted, and React would key them by array position.
+      p.audio.cues = cues.map((c) => (c.id ? c : { ...c, id: createId() }));
+    }
   }
   p.camera = (p.camera ?? []).map((k) => ({ ...keyframe(0, [0, 0], 1), ...k }));
   p.layers = (p.layers ?? []).map((l) => {

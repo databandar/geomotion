@@ -159,6 +159,40 @@ headless browser instead:
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
 
+### 6.16 Audio in the editor (M15b)
+
+With the Studio gone, audio becomes something you bring. **+ Audio** imports files and
+places them at the playhead; the chips on the timeline drag to retime and
+double-click to remove, through ordinary transactions, so undo covers them.
+
+Design decisions worth recording:
+
+| Decision | Why |
+| --- | --- |
+| Audio is `project.audio.cues`, not a layer | It has no spatial presence and nothing to draw, so a layer would carry two dozen fields it never uses — the "mode flags that fork a type's meaning" §3.8 rules out. It also means imported audio and generated narration are the same thing to the player and the renderer. |
+| Duration comes from decoding, not metadata | A VBR mp3 misreports its own length, and a cue whose `d` disagrees with its audio makes every downstream length calculation wrong. |
+| Embedded as a data URL, not an object URL | An object URL is smaller and faster and dies with the tab, which would mean a saved project quietly losing its sound. §1.8 wants documents serializable; this is the honest reading, and the cost is size. |
+| `AudioCue` gains an `id` | Everything else editable in this document has identity. Without one a cue cannot be dragged or deleted and React keys it by array position. `migrate` fills it. |
+
+**A silent failure this created, and then fixed.** Embedding audio makes the ~5 MB
+localStorage budget reachable in ordinary use, and `saveLocal` swallowed quota errors —
+so a project would stop autosaving while the user kept editing, with nothing to say so.
+It now reports the failure, the store keeps it, and the toolbar shows **not
+autosaving** with the reason.
+
+Export needed one more thing: a video-only mime records no sound even though the track
+is in the stream, which only shows up on playback. `pickMimeType` negotiates
+`vp9,opus`/`vp8,opus` when the composition has audio.
+
+Verified in Chrome through the real file input: a 6.278s wav imported at the playhead
+came back as `d: 6.278` — matching ffprobe to the millisecond — the chip rendered, a
+retime moved it to 9.5s and undo returned it to 3s, and a recording produced
+`video/webm;codecs=vp8,opus` with **both** an audio and a video track.
+
+Known gap: the CLI renderer muxes from `cue.file`, and imported audio has only a data
+URL, so `render-project.mjs` will not yet include editor-imported audio. The editor's
+own export does.
+
 ### 6.15 The Studio is removed (M15)
 
 A product decision, not a refactor: the five-step in-app generator (LLM script
