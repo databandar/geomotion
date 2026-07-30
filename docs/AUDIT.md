@@ -189,6 +189,31 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.31 Glass (M30)
+
+Requested directly, so built — with the two things that usually go wrong measured
+rather than assumed.
+
+**Contrast.** Transparency is what breaks the ratios M29 fixed, so the alphas were
+chosen against sampled composited pixels rather than by eye: worst body text
+**14.92:1**, worst dim text **5.98:1** (needs 4.5), worst focus ring **9.58:1** (needs
+3.0). A `@supports` fallback restores opaque surfaces where `backdrop-filter` is
+missing, since a translucent panel without the blur is a washed-out fill that holds
+none of those numbers.
+
+**Cost.** A blurred backdrop is recomputed whenever anything beneath it repaints, and
+during playback the map repaints every frame. Measured: **31.8 ms/frame with the glass
+against 16.7 without** — preview halved, from 60 fps to 31. So the glass and the
+ambient field both come off while the timeline runs, which restores **16.9 ms/frame**.
+Nothing is lost: the ambient is only ever seen *through* a translucent panel, so once
+the panels turn solid there is nothing left to see it through.
+
+The light behind the glass is the layer-type accents already in the palette — route
+blue, camera pink, regions cyan, text violet — so it is the composition's own colour
+rather than a borrowed gradient. Export and headless paths are excluded outright.
+
+Rendered output is untouched: all ten golden frames bit-identical.
+
 ### 6.30 Icons, focus and targets (M29)
 
 A pass over the editor chrome, measured rather than judged by eye.

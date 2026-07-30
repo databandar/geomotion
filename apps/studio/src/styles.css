@@ -68,6 +68,26 @@
   /* Hover and pressed washes, so every surface tints by the same amount. */
   --wash-hover: rgb(255 255 255 / 0.055);
   --wash-active: rgb(255 255 255 / 0.09);
+
+  /*
+   * Glass.
+   *
+   * Three tiers, by how far a surface floats from the page: the chrome that frames the
+   * app, the panels inside it, and the things that pop over everything.
+   *
+   * The alphas are not a taste decision. Body text has to stay above 4.5:1 and the
+   * focus ring above 3:1 against whatever ends up behind the glass, so these are the
+   * most transparent values that still clear both — verified by sampling the composited
+   * pixels, not by eye. `saturate` is what stops a blurred dark backdrop going grey.
+   */
+  --glass-chrome: rgb(15 19 26 / 0.62);
+  --glass-panel: rgb(18 22 29 / 0.55);
+  --glass-pop: rgb(23 28 37 / 0.82);
+  --glass-blur: blur(20px) saturate(150%);
+  --glass-blur-strong: blur(30px) saturate(160%);
+  /* The lit top edge is most of what makes a surface read as glass rather than as
+     a flat tint — a blurred backdrop alone just looks like a lower opacity. */
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.07);
   --t-route: #4cc2ff;
   --t-marker: #ffbd2e;
   --t-text: #a78bfa;
@@ -110,6 +130,44 @@ button {
 button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+/*
+ * The light the glass refracts.
+ *
+ * Glass over a flat fill is just a lower opacity — it needs something behind it with
+ * structure. Rather than an arbitrary purple-blue wash, these three pools are the
+ * layer-type accents already in the palette (route, camera, regions), so the light
+ * behind the chrome is the composition's own colour rather than a borrowed trend.
+ *
+ * Very low alpha on purpose: this sits under working panels all day, and anything
+ * brighter starts competing with the map. It drifts slowly so the glass has some life
+ * without ever being the thing you look at.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 44% at 16% 10%, rgb(76 194 255 / 0.30), transparent 68%),
+    radial-gradient(36% 42% at 86% 84%, rgb(244 114 182 / 0.24), transparent 68%),
+    radial-gradient(42% 48% at 68% 18%, rgb(34 211 238 / 0.20), transparent 70%),
+    radial-gradient(34% 40% at 30% 88%, rgb(167 139 250 / 0.18), transparent 70%);
+  animation: ambient-drift 46s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-drift {
+  to {
+    transform: translate3d(2.5%, -2%, 0) scale(1.08);
+  }
+}
+
+/* Everything the user interacts with sits above the ambient field. */
+.app {
+  position: relative;
+  z-index: 1;
 }
 
 /*
@@ -174,9 +232,15 @@ textarea {
   gap: 10px;
   height: 46px;
   padding: 0 12px;
-  background: var(--panel);
+  background: var(--glass-chrome);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--line);
+  box-shadow: var(--glass-edge);
   flex: none;
+  /* Above the panels, so its blur samples the ambient field and not their edges. */
+  position: relative;
+  z-index: 3;
 }
 
 .brand {
@@ -304,10 +368,12 @@ textarea {
   margin: 0;
   padding: 4px;
   list-style: none;
-  background: var(--panel-2);
+  background: var(--glass-pop);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-pop), var(--glass-edge);
   z-index: 40;
 }
 
@@ -333,11 +399,16 @@ textarea {
 
 .left,
 .right {
-  background: var(--panel);
+  background: var(--glass-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-right: 1px solid var(--line);
+  box-shadow: var(--glass-edge);
   overflow-y: auto;
   overscroll-behavior: contain;
   flex: none;
+  position: relative;
+  z-index: 2;
 }
 
 .left {
@@ -429,8 +500,13 @@ textarea {
   gap: 6px;
   height: 44px;
   flex: none;
-  background: var(--panel);
+  background: var(--glass-chrome);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-top: 1px solid var(--line);
+  box-shadow: var(--glass-edge);
+  position: relative;
+  z-index: 2;
 }
 
 .tp-btn {
@@ -903,8 +979,13 @@ textarea.text-input.mono,
   height: 236px;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
+  background: var(--glass-chrome);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-top: 1px solid var(--line);
+  box-shadow: var(--glass-edge);
+  position: relative;
+  z-index: 2;
 }
 
 .tl-toolbar {
@@ -1305,10 +1386,12 @@ textarea.text-input.mono,
   margin: 0;
   padding: 4px;
   list-style: none;
-  background: var(--panel-2);
+  background: var(--glass-pop);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-pop), var(--glass-edge);
   z-index: 50;
 }
 
@@ -1344,12 +1427,13 @@ textarea.text-input.mono,
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(6, 8, 12, 0.72);
+  background: rgba(6, 8, 12, 0.62);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
 }
 
 .modal {
@@ -1357,11 +1441,13 @@ textarea.text-input.mono,
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 60px);
   overflow: auto;
-  background: var(--panel);
+  background: var(--glass-pop);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 20px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), var(--glass-edge);
 }
 
 .modal h2 {
@@ -1572,4 +1658,82 @@ textarea.text-input.mono,
   font-weight: 600;
   cursor: help;
   white-space: nowrap;
+}
+
+/*
+ * Two places the glass must not apply.
+ *
+ * Without `backdrop-filter` a translucent panel is just a washed-out fill over the
+ * ambient light, and the text contrast measured above no longer holds — so browsers
+ * that lack it get the opaque surfaces the app had before.
+ */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .toolbar,
+  .transport,
+  .timeline {
+    background: var(--panel);
+  }
+
+  .left,
+  .right {
+    background: var(--panel);
+  }
+
+  .search-results,
+  .menu-list,
+  .modal {
+    background: var(--panel-2);
+  }
+}
+
+/*
+ * The export and headless paths get no glass and no ambient light.
+ *
+ * A blurred backdrop is recomputed whenever anything beneath it repaints, and during a
+ * render the map repaints every frame — so this would tax the one loop whose speed the
+ * whole draft pipeline is built around. The rendered output never contains the chrome
+ * anyway: the harness composites the map and overlay canvases directly.
+ */
+.gm-headless body::before {
+  display: none;
+}
+
+/*
+ * The ambient field goes with the glass.
+ *
+ * It is only ever seen *through* a translucent panel — the viewport and stage have
+ * their own opaque backgrounds — so once the panels turn solid for playback there is
+ * nothing left to see it through. Hiding it costs nothing visually and takes one more
+ * full-viewport compositor layer out of the frame.
+ */
+body:has(.app.playing)::before,
+body:has(.app.exporting)::before {
+  display: none;
+}
+
+.gm-headless .toolbar,
+.gm-headless .transport,
+.gm-headless .timeline,
+.gm-headless .left,
+.gm-headless .right,
+.app.exporting .toolbar,
+.app.exporting .transport,
+.app.exporting .timeline,
+.app.exporting .left,
+.app.exporting .right,
+.app.playing .toolbar,
+.app.playing .transport,
+.app.playing .timeline,
+.app.playing .left,
+.app.playing .right {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--panel);
+}
+
+/* The ambient drift is decoration; it stops when motion is turned down. */
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
 }
