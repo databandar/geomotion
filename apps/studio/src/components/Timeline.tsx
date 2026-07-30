@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useStore } from '../store';
+import Icon from './Icon';
 import { isRetimable } from '@geomotion/document';
 import type { RouteLayer } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
@@ -76,8 +77,8 @@ export default function Timeline() {
       <div className="tl-toolbar">
         <span className="tl-title">Timeline</span>
         <div className="tl-zoom">
-          <button onClick={() => setPxPerSec(pxPerSec / 1.4)} title="Zoom out">−</button>
-          <button onClick={() => setPxPerSec(pxPerSec * 1.4)} title="Zoom in">+</button>
+          <button onClick={() => setPxPerSec(pxPerSec / 1.4)} title="Zoom out"><Icon name="minus" size={12} /></button>
+          <button onClick={() => setPxPerSec(pxPerSec * 1.4)} title="Zoom in"><Icon name="plus" size={12} /></button>
         </div>
       </div>
 

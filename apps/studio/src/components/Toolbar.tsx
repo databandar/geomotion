@@ -5,6 +5,7 @@ import { emptyProject, migrate } from '@geomotion/document';
 import { demoProject, indiaTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
 import { cueFromFile } from '../lib/audio-import';
+import Icon from './Icon';
 
 interface Place {
   name: string;
@@ -33,7 +34,14 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
   return (
     <header className="toolbar">
       <div className="brand">
-        <span className="logo">◍</span>
+        <span className="logo" aria-hidden="true">
+          {/* A globe crossed by a motion arc — the two things the app is. */}
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <circle cx="10" cy="10" r="7.2" />
+            <path d="M2.9 10h14.2" strokeOpacity="0.55" />
+            <path d="M10 2.8c3.4 3.9 3.4 10.5 0 14.4-3.4-3.9-3.4-10.5 0-14.4Z" strokeOpacity="0.55" />
+          </svg>
+        </span>
         <span className="brand-name">GeoMotion</span>
       </div>
 
@@ -53,10 +61,10 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
 
       <div className="tb-group">
         <button className="tb-btn" disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
-          ↺
+          <Icon name="undo" />
         </button>
         <button className="tb-btn" disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
-          ↻
+          <Icon name="redo" />
         </button>
       </div>
 
@@ -140,7 +148,7 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
         </button>
         <div className="menu">
           <button className="tb-btn" onClick={() => setDemoOpen((v) => !v)} title="Load a starter project">
-            Demo ▾
+            Demo <Icon name="chevron-down" size={12} />
           </button>
           {demoOpen && (
             <ul className="menu-list" onMouseLeave={() => setDemoOpen(false)}>
@@ -241,8 +249,16 @@ function PlaceSearch() {
         }}
         onFocus={() => results.length && setOpen(true)}
       />
-      <button className="tb-btn" onClick={search} disabled={busy}>
-        {busy ? '…' : '⌕'}
+      <button
+        className="tb-btn search-go"
+        onClick={search}
+        disabled={busy}
+        // The only control here with no visible text, so it states its own name
+        // rather than leaving a screen reader to announce "button".
+        aria-label={busy ? 'Searching' : 'Search for a place'}
+        title="Search for a place"
+      >
+        <Icon name={busy ? 'loop' : 'search'} />
       </button>
       {open && results.length > 0 && (
         <ul className="search-results">

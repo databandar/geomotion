@@ -189,6 +189,38 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.30 Icons, focus and targets (M29)
+
+A pass over the editor chrome, measured rather than judged by eye.
+
+**Focus.** The indicator was `border-color: var(--accent-dim)` behind a blanket
+`outline: none`, measuring **2.60:1** against the resting border — below the 3:1 WCAG
+2.4.11 asks, and a border tint is the weakest signal short of none. One
+`:focus-visible` rule now draws a real ring at **9.7:1** on panel and **10.4:1** on the
+canvas ground. `:focus-visible` rather than `:focus` is what makes a ring that loud
+acceptable: it answers the keyboard and stays out of a mouse user's way.
+
+**Icons.** Twenty-two Unicode glyphs became inline SVG on a 16-unit grid. Glyphs render
+in whatever font the platform picks, several have no monochrome form on Windows, and
+`＋` is fullwidth and sets its own metrics — a row of them never lines up. Two bugs
+surfaced while drawing them: the skip-to-start/end bars were `v9.6` inside a *filled*
+path, which encloses no area, so both rendered as plain step arrows.
+
+**Targets.** Every layer row's visibility toggle measured 21×18 — under the WCAG 2.2
+24px minimum in both directions. Now 24px square. The switch keeps its 19px track and
+gains the area through a pseudo-element, because the track height is the design.
+
+**Names.** `Field` wraps its children in a `<label>`, which names an `<input>` but not a
+`<button>` — the implicit association only covers labelable elements. Every switch was
+therefore an unnamed "button" despite sitting under visible text. They now take the
+field's label through context and carry `role="switch"` with `aria-checked`.
+
+Also added: `prefers-reduced-motion` (there was none), and 120/180ms transitions on
+controls that previously changed state instantly.
+
+Renderer output is untouched — all ten golden frames bit-identical. This is chrome
+only.
+
 ### 6.29 What people paste into the shape box (M28)
 
 `map` was 513 lines with no tests. The part that most needed them was the one taking

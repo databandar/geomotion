@@ -1,10 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import Icon from './Icon';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+
+/*
+ * The label a field is currently rendering.
+ *
+ * `Field` wraps its children in a `<label>`, which names an `<input>` but *not* a
+ * `<button>` — the implicit association only applies to labelable elements. So the
+ * switches read as an unnamed "button" to a screen reader despite sitting under
+ * visible text. Passing the text down lets a non-labelable control name itself,
+ * without every call site repeating the string it already gave `Field`.
+ */
+const FieldLabel = createContext<string | undefined>(undefined);
 
 export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <label className="field" title={hint}>
       <span className="field-label">{label}</span>
-      <div className="field-control">{children}</div>
+      <div className="field-control">
+        <FieldLabel.Provider value={label}>{children}</FieldLabel.Provider>
+      </div>
     </label>
   );
 }
@@ -23,7 +37,9 @@ export function Section({
     <div className={'section' + (open ? '' : ' collapsed')}>
       <div className="section-head">
         <button className="section-toggle" onClick={() => setOpen((o) => !o)}>
-          <span className="chev">{open ? '▾' : '▸'}</span>
+          <span className="chev">
+            <Icon name={open ? 'chevron-down' : 'chevron-right'} size={12} />
+          </span>
           {title}
         </button>
         {right}
@@ -156,8 +172,18 @@ export function Select<T extends string>({
 }
 
 export function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label?: string }) {
+  const fieldLabel = useContext(FieldLabel);
   return (
-    <button className={'toggle' + (value ? ' on' : '')} onClick={() => onChange(!value)} type="button">
+    <button
+      className={'toggle' + (value ? ' on' : '')}
+      onClick={() => onChange(!value)}
+      type="button"
+      // `switch` rather than a plain button: it reports on/off as state, so the
+      // control announces what it *is* rather than only what it is called.
+      role="switch"
+      aria-checked={value}
+      aria-label={label ? undefined : fieldLabel}
+    >
       <span className="knob" />
       {label && <span className="toggle-label">{label}</span>}
     </button>

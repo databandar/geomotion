@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import Icon from './Icon';
 import { formatClock } from './Timeline';
 
 export default function Transport() {
@@ -19,19 +20,19 @@ export default function Transport() {
   return (
     <div className="transport">
       <button className="tp-btn" onClick={() => scrub(0)} title="Go to start (Home)">
-        ⏮
+        <Icon name="skip-start" />
       </button>
       <button className="tp-btn" onClick={() => step(-1)} title="Previous frame (←)">
-        ◀
+        <Icon name="step-back" />
       </button>
       <button className="tp-btn play" onClick={() => setPlaying(!playing)} title="Play / pause (Space)">
-        {playing ? '❚❚' : '▶'}
+        <Icon name={playing ? 'pause' : 'play'} size={15} />
       </button>
       <button className="tp-btn" onClick={() => step(1)} title="Next frame (→)">
-        ▶
+        <Icon name="step-forward" />
       </button>
       <button className="tp-btn" onClick={() => scrub(duration)} title="Go to end (End)">
-        ⏭
+        <Icon name="skip-end" />
       </button>
 
       <span className="clock">
@@ -40,7 +41,7 @@ export default function Transport() {
       </span>
 
       <button className={'tp-btn' + (loop ? ' active' : '')} onClick={toggleLoop} title="Loop playback">
-        ↻
+        <Icon name="loop" />
       </button>
 
       {hasAudio && (

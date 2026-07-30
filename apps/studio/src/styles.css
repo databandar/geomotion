@@ -10,6 +10,64 @@
   --accent-dim: #2a6f92;
   --danger: #ff5f56;
   --radius: 7px;
+
+  /*
+   * Focus.
+   *
+   * The old indicator was `border-color: var(--accent-dim)`, which measures 2.60:1
+   * against the resting border — under the 3:1 WCAG 2.4.11 asks of a focus indicator,
+   * and a border tint is the weakest signal available besides none. This ring is a
+   * real outline at 8.4:1 against the panel, offset outward so it never eats a
+   * control's own edge.
+   *
+   * Applied through `:focus-visible`, so it appears for keyboard and assistive
+   * navigation and stays out of the way of a mouse — which is why the outlines could
+   * be removed in the first place.
+   */
+  --focus: #7cc6f5;
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
+
+  /*
+   * Spacing, on a 4px grid.
+   *
+   * A dense editor lives between 4 and 16; the wider steps are for panel padding and
+   * the gaps between groups of controls.
+   */
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 24px;
+
+  /*
+   * Motion.
+   *
+   * 120ms for a control acknowledging the pointer, 180ms for something changing state
+   * or size. Both inside the 150-300ms band where a transition reads as responsive;
+   * hover is deliberately at the fast end because the pointer is already there.
+   *
+   * `--ease-out` is the standard decelerate curve: quick to start, settling at the
+   * end, which is how a control that is catching up to you should feel.
+   */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /*
+   * Depth.
+   *
+   * One shadow for things that float over the canvas (menus, dialogs, the search
+   * results) and one hairline highlight for panel edges. Dark UIs get their depth from
+   * the light edge more than the shadow — a shadow on a near-black ground is nearly
+   * invisible, while a 1px lighter top edge reads immediately as "in front".
+   */
+  --shadow-pop: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+  --edge-hi: inset 0 1px 0 rgb(255 255 255 / 0.045);
+
+  /* Hover and pressed washes, so every surface tints by the same amount. */
+  --wash-hover: rgb(255 255 255 / 0.055);
+  --wash-active: rgb(255 255 255 / 0.09);
   --t-route: #4cc2ff;
   --t-marker: #ffbd2e;
   --t-text: #a78bfa;
@@ -54,6 +112,47 @@ button:disabled {
   cursor: default;
 }
 
+/*
+ * One focus rule for the whole app.
+ *
+ * `:focus-visible` rather than `:focus`, so the ring answers the keyboard without
+ * following every mouse click — that distinction is what makes it safe to have a ring
+ * loud enough to actually find. Individual controls do not restyle focus; several used
+ * to tint their border instead, at 2.60:1.
+ */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
+  /* Above neighbouring controls, or the ring is clipped by the next row. */
+  position: relative;
+  z-index: 2;
+}
+
+/* Icons inherit the control's colour and never take the pointer from it. */
+.icon {
+  flex: none;
+  pointer-events: none;
+}
+
+/*
+ * Motion is off for anyone who asked for it to be.
+ *
+ * `!important` and a near-zero duration rather than `none`: several transitions here
+ * have `transitionend` listeners, and removing the transition outright means the event
+ * never fires and the handler never runs.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 input,
 select,
 textarea {
@@ -89,8 +188,20 @@ textarea {
 }
 
 .logo {
+  display: inline-flex;
   color: var(--accent);
   font-size: 17px;
+}
+
+/* Turns while a place lookup is in flight; the reduced-motion rule stops it. */
+.search-go:disabled .icon {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .brand-name {
@@ -121,11 +232,18 @@ textarea {
 }
 
 .tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 26px;
   padding: 5px 10px;
   border-radius: 5px;
   background: var(--panel-2);
   border: 1px solid transparent;
   white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .tb-group .tb-btn {
@@ -136,10 +254,15 @@ textarea {
   background: #212936;
 }
 
+.tb-group .tb-btn:hover:not(:disabled) {
+  background: var(--wash-hover);
+}
+
 .tb-btn.primary {
   background: var(--accent);
   color: #06131b;
   font-weight: 600;
+  box-shadow: var(--edge-hi);
 }
 
 .tb-btn.primary:hover {
@@ -167,7 +290,7 @@ textarea {
   outline: none;
 }
 
-.search input:focus {
+.search input:focus-visible {
   border-color: var(--accent-dim);
 }
 
@@ -184,7 +307,7 @@ textarea {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-pop);
   z-index: 40;
 }
 
@@ -193,6 +316,7 @@ textarea {
   border-radius: 5px;
   cursor: pointer;
   font-size: 12px;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 
 .search-results li:hover {
@@ -212,6 +336,7 @@ textarea {
   background: var(--panel);
   border-right: 1px solid var(--line);
   overflow-y: auto;
+  overscroll-behavior: contain;
   flex: none;
 }
 
@@ -309,14 +434,27 @@ textarea {
 }
 
 .tp-btn {
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 26px square: over the 24px WCAG 2.2 target minimum without loosening a dense bar. */
+  min-width: 26px;
+  height: 26px;
+  padding: 0 var(--sp-3);
   border-radius: 5px;
   color: var(--dim);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
-.tp-btn:hover {
-  background: var(--panel-2);
+.tp-btn:hover:not(:disabled) {
+  background: var(--wash-hover);
   color: var(--text);
+}
+
+.tp-btn:active:not(:disabled) {
+  background: var(--wash-active);
 }
 
 .tp-btn.play {
@@ -324,6 +462,7 @@ textarea {
   color: var(--text);
   min-width: 44px;
   border: 1px solid var(--line);
+  box-shadow: var(--edge-hi);
 }
 
 .tp-btn.active {
@@ -440,11 +579,26 @@ textarea {
 }
 
 .icon-btn {
-  padding: 2px 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /*
+   * 24px square — the WCAG 2.2 minimum pointer target, and what these were missing:
+   * they measured 21x18, so the visibility toggle on every layer row was under it in
+   * both directions. Padding alone would have grown the row; a fixed box keeps the
+   * list at its density and puts the extra area around the icon instead.
+   */
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border-radius: 4px;
   color: var(--dim);
   font-size: 12px;
   line-height: 1.2;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 
 .icon-btn:hover {
@@ -452,13 +606,24 @@ textarea {
   color: var(--text);
 }
 
+.icon-btn:active {
+  background: var(--wash-active);
+}
+
 .icon-btn.danger:hover {
   background: var(--danger);
   color: #1a0705;
 }
 
+/*
+ * A hidden layer's eye stays legible.
+ *
+ * At 0.4 on --dim this measured 1.9:1 — below the 3:1 a non-text control needs, and
+ * this one carries the layer's state. The slashed icon now does that work, so the
+ * opacity only has to say "quieter", not "off".
+ */
 .icon-btn.eye.off {
-  opacity: 0.4;
+  opacity: 0.75;
 }
 
 /* ---------------------------------------------------------- inspector */
@@ -550,10 +715,11 @@ textarea {
   outline: none;
 }
 
-.num:focus,
-.text-input:focus,
-.select:focus,
-.color-text:focus {
+/* Kept as a secondary cue beside the ring, not as the indicator itself. */
+.num:focus-visible,
+.text-input:focus-visible,
+.select:focus-visible,
+.color-text:focus-visible {
   border-color: var(--accent-dim);
 }
 
@@ -611,7 +777,20 @@ textarea.text-input.mono,
   height: 19px;
   border-radius: 99px;
   background: #2a323f;
-  transition: background 0.15s;
+  transition: background var(--dur) var(--ease-out);
+}
+
+/*
+ * The switch keeps its 19px look and gains a 24px target.
+ *
+ * A pseudo-element rather than a taller track: the track's height is the design, and
+ * growing it to 24 would make the knob look undersized and push every row it sits in.
+ * WCAG 2.2 measures the target, not the paint.
+ */
+.toggle::after {
+  content: '';
+  position: absolute;
+  inset: -3px -1px;
 }
 
 .toggle.on {
@@ -750,16 +929,24 @@ textarea.text-input.mono,
 }
 
 .tl-zoom button {
-  width: 22px;
-  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 24px square, the same pointer-target minimum the layer-row buttons now meet. */
+  width: 24px;
+  height: 24px;
   border-radius: 4px;
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--dim);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .tl-zoom button:hover {
   color: var(--text);
+  background: #212936;
 }
 
 .tl-body {
