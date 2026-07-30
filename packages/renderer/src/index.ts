@@ -10,7 +10,14 @@
  */
 
 export { drawOverlay, scaleFor, type OverlayFrame, type ProjectFn } from './overlay.ts';
-export { formatValue, legendMetrics, scaleAt, type LegendMetrics } from './legend.ts';
+export {
+  formatValue,
+  legendMetrics,
+  placeReadout,
+  scaleAt,
+  type LegendMetrics,
+  type ReadoutPlacement,
+} from './legend.ts';
 export { cloudTexture, scratchCanvas } from './clouds.ts';
 export { getImage, imagesReady } from './images.ts';
 export type * from './scene-types.ts';

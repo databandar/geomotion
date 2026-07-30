@@ -1,5 +1,5 @@
 import { getRamp, rampColor, withAlpha, type LngLat } from '@geomotion/core';
-import { formatValue, legendMetrics, scaleAt } from './legend.ts';
+import { formatValue, legendMetrics, placeReadout, scaleAt } from './legend.ts';
 import {
   collides,
   labelAppear,
@@ -257,12 +257,7 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const boxH =
     padY * 2 + nameSize + valueSize * 1.02 + rows * metaSize * 1.5 + (rankText || metricText ? 6 * s : 0) + barH + 14 * s;
 
-  // Sit above the region, then clamp so the card never leaves the frame.
-  let x = p.x - boxW / 2;
-  let y = p.y - boxH - 30 * s;
-  if (y < 14 * f.scale) y = Math.min(p.y + 30 * s, f.height - boxH - 14 * f.scale);
-  x = Math.max(14 * f.scale, Math.min(x, f.width - boxW - 14 * f.scale));
-  y = Math.max(14 * f.scale, y);
+  const { x, y } = placeReadout(p, boxW, boxH, f, f.scale, s);
 
   // Scale about the card centre so the pop grows outward, not off-corner.
   ctx.translate(x + boxW / 2, y + boxH / 2);

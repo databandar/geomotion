@@ -102,3 +102,50 @@ export function formatValue(v: number, decimals: number, unit: string, locale: s
   if (!unit) return n;
   return unit.length <= 2 ? `${n}${unit}` : `${n} ${unit}`;
 }
+
+/** Where the readout card ends up, and whether it had to move below its region. */
+export interface ReadoutPlacement {
+  x: number;
+  y: number;
+  /** True when the card sits under the region instead of over it. */
+  below: boolean;
+}
+
+/**
+ * Place the readout card for the region currently on screen.
+ *
+ * It wants to sit centred above its region. Two things stop it: near the top of the
+ * frame there is no room above, so it flips below; and near an edge it would hang off,
+ * so it slides back in. Both are ordinary during a tour — the camera frames each region
+ * in turn and a region near the top of the shot is common.
+ *
+ * `frameMargin` is measured in frame scale while `gap` is measured in card scale, which
+ * is deliberate: the card grows with `calloutSize` but its clearance from the edge of
+ * the video should not.
+ *
+ * A card taller than the frame keeps its top edge and overflows the bottom, rather than
+ * being centred or hidden. The name and the number live at the top, so that is the part
+ * worth keeping — and `calloutSize` goes high enough to reach this.
+ */
+export function placeReadout(
+  anchor: { x: number; y: number },
+  boxW: number,
+  boxH: number,
+  frame: { width: number; height: number },
+  scale: number,
+  cardScale: number,
+): ReadoutPlacement {
+  const margin = 14 * scale;
+  const gap = 30 * cardScale;
+
+  let y = anchor.y - boxH - gap;
+  let below = false;
+  if (y < margin) {
+    below = true;
+    y = Math.min(anchor.y + gap, frame.height - boxH - margin);
+  }
+  y = Math.max(margin, y);
+
+  const x = Math.max(margin, Math.min(anchor.x - boxW / 2, frame.width - boxW - margin));
+  return { x, y, below };
+}

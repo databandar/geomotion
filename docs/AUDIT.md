@@ -189,6 +189,25 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.34 The readout card's placement (M33)
+
+The last inline geometry in the renderer. The card wants to sit centred above its
+region and has to cope with two things that happen constantly during a tour: no room
+above, because the camera has framed a region near the top of the shot, and no room
+beside, because it is near an edge.
+
+Moved to `placeReadout` with 7 tests, including a sweep of anchors from well outside
+the frame on every side asserting the card always stays inside it. One behaviour is now
+stated rather than incidental: a card taller than the frame — reachable through
+`calloutSize` — keeps its **top** edge and overflows the bottom, because the name and
+the number are at the top and centring would cut both.
+
+Also closed the gap left by M31: the Dashed toggle was exercised through the real UI
+for the first time since the fix, and the route renders dashed with no errors. That
+path had never once run successfully before.
+
+Goldens unchanged; this is a pure extraction.
+
 ### 6.33 A number that depended on the machine (M32)
 
 Extracting the legend's arithmetic turned up a determinism bug. `formatValue` called

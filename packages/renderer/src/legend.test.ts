@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, legendMetrics, scaleAt } from './legend.ts';
+import { formatValue, legendMetrics, placeReadout, scaleAt } from './legend.ts';
 
 describe('legendMetrics', () => {
   it('sits at the bottom-left of the frame', () => {
@@ -110,5 +110,60 @@ describe('formatValue', () => {
   it('handles negatives and zero', () => {
     expect(formatValue(-1234.5, 1, '', 'en-US')).toBe('-1,234.5');
     expect(formatValue(0, 1, '%', 'en-US')).toBe('0.0%');
+  });
+});
+
+describe('placeReadout', () => {
+  const frame = { width: 1920, height: 1080 };
+  const place = (ax: number, ay: number, w = 400, h = 260, cardScale = 1) =>
+    placeReadout({ x: ax, y: ay }, w, h, frame, 1, cardScale);
+
+  it('centres the card over its region', () => {
+    const { x, below } = place(960, 700);
+    expect(x).toBe(960 - 200);
+    expect(below).toBe(false);
+  });
+
+  it('leaves a gap between the card and the region', () => {
+    const { y } = place(960, 700, 400, 260);
+    expect(y + 260).toBe(700 - 30);
+  });
+
+  it('flips below when there is no room above', () => {
+    // Ordinary during a tour: the camera frames each region in turn, and one near the
+    // top of the shot has nothing above it.
+    const { y, below } = place(960, 100);
+    expect(below).toBe(true);
+    expect(y).toBe(100 + 30);
+  });
+
+  it('slides back in at the left and right edges', () => {
+    expect(place(20, 700).x).toBe(14);
+    expect(place(1900, 700).x).toBe(1920 - 400 - 14);
+  });
+
+  it('never leaves the frame, wherever the region is', () => {
+    for (const ax of [-200, 0, 40, 960, 1880, 2200]) {
+      for (const ay of [-100, 0, 30, 540, 1050, 1400]) {
+        const { x, y } = place(ax, ay);
+        expect(x).toBeGreaterThanOrEqual(14);
+        expect(x + 400).toBeLessThanOrEqual(1920 - 14 + 0.001);
+        expect(y).toBeGreaterThanOrEqual(14);
+      }
+    }
+  });
+
+  it('keeps the top of a card too tall for the frame', () => {
+    // `calloutSize` reaches this. The name and the number are at the top of the card,
+    // so that is the part worth keeping on screen — centring it would cut both.
+    const { y } = place(960, 200, 400, 1400);
+    expect(y).toBe(14);
+  });
+
+  it('scales the gap with the card but not the margin', () => {
+    // The card grows with calloutSize; its clearance from the edge of the video does not.
+    const big = placeReadout({ x: 960, y: 700 }, 400, 260, frame, 1, 2);
+    expect(big.y + 260).toBe(700 - 60);
+    expect(placeReadout({ x: 0, y: 700 }, 400, 260, frame, 1, 2).x).toBe(14);
   });
 });
