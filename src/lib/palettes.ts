@@ -35,7 +35,9 @@ export const RAMPS: Ramp[] = [
   {
     id: 'inferno',
     name: 'Inferno (uniform)',
-    steps: ['#fcffa4', '#f9c932', '#f98e09', '#e95462', '#bc3754', '#781c6d', '#320a5e', '#000004'].reverse(),
+    // Authored light->dark like every other ramp. A stray .reverse() here once
+    // inverted the whole scale — see palettes.test.ts monotonicity gate.
+    steps: ['#fcffa4', '#f9c932', '#f98e09', '#e95462', '#bc3754', '#781c6d', '#320a5e', '#000004'],
   },
   {
     id: 'viridis',

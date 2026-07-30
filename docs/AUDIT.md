@@ -90,16 +90,31 @@ Ordered by risk × cost of delay.
 
 | # | Debt | Impact | Proposed milestone |
 | --- | --- | --- | --- |
-| D1 | Zero tests | Any refactor is unverifiable; guide §12 unmet; agents have no behavioural spec | **M3 (this session)** |
+| D1 | ~~Zero tests~~ | — | **Closed in M3**: 157 tests over the six pure modules |
 | D2 | No monorepo / package boundaries | Guide §2 unenforceable; boundary lint impossible; v1 and v2 code will interleave | M4 |
 | D3 | Document mutations clone the whole project (`store.ts` `patch()`) | O(document) per keystroke; blocks patches, undo granularity, collaboration | M5 (with `packages/document`) |
 | D4 | `RegionsLayer` monolith (~45 fields) | Guide §1.10 / §3.8 violation; every new capability tempts another flag | M6 |
 | D5 | `src/lib/mapref.ts` module-global map handle | Named anti-pattern (guide §15); blocks worker rendering and multiplayer | M5 |
 | D6 | Renderer coupled to React + document (`MapCanvas.tsx` evaluates, syncs GL, draws overlay) | No `RenderScene` boundary; blocks worker export and WebGPU | M7 |
 | D7 | npm, not pnpm + Turborepo | Guide §2 mismatch; no workspace enforcement | M4 (with monorepo) |
-| D8 | No CI | Nothing enforces typecheck/tests/boundaries | M3 (add workflow with the test suite) |
+| D8 | ~~No CI~~ | — | **Closed in M3**: `.github/workflows/ci.yml` (typecheck, test, build, secret scan) |
 | D9 | Export uses headless-Chrome screenshots (~4 fps) | Design doc §14 specifies WebCodecs in-page (10–20×) | M8 |
 | D10 | `voice bed` mixed at compose time | Retiming desyncs narration (design doc §00, §10) | M6 |
+
+### 6.1 Bugs found by the M3 suite
+
+Writing the behavioural spec surfaced one real defect in shipped code, which is the
+argument for having written it:
+
+| Where | Defect | Fix |
+| --- | --- | --- |
+| `src/lib/palettes.ts` | The `inferno` ramp carried a stray `.reverse()`, so selecting it inverted the entire colour scale — high values rendered light, low values dark. Every other ramp reads light→dark. | Ramp authored light→dark like its siblings; `palettes.test.ts` now asserts strict luminance monotonicity across **every** ramp, so a reintroduction fails CI. |
+
+Two further failures on the first run were faults in my own assertions, not the code:
+`slerp` endpoints round-trip through trigonometry and land within ~1e-12 rather than
+bit-exact, and `headingAt` genuinely varies along a great circle (that is what
+distinguishes a geodesic from a rhumb line). Both tests were corrected to assert the
+real contract, with comments recording it for the port.
 
 ## 7. Conclusion
 
@@ -110,3 +125,8 @@ absence of package boundaries (D2), in that order — tests first, because the a
 being ported need a behavioural spec before they move.
 
 No architectural changes were made during this audit.
+
+**Update after M3.** D1 and D8 are closed. The pure core now has a behavioural
+contract — 157 tests over `geo`, `easing`, `palettes`, `regions`, `scene`, and
+`project` — and CI enforces it. The next blocker is D2/D7: package boundaries, so
+the v2 extraction has somewhere to land.

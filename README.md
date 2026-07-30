@@ -14,6 +14,17 @@ npm run dev      # http://localhost:5173
 
 `npm run build` produces a static `dist/` you can drop on any host.
 
+```bash
+npm run test      # the engine suite
+npm run verify    # typecheck + test + build, the same gate CI runs
+```
+
+The suites next to each module in [`src/lib/`](src/lib/) are the behavioural contract for
+the pure engine — geometry, easing, colour scales, the region join and framing solver,
+scene evaluation, and document serialisation. They are deliberately implementation-free,
+because those algorithms are slated to move into standalone packages and these assertions
+are what the move must preserve. Run them before you send anything.
+
 There is also a **video pipeline** that turns a written script plus a Hindi (or any
 language) voiceover into a finished, uploadable MP4 — see
 [`pipeline/README.md`](pipeline/README.md).
