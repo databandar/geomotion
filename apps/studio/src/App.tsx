@@ -6,7 +6,6 @@ import Inspector from './components/Inspector';
 import Toolbar from './components/Toolbar';
 import Transport from './components/Transport';
 import ExportDialog from './components/ExportDialog';
-import Studio from './studio/Studio';
 import Narration from './components/Narration';
 import { useStore } from './store';
 import { RenderHostProvider, type RenderHost } from './render/host';
@@ -14,9 +13,6 @@ import { installHeadlessApi } from './lib/headless';
 
 export default function App() {
   const [showExport, setShowExport] = useState(false);
-  // 'min' keeps Studio mounted while you work in the editor, so its script,
-  // recordings and preview state survive the round trip.
-  const [studio, setStudio] = useState<'closed' | 'open' | 'min'>('closed');
   /**
    * The render surface, published by MapCanvas once the map exists. App owns it
    * because the toolbar, inspector and export dialog are siblings of the canvas,
@@ -38,7 +34,7 @@ export default function App() {
   return (
     <RenderHostProvider value={host}>
     <div className={'app' + (exporting ? ' exporting' : '')}>
-      <Toolbar onExport={() => setShowExport(true)} onStudio={() => setStudio('open')} />
+      <Toolbar onExport={() => setShowExport(true)} />
 
       <div className="workspace">
         <aside className="left">
@@ -62,18 +58,6 @@ export default function App() {
       <Timeline />
 
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
-      {studio !== 'closed' && (
-        <Studio
-          hidden={studio === 'min'}
-          onClose={() => setStudio('closed')}
-          onMinimize={() => setStudio('min')}
-        />
-      )}
-      {studio === 'min' && (
-        <button className="studio-pill" onClick={() => setStudio('open')} title="Back to Studio">
-          ✦ Studio
-        </button>
-      )}
     </div>
     </RenderHostProvider>
   );

@@ -13,7 +13,7 @@ interface Place {
   bbox?: [number, number, number, number] | undefined;
 }
 
-export default function Toolbar({ onExport, onStudio }: { onExport: () => void; onStudio: () => void }) {
+export default function Toolbar({ onExport }: { onExport: () => void }) {
   const host = useRenderHost();
   const name = useStore((s) => s.project.name);
   const undo = useStore((s) => s.undo);
@@ -123,9 +123,6 @@ export default function Toolbar({ onExport, onStudio }: { onExport: () => void; 
         </div>
       </div>
 
-      <button className="tb-btn" onClick={onStudio} title="Script → voice → render, all in one place">
-        ✦ Studio
-      </button>
 
       <button className="tb-btn primary" onClick={onExport}>
         Export

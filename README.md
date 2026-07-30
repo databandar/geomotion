@@ -29,8 +29,8 @@ standalone packages one at a time and the assertions are what each move has to p
 they travel with the code and are the reason the move is checkable. Run them before you
 send anything.
 
-There is also a **video pipeline** that turns a written script plus a Hindi (or any
-language) voiceover into a finished, uploadable MP4 — see
+There is also a **video pipeline** — a command-line tool that turns a written script
+plus a synthesised voiceover into a finished, uploadable MP4. See
 [`apps/pipeline/README.md`](apps/pipeline/README.md).
 
 ```bash

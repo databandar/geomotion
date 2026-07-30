@@ -1,18 +1,16 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-// @ts-expect-error — plain .mjs server middleware, no types needed
-// Imported by package name, not a relative path across the app boundary: the
-// dependency is declared in package.json where the boundary lint can see it.
-import { studioServer, voiceStatic, assetStatic } from '@geomotion/pipeline/studio-server';
 
-export default defineConfig(({ mode }) => {
-  // Load .env.local into process.env for the middleware. Nothing is exposed to
-  // the client: only VITE_-prefixed vars reach the bundle, and there are none.
-  Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
-
-  return {
-    plugins: [react(), studioServer(), voiceStatic(), assetStatic()],
-    server: { port: 5173, open: true },
-    build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
-  };
+/**
+ * A plain static app. There is no dev-server middleware and no API: the editor
+ * talks to tile providers and nothing else, which is what lets `pnpm build` produce
+ * a directory you can host anywhere.
+ *
+ * The AI Studio used to mount an LLM/voice/render API here, which also meant an
+ * OpenRouter key in .env.local. Both are gone.
+ */
+export default defineConfig({
+  plugins: [react()],
+  server: { port: 5173, open: true },
+  build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
 });

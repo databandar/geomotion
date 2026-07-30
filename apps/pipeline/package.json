@@ -5,7 +5,6 @@
   "type": "module",
   "description": "Script -> voiceover -> rendered MP4 pipeline, plus the dev-server middleware Studio talks to.",
   "exports": {
-    "./studio-server": "./studio-server.mjs",
     "./video": "./video.mjs"
   },
   "scripts": {

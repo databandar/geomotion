@@ -159,6 +159,29 @@ headless browser instead:
 | `transact` | A concise arrow body — `(d) => d.layers.push(layer)`, the most natural way to write a one-line edit — returns the array's new length, and Immer rejects a recipe that both returns a value and mutates the draft. The most idiomatic call would have thrown at runtime. `transact` now ignores non-object returns; mutating *and* returning a document is still an error. |
 | `store.ts` history replay | Undoing a project load restored a shorter composition without moving the playhead, leaving it stranded past the end (the editor read `01:38 / 00:15`). Now clamped. |
 
+### 6.15 The Studio is removed (M15)
+
+A product decision, not a refactor: the five-step in-app generator (LLM script
+writing, image generation, voice cloning, render driving) is gone, and audio becomes
+something the editor imports.
+
+It was cleanly isolated, which made this a deletion rather than an untangling —
+`App.tsx` was the only file importing it, and `studio/api.ts` the only caller of the
+dev-server API. 3,094 lines removed: the UI subtree, 606 lines of its CSS, and
+`studio-server.mjs`.
+
+Consequences worth stating:
+
+- **The editor is a static site again with no API.** `vite.config.ts` mounts no
+  middleware, so `pnpm dev` and `pnpm build` serve the same thing, and `/api/*` now
+  returns the SPA shell rather than JSON.
+- **No secrets.** The `OPENROUTER_API_KEY` existed only for the Studio's LLM proxy.
+  Nothing reads `.env.local` now. (An old one on disk is inert, but rotate it if it
+  was ever shared.)
+- **The CLI pipeline is untouched** and still does the whole script-to-MP4 job with
+  narration. What is lost is the *authoring* of scripts by an LLM, voice cloning, and
+  generated illustrations — all recoverable from git history.
+
 ### 6.14 The preview stops lying (M14)
 
 M11 fixed the exported video but left the editor playing the pre-mixed bed, so after

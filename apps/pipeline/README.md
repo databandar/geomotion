@@ -1,14 +1,12 @@
 # Video pipeline
 
-> **Structure note.** `ENGINEERING_GUIDE.md` §2 splits this into two apps: `apps/server`
-> (the LLM proxy, voice and render-farm API that Studio talks to) and `apps/render-cli`
-> (the headless renderer and CI golden-frame worker). They live together here for now
-> because they share `lib/`; the split happens when that shared code moves into packages,
-> so it is done once rather than twice.
+> **Structure note.** `ENGINEERING_GUIDE.md` §2 calls this `apps/render-cli` — the
+> headless renderer and CI golden-frame worker. It keeps its current name until the
+> shared `lib/` code moves into packages, so the rename happens once.
 
-There are two ways in: the **Studio** (a UI over all of this — click ✦ Studio in the
-editor toolbar, `pnpm dev`), or a JSON script on the command line as below. They
-share every stage; the Studio just writes the script for you.
+Scripts are JSON files you write (or copy from `scripts/`) and run through the command
+line. An in-app Studio used to generate them with an LLM and clone voices; it was
+removed — see the note at the end.
 
 Script in, finished MP4 out. Narration is synthesised and **measured first**, and
 every visual beat is then cut to the length of the line that goes over it — so the
@@ -30,68 +28,37 @@ Outputs land in `pipeline/out/<slug>/`:
 | `<slug>.geomotion.json` | The generated project. **Open it in the editor** to hand-tune, then re-render. |
 | `voice.wav` | The mixed narration bed. |
 
-## Studio
+## Using your own voice
 
-`pnpm dev`, then **✦ Studio** in the toolbar. Five steps, left to right:
+Any line can be voiced by you instead of the synthesiser. Drop a wav at
+`out/_voice/<slug>/manual/<key>.wav` and it wins over TTS for that line; `video.mjs`
+reports how many lines came from a recording. Re-running never overwrites one, and
+deleting the file reverts that line to synthesis.
 
-| Step | What it does |
-| --- | --- |
-| **Data** | Browse all 101 NFHS indicators, pick one, see the ranking and the biggest movers since the last round. Picking one sets the metric, legend, title and slug. |
-| **Script** | Beats list with per-beat narration and on-screen text. **Write with AI** drafts it, or bring your own: **Import** a `.json`, **Export** to keep one, or **Paste text** to drop one line per beat straight in. |
-| **Script** (states) | Beats list with per-beat narration and on-screen text. **Write with AI** drafts the whole thing. Tour stops are a dropdown of the 37 real region names — a state can't be misspelled, and ↑↓ set the visit order. |
-| **Script** (images) | Each stop has an **Illustrate** button — Gemini 3.1 Flash Lite via OpenRouter, ~3s and a fraction of a cent each. **Illustrate all** does the whole tour. Files land in `pipeline/assets/<slug>/<Region>.jpg`, exactly where the renderer already looks. |
-| **Voice** | Pick a Voicebox voice, or record 30s and clone your own. **Generate all lines** synthesises everything and shows each line's duration with playback. Each line also has **● Record** — say it yourself and your take replaces the synthesised one. |
-| **Look** | Format (9:16 / 16:9 / 1:1), basemap, terrain, colour ramp, camera pitch/bow/fly-time, credit line. |
-| **Render** | **Open in editor** first: Studio minimises, the composition loads, and you can scrub it with the narration playing. Then **Export MP4 from editor** renders exactly what you see. Or skip the editor and render straight from the script. |
-
-The status dots top-right show whether the LLM key, Voicebox, ffmpeg and the NFHS
-csv are all reachable before you start.
-
-## Your own voice
-
-Two different things, both supported:
-
-1. **Clone your voice once**, then let it read everything — Voice step, right-hand
-   column. Read the passage, upload, and the profile appears in the voice list.
-2. **Record individual lines** — the **● Record** button on any line in the
-   narration list. Your take is stored in `pipeline/out/_voice/<slug>/manual/` and
-   always wins over the synthesiser, so you can voice the lines that matter and
-   leave the rest generated. Re-running the pipeline never overwrites a recording;
-   the `×` next to it reverts that line to synthesis.
-
-The CLI honours recordings too — `video.mjs` reports how many lines came from your
-own voice.
+The `<key>` is the beat address the pipeline prints while narrating — `b0` for the
+first beat, `b3-s2` for the third stop of beat four.
 
 ## Editor round trip
 
-**Render → Open in editor** composes the timeline and minimises Studio (a pill in
-the corner brings it back, with all your work intact). In the editor you get:
+Every render writes `<slug>.geomotion.json`. Open it in the editor (**Open**) and you
+get the composition as ordinary layers — the region tour with its stops and framing,
+every title and picture, and the narration on its own timeline track, one chip per
+line, playing in sync with the playhead.
 
-- the **narration on its own timeline track**, one chip per line, playing in sync
-  with the playhead — the speaker button in the transport mutes it
-- **states** as the region layer, with the tour stops and framing in the inspector
-- every **title and picture** as an ordinary layer you can move, reword or restyle
+Edit it, then render that file directly:
 
-Then **Export MP4 from editor** renders the live project — hand edits survive,
-which a script-driven render would silently discard.
+```bash
+node render-project.mjs out/<slug>/<slug>.geomotion.json --draft
+```
 
-One limit worth knowing: the voice bed is mixed at compose time against the
-composed beat timings. Restyling, rewording and repositioning are all safe, but
-**retiming a layer will pull it out of sync with the narration** — change pacing in
-Studio (or the beat's `pad`) rather than by dragging bars.
+Hand edits survive, which a script-driven re-render would silently discard. Narration
+is re-mixed from the cue positions the project now holds, so **retiming is safe** — move
+a layer or a cue and the voice follows it into the output.
 
-**On the generated illustrations:** the default prompt asks for a *flat vector
-motif* — no text, no map, no borders, no faces. That is deliberate. A
-photorealistic AI image of a real state, dropped into a data video, reads as
-documentary footage of that place, which it is not. Edit the shared look under
-**Style…** if you want a different treatment, but keep it visibly illustrative.
-
-**On the AI writer:** it does not choose which states appear. The stop list is
-computed from the data — top N plus the lowest one for contrast — and the model is
-only asked for the words, matched back by index. Letting it pick regions is where
-factual errors come from: it reorders the ranking and then narrates "number three"
-over the wrong state. Numbers stay as `{value}` placeholders filled from the data
-after generation, so the narration can't contradict the map.
+**On illustrations:** a stop draws `assets/<slug>/<Region>.jpg` if that file exists, or
+whatever `image:` names. Keep them visibly illustrative — a photorealistic image of a
+real place, dropped into a data video, reads as documentary footage of somewhere it is
+not.
 
 ## Requirements
 
@@ -229,17 +196,19 @@ can be an inline object or a path to a `{name: value}` JSON file.
 
 ## Secrets
 
-`.env.local` (gitignored) holds `OPENROUTER_API_KEY`. It is read **only** by the
-dev-server middleware — nothing prefixed `VITE_` exists, so the key never reaches
-the browser bundle. `pnpm build` produces a static site with no Studio API at
-all, which is what the renderer loads; rendered frames never depend on it.
+None. The LLM proxy that needed an `OPENROUTER_API_KEY` went with the Studio, so
+nothing here reads `.env.local` and the editor build has no API to talk to.
+
+If you still have an `OPENROUTER_API_KEY` in `apps/studio/.env.local` from before,
+nothing reads it — and if it was ever pasted anywhere shared, rotate it at
+<https://openrouter.ai/keys>.
 
 ## How the pieces fit
 
 ```
-studio-server.mjs    dev-server API behind the Studio UI (LLM, data, voice, render)
 tools/nfhs.mjs       CLI to browse/extract survey indicators
 video.mjs            orchestrates: narrate → compose → render → encode
+render-project.mjs   renders an edited .geomotion.json, re-mixing its narration
 lib/tts.mjs          engines, duration probing, the mixed voice bed
 lib/compose.mjs      script + measured durations → project JSON + SRT
 lib/render.mjs       serves dist/, drives it in headless Chrome, writes PNGs
@@ -251,3 +220,15 @@ lib/nfhs.mjs         reads the NFHS pivoted csv, maps names to the boundary set
 `.geomotion.json` opens in the editor. The usual workflow once a script settles is
 to render a draft, open the project, nudge the framing by hand, and re-render —
 the pipeline is a starting point, not a black box.
+
+
+## The Studio, and why it is gone
+
+A five-step in-app generator used to write scripts with an LLM, synthesise or clone the
+voice, and drive the render — mounted as dev-server middleware, which meant the editor
+needed an API and an OpenRouter key in `.env.local`.
+
+It was removed. The editor is a static site again with no server and no secrets, and
+audio is something you bring: import a file in the editor and place it on the timeline.
+This pipeline still does the whole script-to-MP4 job from the command line, including
+narration, and everything the Studio did is in the git history if it is wanted back.
