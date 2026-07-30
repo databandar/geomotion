@@ -13,13 +13,13 @@ import type {
   TextLayer,
 } from '@geomotion/document';
 import { regionSet } from '@geomotion/entities';
-import { tourDuration } from '../lib/scene';
+import { tourDuration } from '@geomotion/evaluator';
 import { RAMPS, getRamp, rampColor } from '@geomotion/core';
 import indiaStatesOfficial from '../data/india-states-official.json';
 import indiaStatesNE from '../data/india-states.json';
-import { EASING_NAMES } from '../lib/easing';
+import { EASING_NAMES } from '@geomotion/animation';
 import { useRenderHost } from '../render/host';
-import { BASEMAPS, getBasemap } from '../lib/basemaps';
+import { BASEMAPS, getBasemap } from '@geomotion/map';
 import { Color, Field, Num, Section, Select, Slider, Text, Toggle } from './ui';
 import { haversine, measure, buildPath } from '@geomotion/geometry';
 

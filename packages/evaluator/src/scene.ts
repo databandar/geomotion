@@ -12,11 +12,11 @@ import type {
 } from '@geomotion/renderer';
 import type { LngLat, Project, RegionsLayer, RouteLayer } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
-import { ease } from './easing';
+import { ease } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionAtStop, regionSet, type RegionSet } from '@geomotion/entities';
-import { getBasemap } from './basemaps';
+import { getBasemap } from '@geomotion/map';
 
 const DEFAULT_CAMERA: CameraState = {
   center: [0, 20],

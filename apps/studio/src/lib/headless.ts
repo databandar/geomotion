@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import { migrate } from '@geomotion/document';
 import type { RenderHost } from '../render/host';
-import { evaluate } from './scene';
+import { evaluate } from '@geomotion/evaluator';
 import { imagesReady } from '@geomotion/renderer';
 
 /**

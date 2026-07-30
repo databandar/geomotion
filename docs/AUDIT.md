@@ -189,6 +189,29 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.23 The evaluator leaves the app (M22)
+
+`evaluate(document, t) -> Scene` was the last engine code in `apps/studio`. It is now
+`@geomotion/evaluator`, with `@geomotion/animation` (the easing table) beneath it and
+`basemaps` moved into `map`, where the only other MapLibre-shaped code already lives.
+
+The workspace is now nine packages and two apps, and the app holds what an app should:
+components, the store, browser persistence, export plumbing, and the bundled example
+projects.
+
+**The test suite split along the same line.** `scene.test.ts` ran against
+`demoProject` and `indiaTourProject`, which embed boundary data — content, not engine,
+and §2 keeps it out of the packages. So the suites needing only a hand-built document
+(`cameraAt`, `layerAlpha`, `tourPhases`) went with the evaluator, and the ones
+exercising realistic compositions stayed beside the fixtures they use. The same
+reasoning that kept the serialisation round-trip in the app in M6.
+
+Also cleared: vitest's `environmentMatchGlobs` deprecation, which printed on every
+studio run. Two named projects now, `node` and `dom`, still split by file extension so
+a test sits beside what it covers.
+
+Verified as a pure move — 327 tests before and after, all ten golden frames identical.
+
 ### 6.22 The renderer and the map become packages (M21)
 
 The two drawing surfaces were the last engine code living in the app. They are now

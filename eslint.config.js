@@ -21,7 +21,9 @@ const elements = [
   { type: 'core', pattern: 'packages/core/**', mode: 'full' },
   { type: 'geometry', pattern: 'packages/geometry/**', mode: 'full' },
   { type: 'document', pattern: 'packages/document/**', mode: 'full' },
+  { type: 'animation', pattern: 'packages/animation/**', mode: 'full' },
   { type: 'entities', pattern: 'packages/entities/**', mode: 'full' },
+  { type: 'evaluator', pattern: 'packages/evaluator/**', mode: 'full' },
   { type: 'renderer', pattern: 'packages/renderer/**', mode: 'full' },
   { type: 'map', pattern: 'packages/map/**', mode: 'full' },
   { type: 'testing', pattern: 'packages/testing/**', mode: 'full' },
@@ -37,17 +39,33 @@ const elements = [
 const allowed = [
   { from: 'geometry', allow: ['core', 'geometry'] },
   { from: 'document', allow: ['core', 'document'] },
+  { from: 'animation', allow: ['core', 'document', 'animation'] },
   { from: 'entities', allow: ['core', 'geometry', 'document', 'entities'] },
+  /*
+   * The evaluator is the one place that reads the document and produces a scene, so
+   * it sits above everything except the app — and below the renderer, which it hands
+   * values to rather than calling.
+   */
+  {
+    from: 'evaluator',
+    allow: ['core', 'geometry', 'document', 'entities', 'animation', 'renderer', 'map', 'evaluator'],
+  },
   // The renderer takes a scene of plain values. It reaches `entities` only for the
   // region set's shape, and must never see the document.
   { from: 'renderer', allow: ['core', 'geometry', 'entities', 'renderer'] },
   // Everything that knows MapLibre exists lives in `map`, which is why the
   // compositor can stay independent of it.
   { from: 'map', allow: ['core', 'geometry', 'renderer', 'map'] },
-  { from: 'app', allow: ['core', 'geometry', 'document', 'entities', 'renderer', 'map', 'app'] },
+  {
+    from: 'app',
+    allow: ['core', 'geometry', 'document', 'entities', 'animation', 'evaluator', 'renderer', 'map', 'app'],
+  },
   // Dev-only, so it may reach for anything. Nothing may reach for it: shipped
   // code importing a test harness is how a harness ends up in a bundle.
-  { from: 'testing', allow: ['core', 'geometry', 'document', 'entities', 'renderer', 'map', 'testing'] },
+  {
+    from: 'testing',
+    allow: ['core', 'geometry', 'document', 'entities', 'animation', 'evaluator', 'renderer', 'map', 'testing'],
+  },
 ];
 
 /** The published name of each element that is a workspace package. */
@@ -55,7 +73,9 @@ const packageName = {
   core: '@geomotion/core',
   geometry: '@geomotion/geometry',
   document: '@geomotion/document',
+  animation: '@geomotion/animation',
   entities: '@geomotion/entities',
+  evaluator: '@geomotion/evaluator',
   renderer: '@geomotion/renderer',
   map: '@geomotion/map',
   testing: '@geomotion/testing',

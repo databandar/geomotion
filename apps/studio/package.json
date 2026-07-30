@@ -13,9 +13,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@geomotion/animation": "workspace:*",
     "@geomotion/core": "workspace:*",
     "@geomotion/document": "workspace:*",
     "@geomotion/entities": "workspace:*",
+    "@geomotion/evaluator": "workspace:*",
     "@geomotion/geometry": "workspace:*",
     "@geomotion/map": "workspace:*",
     "@geomotion/renderer": "workspace:*",

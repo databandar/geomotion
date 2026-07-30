@@ -3,7 +3,7 @@ import type { RenderHost } from '../render/host';
 import { prepareAudioTrack } from './audio-mix';
 import { useStore } from '../store';
 import { ZipWriter } from './zip';
-import { getBasemap } from './basemaps';
+import { getBasemap } from '@geomotion/map';
 
 export interface ExportOptions {
   /** burn the basemap attribution into the frames (required by most tile terms) */

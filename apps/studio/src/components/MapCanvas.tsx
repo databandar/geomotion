@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MLMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useStore } from '../store';
-import { evaluate, type Scene } from '../lib/scene';
+import { evaluate, type Scene } from '@geomotion/evaluator';
 import { syncScene, resetSyncCache } from '@geomotion/map';
 import { drawOverlay, scaleFor } from '@geomotion/renderer';
-import { getBasemap, TERRAIN_SOURCE } from '../lib/basemaps';
+import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
 import { waitForIdle, type RenderHost } from '../render/host';
 import type { LngLat, MarkerLayer, RouteLayer, TextLayer } from '@geomotion/document';
 

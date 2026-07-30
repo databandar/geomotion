@@ -49,6 +49,8 @@ A pnpm workspace driven by Turborepo, per
 | [`packages/core/`](packages/core/) | Ids, coordinates, numeric interpolation. Zero dependencies by contract. |
 | [`packages/geometry/`](packages/geometry/) | Great-circle math, path densification and measurement. Depends on `core` only. |
 | [`packages/document/`](packages/document/) | The document: schema types, construction, migrations, transactions and undo. Depends on `core` only — browser persistence stays in the app. |
+| [`packages/animation/`](packages/animation/) | Easing curves — named, so feature code never hardcodes one. |
+| [`packages/evaluator/`](packages/evaluator/) | `evaluate(document, t) → Scene`. The pure function at the centre: same document and time, same scene, every time. |
 | [`packages/entities/`](packages/entities/) | The data join: regions matched to values, ranked and coloured, plus the framing solver. |
 | [`packages/renderer/`](packages/renderer/) | What a frame is, and how the 2D overlay is drawn. Never sees the document, never sees MapLibre. |
 | [`packages/map/`](packages/map/) | MapLibre integration. Everything that knows MapLibre exists lives here. |

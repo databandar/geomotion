@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EASING_NAMES, EASINGS, ease } from './easing';
+import { EASING_NAMES, EASINGS, ease } from './easing.ts';
 
 /**
  * Behavioural spec for the easing curves, bound for `packages/animation`

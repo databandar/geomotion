@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "DOM is in `lib` because a consumer type-checks its dependencies' sources under its own config, and this one depends on the drawing packages.",
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ]
+  },
+  "include": [
+    "src"
+  ]
+}

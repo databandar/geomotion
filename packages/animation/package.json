@@ -1,0 +1,11 @@
+{
+  "name": "@geomotion/animation",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Easing curves and, in time, track evaluation and the behaviour graph (ENGINEERING_GUIDE §2, ARCHITECTURE §06).",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": { "@geomotion/core": "workspace:*", "@geomotion/document": "workspace:*" },
+  "devDependencies": { "typescript": "^5.9.0", "vitest": "^3.2.7" }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@geomotion/evaluator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "evaluate(document, t) -> Scene: the pure function at the centre of the architecture (ENGINEERING_GUIDE §1.5, ARCHITECTURE §14).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geomotion/animation": "workspace:*",
+    "@geomotion/core": "workspace:*",
+    "@geomotion/document": "workspace:*",
+    "@geomotion/entities": "workspace:*",
+    "@geomotion/geometry": "workspace:*",
+    "@geomotion/map": "workspace:*",
+    "@geomotion/renderer": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}
