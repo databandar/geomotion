@@ -1,0 +1,68 @@
+# The gate every change must pass. ENGINEERING_GUIDE §12 requires typecheck and
+# tests to be green before review; §11 makes the production bundle a tracked
+# budget, so we build here too rather than discovering breakage at release.
+#
+# Uses npm because the repo is still a single package. When the pnpm + Turborepo
+# monorepo lands (docs/AUDIT.md debt D2/D7), swap the setup steps for
+# `pnpm/action-setup` and `turbo run verify` — the job names stay the same so
+# branch protection does not need reconfiguring.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes an in-flight run on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Report bundle size
+        # Informational for now. It becomes a hard budget once the app is split
+        # into packages and the numbers stop moving with every feature.
+        run: du -sh dist && du -ah dist/assets | sort -rh | head -20
+
+  secrets:
+    name: no credentials in the tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan tracked files for API keys
+        # An OpenRouter key was once pasted into a chat log; keys belong in
+        # gitignored .env.local and nowhere else. This fails the build rather
+        # than letting one reach a public commit.
+        run: |
+          set -uo pipefail
+          patterns='sk-or-v1-[0-9a-f]{32}|sk-ant-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{35}|ghp_[0-9A-Za-z]{36}'
+          if git grep -nIE "$patterns" -- . ':!.github/workflows/ci.yml'; then
+            echo "::error::A credential-shaped string is committed. Rotate the key, then remove it from the tree."
+            exit 1
+          fi
+          echo "No credential patterns found in tracked files."
