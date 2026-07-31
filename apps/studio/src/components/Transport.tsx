@@ -14,6 +14,8 @@ export default function Transport() {
   const muted = useStore((s) => s.muted);
   const toggleMuted = useStore((s) => s.toggleMuted);
   const hasAudio = useStore((s) => !!s.project.audio);
+  const recording = useStore((s) => s.recording);
+  const setRecording = useStore((s) => s.setRecording);
 
   const step = (frames: number) => scrub(time + frames / fps);
 
@@ -42,6 +44,27 @@ export default function Transport() {
 
       <button className={'tp-btn' + (loop ? ' active' : '')} onClick={toggleLoop} title="Loop playback">
         <Icon name="loop" />
+      </button>
+
+      {/*
+        * Record arms the map, it does not render.
+        *
+        * "Record" in an animation tool means "capture what I do as keyframes", and that
+        * is the gesture this app was missing: `K` writes one shot at a time, so building
+        * a move meant framing, pressing K, framing, pressing K. Rendering to a file is
+        * Export, and giving two controls that name would be the more confusing choice.
+        */}
+      <button
+        className={'tp-btn record' + (recording ? ' armed' : '')}
+        onClick={() => setRecording(!recording)}
+        aria-pressed={recording}
+        title={
+          recording
+            ? 'Recording — every map move writes a camera keyframe. Click to stop.'
+            : 'Record camera moves as keyframes'
+        }
+      >
+        <Icon name="record" size={12} />
       </button>
 
       {hasAudio && (

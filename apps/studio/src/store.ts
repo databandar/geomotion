@@ -79,6 +79,15 @@ interface State {
   /** Which rail section is showing. Editor state: not undoable, not exported. */
   place: string;
   setPlace: (p: string) => void;
+  /**
+   * Record mode: while armed, settling the map writes a camera keyframe at the playhead.
+   *
+   * Editor state rather than document state — it is a mode you are in, not something the
+   * project remembers, and it must not survive a reload. The keyframes it writes are of
+   * course document state and undo normally.
+   */
+  recording: boolean;
+  setRecording: (v: boolean) => void;
 
   addLayer: (type: LayerType) => Layer;
   removeLayer: (id: string) => void;
@@ -105,6 +114,8 @@ interface State {
   /** Re-length a story block, pushing or pulling everything after it. */
   resizeStoryBlock: (id: string, d: number) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
+  /** Lock or unlock a layer. Locked layers refuse every other edit — see `editable`. */
+  setLayerLocked: (id: string, locked: boolean) => void;
 
   addAudioCue: (cue: Omit<AudioCue, 'id'>) => void;
   updateAudioCue: (id: string, patch: Partial<AudioCue>, historyKey?: string) => void;
@@ -150,6 +161,22 @@ function assignChanged<T extends object>(target: T, patch: Partial<T>): void {
   }
 }
 
+/**
+ * The layer to edit, or nothing if it is locked.
+ *
+ * One gate rather than a check per control. A lock enforced in the UI is a lock the
+ * next control forgets about — and there are already a dozen paths that reach a layer
+ * (the inspector, four timeline drags, the keyframe row, the map canvas). Locking has to
+ * mean the *document* refuses, so the answer is the same wherever the edit came from.
+ *
+ * `setLayerLocked` deliberately does not come through here — the way out of a lock
+ * cannot be locked.
+ */
+function editable(p: Project, id: string): Layer | undefined {
+  const layer = p.layers.find((l) => l.id === id);
+  return layer?.locked === true ? undefined : layer;
+}
+
 export const useStore = create<State>((set, get) => ({
   project: loadLocal() ?? demoProject(),
   time: 0,
@@ -164,6 +191,7 @@ export const useStore = create<State>((set, get) => ({
   exporting: false,
   theme: loadTheme(),
   place: 'layers',
+  recording: false,
   structureRev: 0,
   autosaveError: null,
 
@@ -226,6 +254,8 @@ export const useStore = create<State>((set, get) => ({
 
   setPlace: (place) => set({ place }),
 
+  setRecording: (recording) => set({ recording }),
+
   addLayer: (type) => {
     const { time, patch, project } = get();
     const layer = createLayer(type, Math.min(time, Math.max(0, project.duration - 1)));
@@ -243,6 +273,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   removeLayer: (id) => {
+    if (get().project.layers.find((l) => l.id === id)?.locked === true) return;
     clearPathCache(id);
     clearRegionCache(id);
     get().patch((p) => {
@@ -260,6 +291,26 @@ export const useStore = create<State>((set, get) => ({
     // quietly drop values JSON cannot represent.
     const copy = { ...structuredClone(src), id: createId() } as Layer;
     copy.name = src.name + ' copy';
+    /*
+     * The copy comes out unlocked, even from a locked original.
+     *
+     * A divergence from After Effects and Figma, which both hand back a locked
+     * duplicate — chosen because duplicating is how you get an *editable* version of a
+     * layer you locked to protect, and because the new layer is selected immediately.
+     * Inheriting the lock means the first thing you see is a fresh layer with a banner
+     * saying edits are refused, and a second step before you can do anything.
+     */
+    delete copy.locked;
+    /*
+     * The copy comes out unlocked, even from a locked original.
+     *
+     * A divergence from After Effects and Figma, which both hand back a locked
+     * duplicate — chosen because duplicating is how you get an *editable* version of a
+     * layer you locked to protect, and because the new layer is selected immediately.
+     * Inheriting the lock means the first thing you see is a fresh layer with a banner
+     * saying edits are refused, and a second step before you can do anything.
+     */
+    delete copy.locked;
     get().patch((p) => {
       const i = p.layers.findIndex((l) => l.id === id);
       p.layers.splice(i + 1, 0, copy);
@@ -269,7 +320,7 @@ export const useStore = create<State>((set, get) => ({
 
   updateLayer: (id, patchObj, historyKey) => {
     get().patch((p) => {
-      const existing = p.layers.find((l) => l.id === id);
+      const existing = editable(p, id);
       if (!existing) return;
       assignChanged(existing, patchObj as Partial<Layer>);
     }, historyKey ? `${id}:${historyKey}` : undefined);
@@ -278,7 +329,7 @@ export const useStore = create<State>((set, get) => ({
   setLayerTrack: (id, prop, value, historyKey) => {
     const time = get().time;
     get().patch((p) => {
-      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
       const track = layer?.[prop];
       if (!isTrack(track)) return;
       layer![prop] = withValueAt(track as Track<number>, time, value, 'linear');
@@ -288,7 +339,7 @@ export const useStore = create<State>((set, get) => ({
   toggleLayerTrack: (id, prop, valueNow) => {
     const time = get().time;
     get().patch((p) => {
-      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
       const track = layer?.[prop];
       if (!isTrack(track)) return;
       const t = track as Track<number>;
@@ -300,7 +351,7 @@ export const useStore = create<State>((set, get) => ({
   toggleLayerKey: (id, prop, valueNow) => {
     const time = get().time;
     get().patch((p) => {
-      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
       const track = layer?.[prop];
       if (!isTrack(track)) return;
       const t = track as Track<number>;
@@ -312,7 +363,7 @@ export const useStore = create<State>((set, get) => ({
 
   moveLayerKey: (id, prop, keyId, t) => {
     get().patch((p) => {
-      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
       const track = layer?.[prop];
       if (!isTrack(track)) return;
       layer![prop] = withKeyMoved(track as Track<number>, keyId, Math.max(0, t));
@@ -321,7 +372,7 @@ export const useStore = create<State>((set, get) => ({
 
   setLayerWindow: (id, prop, from, to, easing) => {
     get().patch((p) => {
-      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
       if (!layer || !isTrack(layer[prop])) return;
       layer[prop] = windowTrack(Math.max(0, from), Math.max(0, to), easing);
     }, `${id}:${prop}:window`);
@@ -345,8 +396,23 @@ export const useStore = create<State>((set, get) => ({
     }, `${id}:block:len`);
   },
 
+  /**
+   * Lock or unlock — the one layer edit a lock does not block, for obvious reasons.
+   * `undefined` is written back rather than `false` so unlocking leaves no trace in the
+   * saved file, matching a project that was never locked in the first place.
+   */
+  setLayerLocked: (id, locked) => {
+    get().patch((p) => {
+      const layer = p.layers.find((l) => l.id === id);
+      if (!layer) return;
+      if (locked) layer.locked = true;
+      else delete layer.locked;
+    });
+  },
+
   moveLayer: (id, dir) => {
     get().patch((p) => {
+      if (!editable(p, id)) return;
       const i = p.layers.findIndex((l) => l.id === id);
       const j = i + dir;
       if (i < 0 || j < 0 || j >= p.layers.length) return;

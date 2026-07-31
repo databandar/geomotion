@@ -38,117 +38,89 @@
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* ---------------------------------------------------------------- dark */
+/* ------------------------------------------------------------ the palette */
 
-:root,
-:root[data-theme='dark'] {
-  color-scheme: dark;
+/*
+ * Each colour is written once, with its two values side by side.
+ *
+ * `light-dark()` resolves against the element's `color-scheme`, so the theme switch is
+ * the *scheme* — one declaration — rather than a second copy of the palette. The earlier
+ * shape needed the light values written twice, once for `[data-theme='light']` and once
+ * inside a `prefers-color-scheme` query, and a token added to one copy and not the other
+ * would have been invisible until someone switched themes.
+ *
+ * Reading order inside each pair is light, then dark: the function's own argument order.
+ */
+:root {
+  color-scheme: light dark;
 
-  --bg: #0b0f16;
-  --panel: #111621;
-  --panel-2: #161c28;
-  --raised: #1c2432;
-  --line: #232b3a;
-  --line-soft: #1a212d;
-  --text: #e8edf5;
-  --dim: #8b96aa;
-  --accent: #7c5cff;
+  --bg: light-dark(#eef1f6, #0b0f16);
+  --panel: light-dark(#f7f9fc, #111621);
+  --panel-2: light-dark(#eef1f6, #161c28);
+  --raised: light-dark(#ffffff, #1c2432);
+  --line: light-dark(#d6dce7, #232b3a);
+  --line-soft: light-dark(#e4e9f1, #1a212d);
+  --text: light-dark(#16202e, #e8edf5);
+  --dim: light-dark(#5c6980, #8b96aa);
+  --accent: light-dark(#6d4aff, #7c5cff);
   --accent-ink: #ffffff;
-  --accent-dim: #4c3aa8;
-  --danger: #f2555a;
-  --ok: #34d399;
+  --accent-dim: light-dark(#b6a6ff, #4c3aa8);
+  --danger: light-dark(#d5323b, #f2555a);
+  --ok: light-dark(#0f9d63, #34d399);
 
-  --focus: #a58cff;
-  --wash-hover: rgb(255 255 255 / 0.055);
-  --wash-active: rgb(255 255 255 / 0.09);
-  --wash-sel: rgb(124 92 255 / 0.16);
+  --focus: light-dark(#4a29d6, #a58cff);
+  --wash-hover: light-dark(rgb(22 32 46 / 0.05), rgb(255 255 255 / 0.055));
+  --wash-active: light-dark(rgb(22 32 46 / 0.09), rgb(255 255 255 / 0.09));
+  --wash-sel: light-dark(rgb(109 74 255 / 0.12), rgb(124 92 255 / 0.16));
 
-  --glass-chrome: rgb(17 22 33 / 0.72);
-  --glass-panel: rgb(17 22 33 / 0.66);
-  --glass-pop: rgb(28 36 50 / 0.86);
-  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.06);
-  --shadow-pop: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+  /*
+   * Chrome surfaces that used to be hardcoded dark hexes. Each one was invisible in the
+   * light theme's first pass — a dark hover on a white row, a near-black command box on
+   * a white panel — because a literal colour cannot follow a theme.
+   */
+  --raised-2: light-dark(#e6ebf3, #26303e);
+  --track-off: light-dark(#c3ccdb, #2a323f);
+  --console: light-dark(#f0f3f8, #0a0d12);
+  --scroll-thumb: light-dark(#c6ceda, #29313d);
+  --scroll-thumb-hover: light-dark(#adb7c7, #38424f);
+  --bar-fill: light-dark(#dbe6f2, #2b3b4d);
+  --bar-line: light-dark(#b9cadd, #3a4c62);
+  --warn-bg: light-dark(#fde9d2, #7c2d12);
+  --warn-ink: light-dark(#7c3a0c, #fed7aa);
+
+  /*
+   * The source-kind colours (§04's pip): grey static, teal keyframed, violet bound,
+   * amber expression. Teal at #22d3ee is a 1.9:1 smear on a white panel, so the light
+   * theme takes the same hue several steps darker — the same *meaning*, legible on its
+   * own ground.
+   */
+  --kind-key: light-dark(#0e7490, #22d3ee);
+
+  --glass-chrome: light-dark(rgb(247 249 252 / 0.78), rgb(17 22 33 / 0.72));
+  --glass-panel: light-dark(rgb(247 249 252 / 0.72), rgb(17 22 33 / 0.66));
+  --glass-pop: light-dark(rgb(255 255 255 / 0.92), rgb(28 36 50 / 0.86));
+  --glass-edge: inset 0 1px 0 light-dark(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.06));
+  --shadow-pop: 0 12px 28px -8px light-dark(rgb(22 32 46 / 0.22), rgb(0 0 0 / 0.6)),
+    0 2px 6px light-dark(rgb(22 32 46 / 0.1), rgb(0 0 0 / 0.4));
 
   /* The light behind the glass — the layer-type accents, so the chrome glows in the
      composition's own colours rather than a borrowed gradient. */
-  --amb-1: rgb(124 92 255 / 0.26);
-  --amb-2: rgb(77 163 255 / 0.20);
-  --amb-3: rgb(56 189 248 / 0.16);
+  --amb-1: light-dark(rgb(109 74 255 / 0.10), rgb(124 92 255 / 0.26));
+  --amb-2: light-dark(rgb(56 132 255 / 0.09), rgb(77 163 255 / 0.20));
+  --amb-3: light-dark(rgb(56 189 248 / 0.07), rgb(56 189 248 / 0.16));
 }
 
-/* --------------------------------------------------------------- light */
-
+/*
+ * An explicit choice pins the scheme; absent, `light dark` above follows the system.
+ * Setting `color-scheme` is the whole override — it re-resolves every `light-dark()` at
+ * once, and it also swaps the form controls and scrollbars the browser draws for us.
+ */
 :root[data-theme='light'] {
   color-scheme: light;
-
-  /*
-   * Not an inversion. A light editor sits beside satellite imagery, so the panels are a
-   * cool near-white with a faint blue cast rather than pure white, which would flare
-   * against the map and make the canvas look grey by comparison.
-   */
-  --bg: #eef1f6;
-  --panel: #f7f9fc;
-  --panel-2: #eef1f6;
-  --raised: #ffffff;
-  --line: #d6dce7;
-  --line-soft: #e4e9f1;
-  --text: #16202e;
-  --dim: #5c6980;
-  --accent: #6d4aff;
-  --accent-ink: #ffffff;
-  --accent-dim: #b6a6ff;
-  --danger: #d5323b;
-  --ok: #0f9d63;
-
-  --focus: #4a29d6;
-  --wash-hover: rgb(22 32 46 / 0.05);
-  --wash-active: rgb(22 32 46 / 0.09);
-  --wash-sel: rgb(109 74 255 / 0.12);
-
-  --glass-chrome: rgb(247 249 252 / 0.78);
-  --glass-panel: rgb(247 249 252 / 0.72);
-  --glass-pop: rgb(255 255 255 / 0.92);
-  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
-  --shadow-pop: 0 12px 28px -10px rgb(22 32 46 / 0.22), 0 2px 6px rgb(22 32 46 / 0.1);
-
-  --amb-1: rgb(109 74 255 / 0.10);
-  --amb-2: rgb(56 132 255 / 0.09);
-  --amb-3: rgb(56 189 248 / 0.07);
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) {
-    color-scheme: light;
-
-    --bg: #eef1f6;
-    --panel: #f7f9fc;
-    --panel-2: #eef1f6;
-    --raised: #ffffff;
-    --line: #d6dce7;
-    --line-soft: #e4e9f1;
-    --text: #16202e;
-    --dim: #5c6980;
-    --accent: #6d4aff;
-    --accent-ink: #ffffff;
-    --accent-dim: #b6a6ff;
-    --danger: #d5323b;
-    --ok: #0f9d63;
-
-    --focus: #4a29d6;
-    --wash-hover: rgb(22 32 46 / 0.05);
-    --wash-active: rgb(22 32 46 / 0.09);
-    --wash-sel: rgb(109 74 255 / 0.12);
-
-    --glass-chrome: rgb(247 249 252 / 0.78);
-    --glass-panel: rgb(247 249 252 / 0.72);
-    --glass-pop: rgb(255 255 255 / 0.92);
-    --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
-    --shadow-pop: 0 12px 28px -10px rgb(22 32 46 / 0.22), 0 2px 6px rgb(22 32 46 / 0.1);
-
-    --amb-1: rgb(109 74 255 / 0.10);
-    --amb-2: rgb(56 132 255 / 0.09);
-    --amb-3: rgb(56 189 248 / 0.07);
-  }
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 :root {
@@ -410,7 +382,7 @@ textarea {
 }
 
 .tb-btn:hover:not(:disabled) {
-  background: #212936;
+  background: var(--wash-hover);
 }
 
 .tb-group .tb-btn:hover:not(:disabled) {
@@ -531,9 +503,8 @@ textarea {
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px;
+  flex-direction: column;
+  padding: 14px 14px 0;
   overflow: hidden;
   /* The letterbox around the composition follows the theme; the composition's own
      background does not, because that is document state and belongs to the video. */
@@ -542,7 +513,10 @@ textarea {
 
 .stage-wrap {
   width: 100%;
-  height: 100%;
+  /* `min-height: 0` matters: without it the flex item refuses to shrink below its
+     content and the transport strip is pushed off the bottom of the card. */
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -553,6 +527,8 @@ textarea {
   overflow: hidden;
   border-radius: 6px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  /* Stays dark in both themes on purpose: this is the video frame, not editor chrome.
+     Letterboxing that followed the editor would misreport what the export looks like. */
   background: #0d1117;
 }
 
@@ -742,7 +718,7 @@ textarea {
 }
 
 .layer-item.sel {
-  background: #1b2836;
+  background: var(--wash-sel);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -791,7 +767,7 @@ textarea {
 }
 
 .icon-btn:hover {
-  background: #26303e;
+  background: var(--raised-2);
   color: var(--text);
 }
 
@@ -965,7 +941,7 @@ textarea.text-input.mono,
   width: 34px;
   height: 19px;
   border-radius: 99px;
-  background: #2a323f;
+  background: var(--track-off);
   transition: background var(--dur) var(--ease-out);
 }
 
@@ -993,7 +969,15 @@ textarea.text-input.mono,
   width: 15px;
   height: 15px;
   border-radius: 50%;
+  /*
+   * White in both themes, with a shadow to hold its edge.
+   *
+   * The knob is the moving part and has to read against two grounds — the off track and
+   * the accent — so it cannot follow the theme without fighting one of them. In light
+   * mode white-on-grey is a 1.4:1 edge, which the shadow supplies instead of colour.
+   */
   background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
   transition: transform 0.15s;
 }
 
@@ -1140,7 +1124,7 @@ textarea.text-input.mono,
 
 .tl-zoom button:hover {
   color: var(--text);
-  background: #212936;
+  background: var(--wash-hover);
 }
 
 .tl-body {
@@ -1174,7 +1158,7 @@ textarea.text-input.mono,
 
 .tl-gutter-row.sel {
   color: var(--text);
-  background: #1b2836;
+  background: var(--wash-sel);
 }
 
 .tl-ruler-spacer {
@@ -1270,7 +1254,9 @@ textarea.text-input.mono,
 }
 
 .kf.sel {
-  background: #fff;
+  /* Was #fff, which vanished on a light panel. The selected key is the *ground*
+     colour with the camera hue ringing it — inverted in each theme, same read. */
+  background: var(--panel);
   box-shadow: 0 0 0 2px var(--t-camera);
 }
 
@@ -1279,8 +1265,8 @@ textarea.text-input.mono,
   top: 5px;
   height: 20px;
   border-radius: 4px;
-  background: #2b3b4d;
-  border: 1px solid #3a4c62;
+  background: var(--bar-fill);
+  border: 1px solid var(--bar-line);
   cursor: grab;
   overflow: hidden;
   display: flex;
@@ -1518,7 +1504,7 @@ textarea.text-input.mono,
 }
 
 .menu-list li:hover {
-  background: var(--accent-dim);
+  background: var(--wash-sel);
 }
 
 .menu-list strong {
@@ -1531,8 +1517,84 @@ textarea.text-input.mono,
   color: var(--dim);
 }
 
-.menu-list li:hover span {
-  color: #dceeff;
+/* The hover wash is a tint, not a fill, so the text keeps its own tokens rather than
+   flipping to a light ink that only worked over the dark theme's solid accent. */
+.menu-list li:hover strong {
+  color: var(--accent);
+}
+
+/*
+ * The row-action popover. Shares `.menu`'s positioning with the toolbar's demo list but
+ * not its metrics: this one is a short list of verbs, not a catalogue with descriptions.
+ */
+.menu-pop {
+  position: absolute;
+  top: 26px;
+  right: 0;
+  min-width: 148px;
+  padding: 4px;
+  background: var(--glass-pop);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop), var(--glass-edge);
+  z-index: 50;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--wash-hover);
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+/* Disabled entries stay readable rather than fading out — on a locked layer they are
+   the explanation for why nothing happens, so they have to be legible enough to read. */
+.menu-item:disabled {
+  color: var(--dim);
+  cursor: default;
+}
+
+/*
+ * Lock, engaged.
+ *
+ * The only row control that stays visible when the row is not hovered — `.layer-actions`
+ * hides the rest. A lock you can only see by pointing at the row would let you wonder
+ * why an edit did nothing.
+ */
+.icon-btn.lock.on {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.layer-item.locked .layer-actions,
+.layer-item .layer-actions:has(.lock.on) {
+  display: flex;
+}
+
+.layer-item.locked .lname {
+  color: var(--dim);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* -------------------------------------------------------------- modal */
@@ -1658,7 +1720,7 @@ textarea.text-input.mono,
 .cmd {
   display: block;
   padding: 9px 11px;
-  background: #0a0d12;
+  background: var(--console);
   border: 1px solid var(--line);
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1738,13 +1800,13 @@ textarea.text-input.mono,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #29313d;
+  background: var(--scroll-thumb);
   border-radius: 6px;
   border: 2px solid var(--panel);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #38424f;
+  background: var(--scroll-thumb-hover);
 }
 
 
@@ -1783,8 +1845,8 @@ textarea.text-input.mono,
   align-self: center;
   padding: 2px 8px;
   border-radius: 10px;
-  background: #7c2d12;
-  color: #fed7aa;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
   font-size: 11px;
   font-weight: 600;
   cursor: help;
@@ -1929,8 +1991,8 @@ body:has(.app.exporting)::before {
 }
 
 .pip-key.on {
-  background: #22d3ee;
-  border-color: #22d3ee;
+  background: var(--kind-key);
+  border-color: var(--kind-key);
 }
 
 /* A property's keyframe row sits under its layer, narrower and quieter. */
@@ -1953,7 +2015,7 @@ body:has(.app.exporting)::before {
 .prop-kf {
   width: 7px;
   height: 7px;
-  background: #22d3ee;
+  background: var(--kind-key);
   transform: rotate(45deg);
   flex: none;
 }
@@ -2220,4 +2282,230 @@ body:has(.app.exporting)::before {
 .layer-item.sel,
 .tl-gutter-row.sel {
   background: var(--wash-sel);
+}
+
+/*
+ * The locked banner. Warm rather than red: a lock is a state you chose, not an error,
+ * and colouring it like a failure would make a deliberate act look like something went
+ * wrong.
+ */
+.locked-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: 0 var(--sp-4) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--warn-ink);
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-size: 12px;
+}
+
+.locked-notice span {
+  flex: 1;
+}
+
+/* A locked bar loses its grips, so the cursor should stop promising a resize. */
+.bar.locked {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.bar-lock {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  opacity: 0.8;
+}
+
+/*
+ * The add-layer trigger. Full width because it is the panel's one primary action, and
+ * dashed because it adds rather than acts on what is there — the same convention the
+ * empty states use.
+ */
+.add-row .menu {
+  display: block;
+}
+
+.add-layer-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel-2);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.add-layer-btn:hover {
+  background: var(--wash-hover);
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+/* Anchored to the left edge when the trigger is wide, so the list starts under the
+   label rather than hanging off the far end of a full-width button. */
+.menu-pop.left {
+  left: 0;
+  right: auto;
+  top: 34px;
+  min-width: 100%;
+}
+
+/* The type colour rides the icon here as it does on the rows and the bars — the same
+   seven colours mean the same seven things wherever they appear. */
+.menu-glyph {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  color: var(--dim);
+}
+
+/* ---------------------------------------------------------- stage chrome */
+
+/*
+ * Floats over the letterbox, never over the frame.
+ *
+ * `top` clears the card padding and the controls sit at the extremes, so on any
+ * composition aspect ratio they land on the gradient rather than on the picture. Pointer
+ * events pass through the strip itself; only the buttons take them, so a drag begun on
+ * the letterbox still reaches the map.
+ */
+.stage-chrome {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  pointer-events: none;
+}
+
+.stage-chrome > * {
+  pointer-events: auto;
+}
+
+.stage-tools {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.stage-chip,
+.stage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 26px;
+  padding: 0 var(--sp-3);
+  background: var(--glass-chrome);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  box-shadow: var(--glass-edge);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.stage-chip:hover:not(:disabled),
+.stage-btn:hover {
+  border-color: var(--accent);
+}
+
+.stage-chip:disabled {
+  color: var(--dim);
+  cursor: default;
+}
+
+.stage-btn.icon {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+}
+
+/*
+ * The transport, now a strip inside the stage card rather than a band under it. A rule
+ * above it rather than a panel behind it — it belongs to the picture, and a second
+ * filled surface here would put a seam back where one was just taken out.
+ *
+ * The blur goes with the background: a `backdrop-filter` over a transparent element
+ * still costs a full compositing pass on everything beneath it, which here is the map,
+ * repainting every frame during playback.
+ */
+.viewport .transport {
+  flex: 0 0 auto;
+  margin-top: var(--sp-3);
+  border-top: 1px solid var(--line-soft);
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+/*
+ * Armed. Red is right here and nowhere else in this app: it is the one control whose
+ * state means "what you do next is being written down", and every recorder ever built
+ * says so in red.
+ */
+.tp-btn.record.armed {
+  color: #fff;
+  background: var(--danger);
+}
+
+.tp-btn.record.armed:hover {
+  background: var(--danger);
+  filter: brightness(1.08);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tp-btn.record.armed {
+    animation: rec-pulse 1.6s var(--ease-out) infinite;
+  }
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(242 85 90 / 0.5);
+  }
+  60% {
+    box-shadow: 0 0 0 5px rgb(242 85 90 / 0);
+  }
+}
+
+/* Fullscreen paints the element on a black page, so the card supplies its own ground. */
+.viewport:fullscreen {
+  background: var(--bg);
+  padding: 14px;
+}
+
+/* A layout-neutral fieldset: it exists to carry `disabled`, not to draw a group box. */
+.lock-guard {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+/* Inert, and visibly so — the banner explains, the wash confirms. */
+.lock-guard:disabled {
+  opacity: 0.6;
 }

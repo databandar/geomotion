@@ -7,6 +7,7 @@ import Storyboard from './components/Storyboard';
 import Inspector from './components/Inspector';
 import Toolbar from './components/Toolbar';
 import Transport from './components/Transport';
+import StageChrome from './components/StageChrome';
 import ExportDialog from './components/ExportDialog';
 import Narration from './components/Narration';
 import { useStore } from './store';
@@ -21,6 +22,8 @@ export default function App() {
    * not children of it.
    */
   const [host, setHost] = useState<RenderHost | null>(null);
+  /** The element that goes fullscreen — the stage card, so its controls come with it. */
+  const viewportRef = useRef<HTMLDivElement>(null);
   usePlayback();
   useShortcuts(host);
 
@@ -59,12 +62,23 @@ export default function App() {
           <Storyboard />
         </aside>
 
+        {/*
+          * The stage and its transport are one card.
+          *
+          * They were siblings, with the transport a separate strip below — which read as
+          * a property of the window rather than of the picture, and left a seam across
+          * the middle of the app. The controls that drive the composition now sit inside
+          * the same surface the composition is drawn on.
+          */}
         <main className="center">
-          <div className="viewport">
+          <div className="viewport" ref={viewportRef}>
             <MapCanvas onHostReady={setHost} />
+            {/* Editor-only chrome, hidden while frames are being captured along with
+                everything else the export must not contain. */}
+            {!exporting && <StageChrome stage={viewportRef} />}
             {exporting && <div className="export-badge">Rendering — don’t switch tabs</div>}
+            <Transport />
           </div>
-          <Transport />
         </main>
 
         <aside className="right">

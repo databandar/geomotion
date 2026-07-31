@@ -40,6 +40,16 @@ export interface LayerBase {
   out: number;
   /** cross-fade duration in seconds at each end */
   fade: number;
+  /**
+   * Locked layers cannot be edited — not hidden, not removed from the render.
+   *
+   * Absent means unlocked, which is what every project written before this field says,
+   * so nothing needed migrating and saved files only carry it once someone locks
+   * something. Read it as `=== true`: a garbage value from a hand-edited file leaves the
+   * layer editable, which is the safer failure. A lock that engages by accident is a
+   * project you cannot edit with nothing on screen explaining why.
+   */
+  locked?: boolean;
 }
 
 export type RouteIcon = 'dot' | 'plane' | 'car' | 'pin' | 'none';

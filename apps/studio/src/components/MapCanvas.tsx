@@ -80,6 +80,29 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       renderRef.current(true);
     });
     map.on('move', () => renderRef.current(false));
+
+    /*
+     * Record mode: a settled view becomes a keyframe.
+     *
+     * `moveend` rather than `move`, so one gesture writes one key instead of sixty. The
+     * three guards matter — armed, not playing, and the move came from a person:
+     * `originalEvent` is absent when MapLibre moved itself, which it does on every
+     * playback frame and on every `jumpTo` the evaluator issues. Without that check,
+     * arming record and pressing play would carpet the timeline with keyframes
+     * describing the animation it was already playing.
+     */
+    map.on('moveend', (e) => {
+      const state = useStore.getState();
+      if (!state.recording || state.playing) return;
+      if (!(e as { originalEvent?: unknown }).originalEvent) return;
+      const c = map.getCenter();
+      state.addKeyframe({
+        center: [c.lng, c.lat],
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+      });
+    });
     setMapReady(true);
     map.on('mousedown', onMouseDown);
     map.on('click', onClick);

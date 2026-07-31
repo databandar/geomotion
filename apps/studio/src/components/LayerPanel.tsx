@@ -2,6 +2,7 @@ import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
 import type { LayerType } from '@geomotion/document';
 import Icon, { type IconName } from './Icon';
+import { Menu } from './ui';
 
 const ADD: { type: LayerType; label: string; icon: IconName }[] = [
   { type: 'route', label: 'Route', icon: 'route' },
@@ -25,6 +26,7 @@ export default function LayerPanel() {
   const moveLayer = useStore((s) => s.moveLayer);
   const updateLayer = useStore((s) => s.updateLayer);
   const addKeyframe = useStore((s) => s.addKeyframe);
+  const setLayerLocked = useStore((s) => s.setLayerLocked);
 
   return (
     <div className="layer-panel">
@@ -32,13 +34,25 @@ export default function LayerPanel() {
         <span>Layers</span>
       </div>
 
+      {/*
+        * One button rather than a seven-button grid.
+        *
+        * The grid put every type one click away, which is faster — but it held about a
+        * fifth of the panel's height permanently for an action taken a handful of times
+        * per project, and the layer list is what the panel is for. The second click buys
+        * back the space the list actually needs.
+        */}
       <div className="add-row">
-        {ADD.map((a) => (
-          <button key={a.type} className="add-btn" onClick={() => addLayer(a.type)} title={`Add ${a.label.toLowerCase()} layer`}>
-            <span className={'glyph t-' + a.type}><Icon name={a.icon} size={13} /></span>
-            {a.label}
-          </button>
-        ))}
+        <Menu
+          align="left"
+          trigger={{ text: 'Add layer', icon: 'plus' }}
+          items={ADD.map((a) => ({
+            label: a.label,
+            icon: a.icon,
+            iconClass: 't-' + a.type,
+            onSelect: () => addLayer(a.type),
+          }))}
+        />
       </div>
 
       <div className="layer-list">
@@ -71,11 +85,17 @@ export default function LayerPanel() {
 
         {[...layers].reverse().map((l) => {
           const sel = selection?.kind === 'layer' && selection.id === l.id;
+          const locked = l.locked === true;
           return (
-            <div key={l.id} className={'layer-item' + (sel ? ' sel' : '')} onClick={() => select({ kind: 'layer', id: l.id })}>
+            <div
+              key={l.id}
+              className={'layer-item' + (sel ? ' sel' : '') + (locked ? ' locked' : '')}
+              onClick={() => select({ kind: 'layer', id: l.id })}
+            >
               <button
                 className={'icon-btn eye' + (l.visible ? '' : ' off')}
-                title={l.visible ? 'Hide' : 'Show'}
+                title={locked ? 'Locked' : l.visible ? 'Hide' : 'Show'}
+                disabled={locked}
                 onClick={(e) => {
                   e.stopPropagation();
                   updateLayer(l.id, { visible: !l.visible });
@@ -91,18 +111,30 @@ export default function LayerPanel() {
               </span>
               <span className="lname">{l.name}</span>
               <div className="layer-actions">
-                <button className="icon-btn" title="Move up" onClick={(e) => (e.stopPropagation(), moveLayer(l.id, 1))}>
-                  <Icon name="arrow-up" size={12} />
+                {/* Lock stays on the row rather than in the menu: it is a *state* you
+                    need to see without opening anything, and the row is how you read
+                    which layers are pinned down. It shows through when engaged. */}
+                <button
+                  className={'icon-btn lock' + (locked ? ' on' : '')}
+                  title={locked ? 'Unlock' : 'Lock — refuse edits to this layer'}
+                  aria-pressed={locked}
+                  onClick={(e) => (e.stopPropagation(), setLayerLocked(l.id, !locked))}
+                >
+                  <Icon name={locked ? 'lock' : 'unlock'} size={12} />
                 </button>
-                <button className="icon-btn" title="Move down" onClick={(e) => (e.stopPropagation(), moveLayer(l.id, -1))}>
-                  <Icon name="arrow-down" size={12} />
-                </button>
-                <button className="icon-btn" title="Duplicate" onClick={(e) => (e.stopPropagation(), duplicateLayer(l.id))}>
-                  <Icon name="duplicate" size={12} />
-                </button>
-                <button className="icon-btn danger" title="Delete" onClick={(e) => (e.stopPropagation(), removeLayer(l.id))}>
-                  <Icon name="close" size={12} />
-                </button>
+                <Menu
+                  label={`Actions for ${l.name}`}
+                  items={[
+                    { label: 'Move up', icon: 'arrow-up', onSelect: () => moveLayer(l.id, 1), disabled: locked },
+                    { label: 'Move down', icon: 'arrow-down', onSelect: () => moveLayer(l.id, -1), disabled: locked },
+                    // Duplicating a locked layer is allowed — it reads the layer and
+                    // writes a new one, so nothing the lock protects is touched. The
+                    // copy comes out unlocked, which is what you want if you locked the
+                    // original to keep a version of it.
+                    { label: 'Duplicate', icon: 'duplicate', onSelect: () => duplicateLayer(l.id) },
+                    { label: 'Delete', icon: 'close', onSelect: () => removeLayer(l.id), danger: true, disabled: locked },
+                  ]}
+                />
               </div>
             </div>
           );

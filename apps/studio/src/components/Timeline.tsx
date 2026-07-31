@@ -241,11 +241,21 @@ export default function Timeline() {
                   className={'tl-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}
                   onPointerDown={startScrub}
                 >
+                {/*
+                  * A locked bar still selects — you may well want to read it — but does
+                  * not drag, and says so rather than moving under the pointer and
+                  * springing back. The store would refuse either way; refusing here too
+                  * is what makes the refusal visible.
+                  */}
                 <div
-                  className={'bar t-' + l.type + (l.visible ? '' : ' hidden')}
+                  className={
+                    'bar t-' + l.type + (l.visible ? '' : ' hidden') + (l.locked === true ? ' locked' : '')
+                  }
+                  title={l.locked === true ? `${l.name} — locked` : undefined}
                   style={{ left: l.in * pxPerSec, width: Math.max(6, (l.out - l.in) * pxPerSec) }}
                   onPointerDown={(e) => {
                     select({ kind: 'layer', id: l.id });
+                    if (l.locked === true) return;
                     const { in: i0, out: o0 } = l;
                     const len = o0 - i0;
                     dragSeconds(e, (dt) => {
@@ -255,22 +265,30 @@ export default function Timeline() {
                   }}
                 >
                   <span className="bar-label">{l.name}</span>
-                  <i
-                    className="grip l"
-                    onPointerDown={(e) => {
-                      const i0 = l.in;
-                      dragSeconds(e, (dt) => updateLayer(l.id, { in: clamp(snap(i0 + dt), 0, l.out - 0.1) }, 'in'));
-                    }}
-                  />
-                  <i
-                    className="grip r"
-                    onPointerDown={(e) => {
-                      const o0 = l.out;
-                      dragSeconds(e, (dt) =>
-                        updateLayer(l.id, { out: clamp(snap(o0 + dt), l.in + 0.1, project.duration) }, 'out'),
-                      );
-                    }}
-                  />
+                  {l.locked === true ? (
+                    <span className="bar-lock" aria-hidden="true">
+                      <Icon name="lock" size={10} />
+                    </span>
+                  ) : (
+                    <>
+                      <i
+                        className="grip l"
+                        onPointerDown={(e) => {
+                          const i0 = l.in;
+                          dragSeconds(e, (dt) => updateLayer(l.id, { in: clamp(snap(i0 + dt), 0, l.out - 0.1) }, 'in'));
+                        }}
+                      />
+                      <i
+                        className="grip r"
+                        onPointerDown={(e) => {
+                          const o0 = l.out;
+                          dragSeconds(e, (dt) =>
+                            updateLayer(l.id, { out: clamp(snap(o0 + dt), l.in + 0.1, project.duration) }, 'out'),
+                          );
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
                 </div>
                 {animatedProps(l).map((prop) => (

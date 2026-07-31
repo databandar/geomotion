@@ -42,6 +42,20 @@ const LAYER_KIND: Record<string, string> = {
   image: 'Image layer',
 };
 
+/** The banner a locked layer shows, with the one control that still works on it. */
+function LockedNotice({ id }: { id: string }) {
+  const setLayerLocked = useStore((s) => s.setLayerLocked);
+  return (
+    <div className="locked-notice">
+      <Icon name="lock" size={13} />
+      <span>Locked — edits are refused.</span>
+      <button className="mini" onClick={() => setLayerLocked(id, false)}>
+        Unlock
+      </button>
+    </div>
+  );
+}
+
 export default function Inspector() {
   const layer = useSelectedLayer();
   const kf = useSelectedKeyframe();
@@ -79,22 +93,41 @@ export default function Inspector() {
         </div>
       )}
 
+      {/*
+        * A locked layer's fields still show — you selected it to read it — but the panel
+        * has to say why nothing you type sticks. The store refuses the write silently,
+        * and a silent refusal in a properties panel reads as a broken input.
+        */}
+      {layer?.locked === true && <LockedNotice id={layer.id} />}
+
       {cue && <AudioInspector cue={cue} />}
       {kf && <KeyframeInspector />}
-      {layer?.type === 'route' && <RouteInspector layer={layer} />}
-      {layer?.type === 'marker' && <MarkerInspector layer={layer} />}
-      {layer?.type === 'text' && <TextInspector layer={layer} />}
-      {layer?.type === 'shape' && <ShapeInspector layer={layer} />}
-      {layer?.type === 'regions' && <RegionsInspector layer={layer} />}
-      {layer?.type === 'clouds' && <CloudsInspector layer={layer} />}
-      {layer?.type === 'image' && <ImageInspector layer={layer} />}
+
+      {/*
+        * `fieldset[disabled]` disables every control inside it, however deeply nested —
+        * so a locked layer's fields go inert without each of the seven inspectors, or
+        * each control in them, learning what a lock is. The banner above says why.
+        *
+        * Without this the fields stay live and refuse silently: a slider moves under the
+        * pointer, the store declines the write, and the value snaps back. That reads as
+        * a broken control rather than a protected one.
+        */}
+      <fieldset className="lock-guard" disabled={layer?.locked === true}>
+        {layer?.type === 'route' && <RouteInspector layer={layer} />}
+        {layer?.type === 'marker' && <MarkerInspector layer={layer} />}
+        {layer?.type === 'text' && <TextInspector layer={layer} />}
+        {layer?.type === 'shape' && <ShapeInspector layer={layer} />}
+        {layer?.type === 'regions' && <RegionsInspector layer={layer} />}
+        {layer?.type === 'clouds' && <CloudsInspector layer={layer} />}
+        {layer?.type === 'image' && <ImageInspector layer={layer} />}
+        {layer && <TimingInspector />}
+      </fieldset>
       {!layer && !kf && !cue && (
         <div className="empty-hint">
           <p>Nothing selected.</p>
           <p>Pick a layer, a camera keyframe or an audio clip, or edit the composition below.</p>
         </div>
       )}
-      {layer && <TimingInspector />}
       <CompositionInspector />
     </div>
   );

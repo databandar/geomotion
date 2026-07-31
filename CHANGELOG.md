@@ -9,6 +9,41 @@ name the section each change answers to.
 
 ### The editor itself
 
+- **Locked layers.** A lock on each row; a locked layer refuses every edit — property
+  changes, retiming, keyframes, reordering, deletion — and says so where you tried.
+  - The refusal lives in the store, not the components. There are already a dozen paths
+    that reach a layer, and a lock each control has to remember about is a lock the
+    thirteenth control forgets. One gate, so the answer is the same wherever the edit
+    came from.
+  - The inspector's fields go inert rather than staying live and snapping back, via a
+    single disabled `fieldset` — measured in a browser: 18 controls inert while locked,
+    all 18 live again on unlock.
+  - Duplicating a locked layer gives an **unlocked** copy. A divergence from After
+    Effects and Figma, chosen because duplicating is how you get an editable version of
+    the thing you locked, and the copy is selected immediately.
+  - Unlocking removes the field rather than writing `false`, so a project that was never
+    locked and one that was locked and unlocked save identically.
+- **One "Add layer" button** in place of the seven-button grid. The grid was faster per
+  layer but held a fifth of the panel's height permanently, for an action taken a handful
+  of times per project.
+- **Row actions folded into a `…` menu**, which puts Delete two deliberate steps from
+  Move up on a row people click constantly.
+- **Stage chrome.** The shot the picture comes from, named and clickable — it selects the
+  keyframe that decides the framing. Plus Fit (frames everything in the project, using
+  the same `fitBounds` solver as the tour and double-click-to-fly) and fullscreen.
+- **The transport moved inside the stage card**, so the controls that drive the
+  composition sit on the same surface it is drawn on.
+- **Record mode.** Armed, a settled map view writes a camera keyframe at the playhead —
+  the counterpart to `K`, which could only place one shot at a time. It listens on
+  `moveend` and only for moves a person made: MapLibre moves itself on every playback
+  frame, so without that check arming record and pressing play would carpet the timeline
+  with keyframes describing the animation it was already playing.
+- **A dozen hardcoded dark surfaces now follow the theme.** They were invisible in light
+  mode's first pass — a dark hover on a white row, a near-black command box on a white
+  panel, a white keyframe diamond on a white panel, and a teal source pip at 1.9:1.
+  Colours are declared once with `light-dark()` instead of a light palette written twice,
+  which is what let a token be added to one copy and not the other.
+
 - **Light mode.** The colour tokens are now a pair rather than one dark set, and every
   surface is styled through them. The default follows `prefers-color-scheme`; the toggle
   in the rail cycles system → light → dark and is remembered. Choosing *system* removes

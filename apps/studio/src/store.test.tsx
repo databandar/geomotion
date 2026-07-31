@@ -250,3 +250,93 @@ describe('framing a region into the camera', () => {
     expect(s().project.camera).toHaveLength(0);
   });
 });
+
+/**
+ * Locking.
+ *
+ * The point of these is that the *store* refuses, not the UI. A lock enforced in the
+ * components is one every future control has to remember about, and there are already a
+ * dozen paths that reach a layer. Each case below drives the same action the editor
+ * drives and asserts the document did not move.
+ */
+describe('locked layers', () => {
+  // The shared `beforeEach` loads an empty project, so each case needs its own layer.
+  beforeEach(() => {
+    s().addLayer('marker');
+  });
+
+  const lockFirst = () => {
+    const l = first();
+    s().setLayerLocked(l.id, true);
+    return l.id;
+  };
+
+  it('refuses a property edit', () => {
+    const id = lockFirst();
+    const before = first().name;
+    s().updateLayer(id, { name: 'renamed' });
+    expect(first().name).toBe(before);
+  });
+
+  it('refuses a retime', () => {
+    const id = lockFirst();
+    const before = first().in;
+    s().updateLayer(id, { in: before + 3 });
+    expect(first().in).toBe(before);
+  });
+
+  it('refuses a tracked-property write', () => {
+    const id = lockFirst();
+    const before = JSON.stringify(first().size);
+    s().setLayerTrack(id, 'size', 99);
+    s().toggleLayerTrack(id, 'size', 99);
+    s().toggleLayerKey(id, 'size', 99);
+    expect(JSON.stringify(first().size)).toBe(before);
+  });
+
+  it('refuses deletion', () => {
+    const id = lockFirst();
+    const n = layers().length;
+    s().removeLayer(id);
+    expect(layers()).toHaveLength(n);
+  });
+
+  /*
+   * Reordering needs a second layer to be possible at all. Written with one, the move
+   * was refused by `moveLayer`'s own bounds check rather than by the lock, and the
+   * assertion held with the lock removed entirely.
+   */
+  it('refuses reordering', () => {
+    s().addLayer('text');
+    const id = layers()[0]!.id;
+    s().setLayerLocked(id, true);
+    s().moveLayer(id, 1);
+    expect(layers()[0]?.id).toBe(id);
+  });
+
+  /*
+   * The lock has to be escapable, and duplicating reads rather than writes — so both are
+   * deliberately outside the gate. Without this test the safest-looking implementation
+   * (route everything through `editable`) traps the layer forever.
+   */
+  it('still unlocks, and still duplicates', () => {
+    const id = lockFirst();
+    const n = layers().length;
+    s().duplicateLayer(id);
+    expect(layers()).toHaveLength(n + 1);
+    expect(layers().find((l) => l.id !== id)?.locked).toBeUndefined();
+
+    s().setLayerLocked(id, false);
+    s().updateLayer(id, { name: 'now editable' });
+    expect(layers().find((l) => l.id === id)?.name).toBe('now editable');
+  });
+
+  /* Unlocking leaves no trace, so a project that was never locked and one that was
+     locked and unlocked serialise identically. */
+  it('leaves no field behind when unlocked', () => {
+    const id = lockFirst();
+    expect(first().locked).toBe(true);
+    s().setLayerLocked(id, false);
+    expect('locked' in first()).toBe(false);
+  });
+});

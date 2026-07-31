@@ -1,4 +1,4 @@
-import Icon from './Icon';
+import Icon, { type IconName } from './Icon';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 /*
@@ -295,5 +295,115 @@ export function TrackPip({
         />
       )}
     </span>
+  );
+}
+
+/** One entry in a `Menu`. `danger` tints it; `disabled` keeps it visible but inert. */
+export interface MenuItem {
+  label: string;
+  icon?: IconName;
+  /** Class on the icon — how the layer-type accents reach an entry. */
+  iconClass?: string;
+  onSelect: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+/**
+ * A button that opens a short list of actions.
+ *
+ * The layer row had four icon buttons — up, down, duplicate, delete — visible on every
+ * row at all times. That is four targets to read past to reach the layer's name, and it
+ * put a delete button one pixel from a reorder button on a row people click constantly.
+ * Folding them behind one control puts the destructive action two deliberate steps away
+ * and gives the row back to the thing it is actually about.
+ *
+ * Closes on outside pointer-down, on Escape, and after any choice. Escape is handled on
+ * the wrapper rather than the document so it does not swallow the key from the rest of
+ * the editor, where it also cancels a drawing tool.
+ */
+export function Menu({
+  items,
+  label = 'More',
+  className = '',
+  trigger,
+  align = 'right',
+}: {
+  items: MenuItem[];
+  label?: string;
+  className?: string;
+  /** Replaces the `…` button. The wrapper still owns open/close and the popover. */
+  trigger?: { text: string; icon?: IconName; className?: string };
+  align?: 'left' | 'right';
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+
+  return (
+    <div
+      className={'menu ' + className}
+      ref={box}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        className={trigger ? trigger.className ?? 'add-layer-btn' : 'icon-btn' + (open ? ' on' : '')}
+        title={trigger ? undefined : label}
+        aria-label={trigger ? undefined : label}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        {trigger ? (
+          <>
+            {trigger.icon && <Icon name={trigger.icon} size={13} />}
+            {trigger.text}
+          </>
+        ) : (
+          <Icon name="more" size={13} />
+        )}
+      </button>
+
+      {open && (
+        <div className={'menu-pop' + (align === 'left' ? ' left' : '')} role="menu">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              role="menuitem"
+              className={'menu-item' + (it.danger ? ' danger' : '')}
+              disabled={it.disabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                it.onSelect();
+              }}
+            >
+              {it.icon && (
+                <span className={'menu-glyph ' + (it.iconClass ?? '')}>
+                  <Icon name={it.icon} size={12} />
+                </span>
+              )}
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
