@@ -1,5 +1,6 @@
 import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
+import { shotsOf } from '@geomotion/document';
 import type { LayerType } from '@geomotion/document';
 import Icon, { type IconName } from './Icon';
 import { Menu } from './ui';
@@ -18,7 +19,7 @@ export default function LayerPanel() {
   const host = useRenderHost();
   const layers = useStore((s) => s.project.layers);
   const selection = useStore((s) => s.selection);
-  const camera = useStore((s) => s.project.camera);
+  const camera = useStore((s) => s.project.cameras[0]);
   const select = useStore((s) => s.select);
   const addLayer = useStore((s) => s.addLayer);
   const removeLayer = useStore((s) => s.removeLayer);
@@ -58,11 +59,11 @@ export default function LayerPanel() {
       <div className="layer-list">
         <div
           className={'layer-item camera' + (selection?.kind === 'keyframe' ? ' sel' : '')}
-          onClick={() => camera[0] && select({ kind: 'keyframe', id: camera[0].id })}
+          onClick={() => camera && select({ kind: 'keyframe', id: camera.id })}
         >
           <span className="glyph t-camera"><Icon name="camera" size={13} /></span>
           <span className="lname">Camera</span>
-          <span className="count">{camera.length} keys</span>
+          <span className="count">{camera ? shotsOf(camera).length : 0} keys</span>
           <button
             className="icon-btn"
             title="Add a keyframe at the playhead using the current map view"

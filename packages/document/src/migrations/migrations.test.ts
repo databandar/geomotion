@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { migrate } from '../project.ts';
+import { shotsOf } from '../camera.ts';
 import { CURRENT_FORMAT, formatOf, runMigrations } from './index.ts';
 import { migrate1to2 } from './1-to-2.ts';
 import { migrate2to3 } from './2-to-3.ts';
@@ -65,8 +66,14 @@ describe('the frozen fixtures', () => {
     expect(marker?.name).toBe('Tokyo');
     // 14 was authored as a bare number in format 1; it must still be 14 afterwards.
     expect(marker && 'size' in marker ? marker.size : null).toEqual({ kind: 'static', value: 14 });
-    expect(out.camera).toHaveLength(2);
-    expect(out.camera[1]?.dip).toBe(1.5);
+
+    // The two-shot camera freezes as per-channel tracks under the first node; the arc
+    // keeps riding the zoom key.
+    const camera = out.cameras[0]!;
+    expect(shotsOf(camera)).toHaveLength(2);
+    expect(camera.tracks.zoom.kind).toBe('keyframed');
+    if (camera.tracks.zoom.kind === 'keyframed') expect(camera.tracks.zoom.keys[1]?.dip).toBe(1.5);
+    expect(out).not.toHaveProperty('camera');
   });
 
   it('is idempotent — migrating an already-current document changes nothing', () => {

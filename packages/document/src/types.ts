@@ -17,6 +17,15 @@ export type EasingName =
   | 'easeOutBack'
   | 'hold';
 
+/**
+ * One shot, as the editor speaks of it: all four camera channels at one instant, with
+ * the easing on the move out of it and the arc across that move.
+ *
+ * A *view*, not storage. The document holds per-channel tracks on a `CameraNode`; this
+ * row is what `shotsOf` derives from them and what `upsertShot`/`patchShot` write back
+ * across the channels atomically. Keeping the name v1 used, because it is the DTO the
+ * inspector, the timeline and the store already spoke — what changed is where it lives.
+ */
 export interface CameraKeyframe {
   id: string;
   /** seconds on the timeline */
@@ -29,6 +38,32 @@ export interface CameraKeyframe {
   easing: EasingName;
   /** extra zoom levels to pull back mid-segment — the cinematic "arc" move */
   dip: number;
+}
+
+/**
+ * A camera — a node observing the scene, never a container of it (§04, §09).
+ *
+ * Each channel is a property track, so the camera animates by exactly the same rule as
+ * every other animatable thing in the document: a channel can hold keys, read a fact,
+ * or run an expression, on its own. The shot-centric editing UX is a derived view over
+ * these tracks (`shotsOf`), which is why the two can never disagree.
+ *
+ * `behaviours` is the rig's home (§09): an ordered stack of camera-specialised
+ * behaviours evaluated over the tracks, the same mechanism §06 gives every node. Empty
+ * until that milestone lands; declared now so the shape does not change again when it
+ * does.
+ */
+export interface CameraNode {
+  id: string;
+  type: 'camera';
+  name: string;
+  tracks: {
+    center: Track<LngLat>;
+    zoom: Track<number>;
+    bearing: Track<number>;
+    pitch: Track<number>;
+  };
+  behaviours: BehaviourStacks;
 }
 
 export interface LayerBase {
@@ -424,7 +459,15 @@ export interface Project {
   terrain: boolean;
   terrainExaggeration: number;
   background: string;
-  camera: CameraKeyframe[];
+  /**
+   * Cameras observing the composition (§04).
+   *
+   * The first is live; the switcher track that chooses between several is a later
+   * milestone, and most projects have exactly one. An empty list renders from the
+   * evaluator's default camera rather than failing — a camera is an observer, and a
+   * composition with none is a composition with an unauthored view, not a broken file.
+   */
+  cameras: CameraNode[];
   /**
    * What the map looks like during a stretch of time, keyed by id.
    *

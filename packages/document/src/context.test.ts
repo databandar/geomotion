@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { emptyProject, keyframe } from './project.ts';
+import { emptyProject } from './project.ts';
+import { cameraFromShots, keyframe } from './camera.ts';
 import { resolveMapContext, type MapContext } from './context.ts';
 import type { Project } from './types.ts';
 import type { StoryBlock } from './story.ts';
@@ -76,7 +77,7 @@ describe('resolveMapContext', () => {
 describe('a context\'s camera is a default, never an override', () => {
   const withCamera = (keys: number[]) =>
     withStory([block('b', 0, 5, 'c')], [ctx('c', { camera: { zoom: 9 } })], {
-      camera: keys.map((t) => keyframe(t, [0, 0], 2)),
+      cameras: [cameraFromShots(keys.map((t) => keyframe(t, [0, 0], 2)))],
     });
 
   it('applies where the block carries no keyframe', () => {

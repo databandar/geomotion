@@ -7,11 +7,21 @@
  *
  * The flat node store with fractional ordering and a schema registry that §3
  * specifies is not built yet — this is v1's shape (a project holding arrays of
- * layers and keyframes) with the transaction and history layer §1.3/§1.4 require
+ * layers and camera nodes) with the transaction and history layer §1.3/§1.4 require
  * put underneath it. The write path is now the thing that changes, not the shape.
  */
 
-export { createLayer, defaultTour, emptyProject, keyframe, migrate } from './project.ts';
+export { createLayer, defaultTour, emptyProject, migrate } from './project.ts';
+export {
+  cameraFromShots,
+  createCamera,
+  keyframe,
+  patchShot,
+  removeShot,
+  shotAt,
+  shotsOf,
+  upsertShot,
+} from './camera.ts';
 export {
   canPlayPerCue,
   envelopeOf,

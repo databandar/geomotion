@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Layer, RegionsLayer } from './types.ts';
-import { createLayer, defaultTour, keyframe, migrate } from './project.ts';
+import { createLayer, defaultTour, migrate } from './project.ts';
+import { keyframe, shotsOf } from './camera.ts';
 
 /**
  * Behavioural spec for document construction and migration.
@@ -30,7 +31,7 @@ describe('migrate', () => {
     for (const junk of [null, undefined, 0, 'nonsense', [], {}, { layers: null }, { camera: null }]) {
       const p = migrate(junk);
       expect(Array.isArray(p.layers)).toBe(true);
-      expect(Array.isArray(p.camera)).toBe(true);
+      expect(Array.isArray(p.cameras)).toBe(true);
       expect(p.fps).toBeGreaterThan(0);
     }
   });
@@ -77,7 +78,7 @@ describe('migrate', () => {
 
   it('fills camera keyframe defaults without discarding the authored values', () => {
     const p = migrate({ camera: [{ t: 3, center: [10, 20], zoom: 7 }] });
-    const k = p.camera[0]!;
+    const k = shotsOf(p.cameras[0]!)[0]!;
     expect(k.t).toBe(3);
     expect(k.center).toEqual([10, 20]);
     expect(k.zoom).toBe(7);

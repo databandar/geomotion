@@ -33,6 +33,17 @@ export interface Keyframe<T> {
    * curve choice *within* a keyframed track.
    */
   hold?: boolean;
+  /**
+   * How far the camera pulls its zoom back across the segment leaving this key — the
+   * cinematic "arc".
+   *
+   * Segment metadata like `easing`, but camera-zoom specific: it is read only from a
+   * camera's zoom channel, and writing it anywhere else does nothing. Absent means 0,
+   * so files carry it only where someone set one. It lives on the key until the camera
+   * rig (§09) exists to hold it as a `zoomEnvelope` behaviour — at which point moving
+   * it is a lift, not a redesign.
+   */
+  dip?: number;
 }
 
 /**

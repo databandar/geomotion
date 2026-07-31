@@ -10,7 +10,7 @@ import type {
   ShapeRender,
   TextRender,
 } from '@geomotion/renderer';
-import type { CameraKeyframe, LngLat, Project, RegionsLayer, RouteLayer, Track } from '@geomotion/document';
+import type { CameraNode, LngLat, Project, RegionsLayer, RouteLayer } from '@geomotion/document';
 import { resolveMapContext } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
 import { applyBehaviours, ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
@@ -35,70 +35,24 @@ export type { CameraState, Scene } from '@geomotion/renderer';
 /* ------------------------------------------------------------------ camera */
 
 /**
- * The camera as four property tracks.
- *
- * Camera keyframes are stored as whole-camera rows — one keyframe carries centre, zoom,
- * bearing and pitch together. §04 wants per-channel tracks, and this is the seam: the
- * rows are projected into four tracks and every channel resolves through `evalTrack`,
- * so the camera animates by the same rule as everything else will. The document shape
- * changes in a later milestone; this proves the evaluation first.
- *
- * Each channel brings its own interpolator, which is the whole reason `evalTrack` takes
- * one: longitude wraps at the antimeridian, bearing takes the short way round the
- * compass, zoom and pitch are ordinary numbers.
+ * The live camera is the first one (§04's switcher track, which will choose between
+ * several, is a later milestone), and its channels are property tracks like any
+ * other's — read directly, with no projection step. That is the point of the camera
+ * being a node: the evaluator used to rebuild four tracks from whole-camera rows on
+ * every edit; the document now holds the tracks itself.
  */
-interface CameraTracks {
-  keys: CameraKeyframe[];
-  center: Track<LngLat>;
-  zoom: Track<number>;
-  bearing: Track<number>;
-  pitch: Track<number>;
-}
-
-/*
- * Built once per keyframe array rather than per frame.
- *
- * The array's identity changes whenever the camera is edited — transactions produce a
- * new one — so a weak key is exactly right: the tracks live as long as the edit they
- * describe and go with it. This also removes a sort that used to run on every frame.
- */
-const cameraTrackCache = new WeakMap<readonly CameraKeyframe[], CameraTracks>();
-
-function cameraTracks(camera: readonly CameraKeyframe[]): CameraTracks {
-  const hit = cameraTrackCache.get(camera);
-  if (hit) return hit;
-
-  const keys = [...camera].sort((a, b) => a.t - b.t);
-  const channel = <T>(of: (k: CameraKeyframe) => T): Track<T> => ({
-    kind: 'keyframed',
-    keys: keys.map((k) => ({ id: k.id, t: k.t, value: of(k), easing: k.easing })),
-  });
-
-  const built: CameraTracks = {
-    keys,
-    // Copied, so nothing downstream can reach through the scene into the document and
-    // mutate a keyframe's coordinate in place.
-    center: channel((k) => [k.center[0], k.center[1]] as LngLat),
-    zoom: channel((k) => k.zoom),
-    bearing: channel((k) => k.bearing),
-    pitch: channel((k) => k.pitch),
-  };
-  cameraTrackCache.set(camera, built);
-  return built;
-}
-
 export function cameraAt(project: Project, time: number): CameraState {
-  const tracks = cameraTracks(project.camera);
+  const tracks = project.cameras[0]?.tracks;
 
   /*
    * A map context can supply where the camera sits during its blocks — but only as a
    * default. `resolveMapContext` withholds it when the author placed a keyframe inside
-   * the block, because keyframing is deliberate and a default that beat it would make the
-   * timeline lie about what it is showing.
+   * the block, because keyframing is deliberate and a default that beat it would make
+   * the timeline lie about what it is showing.
    */
   const ctx = resolveMapContext(project, time);
   if (ctx.camera) {
-    const base = tracks.keys.length ? evaluateTracks(tracks, time) : DEFAULT_CAMERA;
+    const base = tracks ? evaluateTracks(tracks, time) : DEFAULT_CAMERA;
     return {
       center: ctx.camera.center ? [ctx.camera.center[0], ctx.camera.center[1]] : base.center,
       zoom: ctx.camera.zoom ?? base.zoom,
@@ -107,23 +61,24 @@ export function cameraAt(project: Project, time: number): CameraState {
     };
   }
 
-  if (tracks.keys.length === 0) return DEFAULT_CAMERA;
+  if (!tracks) return DEFAULT_CAMERA;
 
   /*
    * `dip` pulls the camera back mid-move and settles it again — the cinematic arc. It is
    * not an authored value at any keyframe, it is a modifier over the segment, and it
-   * peaks at the middle in raw time regardless of the easing. That makes it the first
-   * real behaviour in §06's sense, and it is written here rather than in a track until
-   * the behaviour stack exists to hold it.
+   * peaks at the middle in raw time regardless of the easing. It rides the zoom
+   * channel's keys until the rig (§09) exists to hold it as a `zoomEnvelope` behaviour.
    */
   const seg = trackSegment(tracks.zoom, time);
-  const dip = seg ? (tracks.keys[seg.index]?.dip ?? 0) * Math.sin(Math.PI * seg.u) : 0;
+  const dipAmount =
+    seg && tracks.zoom.kind === 'keyframed' ? (tracks.zoom.keys[seg.index]?.dip ?? 0) : 0;
+  const dip = seg ? dipAmount * Math.sin(Math.PI * seg.u) : 0;
 
   return evaluateTracks(tracks, time, dip);
 }
 
 /** The four channels, evaluated. Split out so a context default can reuse the result. */
-function evaluateTracks(tracks: CameraTracks, time: number, dip = 0): CameraState {
+function evaluateTracks(tracks: CameraNode['tracks'], time: number, dip = 0): CameraState {
   /*
    * Every channel names a fallback.
    *

@@ -7,6 +7,29 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The document model — M2.1, the camera is a node (§04, §09)
+
+- **The camera becomes a node.** A project now holds `cameras: CameraNode[]` — the
+  first is the live camera until §04's switcher track exists — and each channel
+  (`center`/`zoom`/`bearing`/`pitch`) is a property track like any layer's, evaluated
+  by the same rule. The evaluator's old per-frame projection of whole-camera rows is
+  gone; the document holds the tracks itself.
+  - The shot row is a **derived view** (`shotsOf`), never storage: the editor keeps
+    speaking of one row carrying all four channels, easing and arc, and
+    `upsertShot`/`patchShot`/`removeShot` write a row across the channels atomically.
+    Re-aiming a shot at the playhead replaces it, keeping its id and time, so the
+    selection and the timeline stay put.
+  - `behaviours: {}` is declared on the node now — the empty home of the rig stack §09
+    will fill.
+- **Format 5 → 6 migration.** Rows convert to per-channel tracks, the old `camera` key
+  is deleted rather than ignored (§3.6.4), and rows too broken to mean anything are
+  dropped rather than crashing the load. `CURRENT_FORMAT` is 6 and a frozen
+  `format-6.geomotion.json` fixture joins the suite that proves every historical format
+  still opens.
+- **Zero behavioural change.** The camera's evaluation (interpolation, dip arc,
+  map-context defaulting) is untouched; golden frames stay identical. The stored shape
+  changed so the write path can, not because the picture should.
+
 ### The editor itself
 
 - **Locked layers.** A lock on each row; a locked layer refuses every edit — property

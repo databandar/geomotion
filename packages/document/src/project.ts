@@ -1,4 +1,5 @@
 import { createId } from '@geomotion/core';
+import { createCamera } from './camera.ts';
 import { CURRENT_FORMAT, runMigrations } from './migrations/index.ts';
 import { coerceTrack, isTrack, keyframedTrack, staticTrack } from './track.ts';
 
@@ -14,7 +15,7 @@ export const windowTrack = (from: number, to: number, easing: EasingName) =>
     { id: createId(), t: Math.max(from, to), value: 1, easing },
   ]);
 import type { Track } from './track.ts';
-import type { CameraKeyframe, EasingName, Layer, LayerType, LngLat, Project, RegionOrder, RegionTour } from './types.ts';
+import type { CameraNode, EasingName, Layer, LayerType, Project, RegionOrder, RegionTour } from './types.ts';
 
 /**
  * Construction and migration for document nodes.
@@ -42,20 +43,6 @@ const PALETTE = [
 
 let colorCursor = 0;
 const nextColor = () => PALETTE[colorCursor++ % PALETTE.length];
-
-export function keyframe(t: number, center: LngLat, zoom: number, extra: Partial<CameraKeyframe> = {}): CameraKeyframe {
-  return {
-    id: createId(),
-    t,
-    center,
-    zoom,
-    bearing: 0,
-    pitch: 0,
-    easing: 'easeInOutCubic',
-    dip: 0,
-    ...extra,
-  };
-}
 
 /**
  * Tour defaults, in one place so `createLayer` and `migrate` agree.
@@ -253,7 +240,7 @@ export function emptyProject(): Project {
     terrain: false,
     terrainExaggeration: 1.4,
     background: '#0d1117',
-    camera: [keyframe(0, [0, 20], 1.8)],
+    cameras: [createCamera()],
     layers: [],
     contexts: [],
     story: [],
@@ -355,7 +342,48 @@ export function migrate(input: unknown): Project {
       p.audio.cues = cues.map((c) => (c.id ? c : { ...c, id: createId() }));
     }
   }
-  p.camera = (p.camera ?? []).map((k) => ({ ...keyframe(0, [0, 0], 1), ...k }));
+  p.layers = (p.layers ?? []).map((l) => {
+    const defaults = createLayer(l.type, l.in ?? 0);
+    const filled = coerceToDefaults({ ...defaults, ...l }, defaults) as Layer;
+    if (filled.type === 'route') {
+      filled.marker = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).marker, ...filled.marker };
+      filled.follow = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).follow, ...filled.follow };
+    }
+    if (filled.type === 'regions') filled.tour = migrateTour(l as unknown as LegacyRegions, filled.tour);
+    return filled;
+  });
+  p.cameras = (Array.isArray(p.cameras) ? p.cameras : []).map(fillCamera);
+  return p;
+}
+
+/**
+ * Repair a loaded camera node against the defaults.
+ *
+ * Tracks validate as wholes — a discriminated union cannot be field-merged without
+ * grafting one kind's payload onto another, which is the bug `coerceTrack` exists to
+ * prevent. Everything else falls back field by field, so a hand-edited file degrades
+ * to a camera rather than to a crash.
+ */
+function fillCamera(loaded: unknown): CameraNode {
+  const defaults = createCamera();
+  if (!loaded || typeof loaded !== 'object') return defaults;
+  const c = loaded as Partial<CameraNode>;
+  const tracks = (c.tracks ?? {}) as Partial<CameraNode['tracks']>;
+  return {
+    id: typeof c.id === 'string' ? c.id : defaults.id,
+    type: 'camera',
+    name: typeof c.name === 'string' ? c.name : defaults.name,
+    tracks: {
+      center: coerceTrack(tracks.center, defaults.tracks.center),
+      zoom: coerceTrack(tracks.zoom, defaults.tracks.zoom),
+      bearing: coerceTrack(tracks.bearing, defaults.tracks.bearing),
+      pitch: coerceTrack(tracks.pitch, defaults.tracks.pitch),
+    },
+    behaviours:
+      c.behaviours && typeof c.behaviours === 'object' && !Array.isArray(c.behaviours) ? c.behaviours : {},
+  };
+}
+
 /**
  * Replace any field whose type disagrees with its default.
  *
@@ -403,17 +431,4 @@ function coerceToDefaults<T>(loaded: T, defaults: T): T {
     }
   }
   return out as T;
-}
-
-  p.layers = (p.layers ?? []).map((l) => {
-    const defaults = createLayer(l.type, l.in ?? 0);
-    const filled = coerceToDefaults({ ...defaults, ...l }, defaults) as Layer;
-    if (filled.type === 'route') {
-      filled.marker = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).marker, ...filled.marker };
-      filled.follow = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).follow, ...filled.follow };
-    }
-    if (filled.type === 'regions') filled.tour = migrateTour(l as unknown as LegacyRegions, filled.tour);
-    return filled;
-  });
-  return p;
 }

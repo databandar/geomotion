@@ -1,5 +1,5 @@
 import { createId } from '@geomotion/core';
-import { createLayer, defaultTour, emptyProject, keyframe, windowTrack } from '@geomotion/document';
+import { cameraFromShots, createLayer, defaultTour, emptyProject, keyframe, windowTrack } from '@geomotion/document';
 import type { Layer, LngLat, Project, RegionsLayer } from '@geomotion/document';
 import indiaStates from '../data/india-states-official.json';
 import anemia from '../data/india-anemia-sample.json';
@@ -81,13 +81,13 @@ export function demoProject(): Project {
     ...emptyProject(),
     name: 'Trans-Pacific',
     duration: 15,
-    camera: [
+    cameras: [cameraFromShots([
       keyframe(0, SF, 9.5, { pitch: 50, bearing: -18 }),
       keyframe(3, SF, 3.4, { pitch: 0, bearing: 0 }),
       keyframe(6.5, [-172, 44], 2.1, { dip: 0.3 }),
       keyframe(9.8, TOKYO, 3.6),
       keyframe(13, TOKYO, 9.5, { pitch: 50, bearing: 22 }),
-    ],
+    ])],
     layers: [route, sf, tokyo, title, stat],
   };
 }
@@ -208,7 +208,7 @@ export function indiaTourProject(): Project {
     duration,
     basemap: 'satellite-labels',
     // Straight down on India; the tour takes the camera from here.
-    camera: [keyframe(0, [82.8, 22.6], 3.5, { pitch: 0 })],
+    cameras: [cameraFromShots([keyframe(0, [82.8, 22.6], 3.5, { pitch: 0 })])],
     layers: [regions, outline, clouds, title, subtitle, caption],
   };
 }

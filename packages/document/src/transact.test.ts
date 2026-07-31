@@ -58,7 +58,7 @@ describe('transact', () => {
     expect(next).not.toBe(doc);
     expect(next.layers[1]).not.toBe(doc.layers[1]); // the edited one is new
     expect(next.layers[0]).toBe(doc.layers[0]); // the heavy one is the same object
-    expect(next.camera).toBe(doc.camera); // and so is everything else
+    expect(next.cameras).toBe(doc.cameras); // and so is everything else
   });
 
   it('produces a patch pair that round-trips exactly', () => {

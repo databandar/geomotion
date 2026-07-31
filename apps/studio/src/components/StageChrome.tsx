@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { fitBounds } from '@geomotion/entities';
+import { shotsOf } from '@geomotion/document';
+import type { CameraKeyframe } from '@geomotion/document';
 import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
 import { projectExtent } from '../lib/extent';
@@ -16,7 +18,7 @@ import Icon from './Icon';
 export default function StageChrome({ stage }: { stage: React.RefObject<HTMLElement | null> }) {
   const host = useRenderHost();
   const project = useStore((s) => s.project);
-  const camera = useStore((s) => s.project.camera);
+  const camera = useStore((s) => s.project.cameras[0]);
   const time = useStore((s) => s.time);
   const select = useStore((s) => s.select);
   const full = useFullscreen(stage);
@@ -27,10 +29,18 @@ export default function StageChrome({ stage }: { stage: React.RefObject<HTMLElem
    * navigate: the chip is how you get from "this framing is wrong" to the keyframe that
    * decides it, without hunting along the timeline for a diamond.
    */
-  const shot = camera.reduce<{ i: number; t: number; id: string } | null>(
-    (best, k, i) => (k.t <= time + 1e-6 && (!best || k.t >= best.t) ? { i, t: k.t, id: k.id } : best),
-    null,
-  );
+  const shot = useMemo(() => {
+    if (!camera) return null;
+    let best: CameraKeyframe | undefined;
+    let i = 0;
+    for (const s of shotsOf(camera)) {
+      if (s.t <= time + 1e-6) {
+        best = s;
+        i++;
+      } else break;
+    }
+    return best ? { i: i - 1, t: best.t, id: best.id } : null;
+  }, [camera, time]);
 
   return (
     <div className="stage-chrome">
@@ -41,7 +51,7 @@ export default function StageChrome({ stage }: { stage: React.RefObject<HTMLElem
         onClick={() => shot && select({ kind: 'keyframe', id: shot.id })}
       >
         <Icon name="camera" size={12} />
-        {shot ? `Shot ${shot.i + 1} of ${camera.length}` : 'No camera'}
+        {shot ? `Shot ${shot.i + 1} of ${camera ? shotsOf(camera).length : 0}` : 'No camera'}
       </button>
 
       <div className="stage-tools">

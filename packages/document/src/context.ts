@@ -106,7 +106,15 @@ export function resolveMapContext(project: Project, time: number): ResolvedConte
   };
 }
 
-/** Whether the author placed a camera keyframe inside this stretch. */
+/**
+ * Whether the author placed a camera keyframe inside this stretch.
+ *
+ * Read off the centre channel: a shot is meaningless without a place, so it is the one
+ * channel every shot has a key in.
+ */
 function hasKeyInBlock(project: Project, t: number, d: number): boolean {
-  return project.camera.some((k) => k.t >= t && k.t < t + d);
+  return project.cameras.some((cam) => {
+    const center = cam.tracks.center;
+    return center.kind === 'keyframed' && center.keys.some((k) => k.t >= t && k.t < t + d);
+  });
 }

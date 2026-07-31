@@ -1,15 +1,21 @@
 import { create } from 'zustand';
 import {
   History,
+  createCamera,
   createLayer,
   hasKeyAt,
+  patchShot,
+  removeShot,
   rippleBlockLength,
   rippleBlockTo,
   isTrack,
   keyframe,
+  shotAt,
+  shotsOf,
   staticTrack,
   toKeyframed,
   transact,
+  upsertShot,
   windowTrack,
   withKeyMoved,
   withValueAt,
@@ -186,6 +192,21 @@ function assignChanged<T extends object>(target: T, patch: Partial<T>): void {
 function editable(p: Project, id: string): Layer | undefined {
   const layer = p.layers.find((l) => l.id === id);
   return layer?.locked === true ? undefined : layer;
+}
+
+/**
+ * The camera edits go to, creating it if the document has none.
+ *
+ * A camera is an observer: a composition without one is valid (the evaluator renders
+ * from its default view), so the store cannot assume one exists — the first keyframe
+ * the user places is what brings it into being.
+ */
+function ensureCamera(p: Project) {
+  const existing = p.cameras[0];
+  if (existing) return existing;
+  const cam = createCamera();
+  p.cameras.push(cam);
+  return cam;
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -506,35 +527,28 @@ export const useStore = create<State>((set, get) => ({
   },
 
   addKeyframe: (init) => {
-    const { time, project } = get();
+    const { time } = get();
     const kf = keyframe(time, [0, 0], 2, init);
     get().patch((p) => {
-      const existing = p.camera.find((k) => Math.abs(k.t - time) < 0.02);
-      if (existing) Object.assign(existing, { ...kf, id: existing.id, t: existing.t });
-      else p.camera.push(kf);
-      p.camera.sort((a, b) => a.t - b.t);
+      upsertShot(ensureCamera(p), kf);
     });
-    const found = get().project.camera.find((k) => Math.abs(k.t - time) < 0.02);
+    // The upsert may have replaced the shot already at the playhead, keeping its id —
+    // so look up by time, not by the id that was just built.
+    const cam = get().project.cameras[0];
+    const found = cam ? shotsOf(cam).find((k) => Math.abs(k.t - time) < 0.02) : undefined;
     if (found) set({ selection: { kind: 'keyframe', id: found.id } });
-    void project;
   },
 
   updateKeyframe: (id, patchObj, historyKey) => {
     get().patch((p) => {
-      const i = p.camera.findIndex((k) => k.id === id);
-      if (i < 0) return;
-      const existing = p.camera[i];
-      if (!existing) return;
-      assignChanged(existing, patchObj);
-      // Only a retime can disturb the order, and sorting an already-sorted array
-      // unconditionally would make every other keyframe edit look like a change.
-      if (patchObj.t !== undefined) p.camera.sort((a, b) => a.t - b.t);
+      patchShot(ensureCamera(p), id, patchObj);
     }, historyKey ? `${id}:${historyKey}` : undefined);
   },
 
   removeKeyframe: (id) => {
     get().patch((p) => {
-      p.camera = p.camera.filter((k) => k.id !== id);
+      const cam = p.cameras[0];
+      if (cam) removeShot(cam, id);
     });
     const sel = get().selection;
     if (sel?.kind === 'keyframe' && sel.id === id) set({ selection: null });
@@ -592,9 +606,10 @@ export function useSelectedCue(): AudioCue | undefined {
 }
 
 export function useSelectedKeyframe(): CameraKeyframe | undefined {
-  return useStore((s) =>
-    s.selection?.kind === 'keyframe' ? s.project.camera.find((k) => k.id === s.selection!.id) : undefined,
-  );
+  return useStore((s) => {
+    const cam = s.project.cameras[0];
+    return s.selection?.kind === 'keyframe' && cam ? shotAt(cam, s.selection.id) : undefined;
+  });
 }
 
 /**

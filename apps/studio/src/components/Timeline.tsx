@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import Icon from './Icon';
-import { isRetimable, storyInOrder, trackedProps } from '@geomotion/document';
+import { isRetimable, shotsOf, storyInOrder, trackedProps } from '@geomotion/document';
 import type { Track } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
 
@@ -163,7 +163,7 @@ export default function Timeline() {
             </div>
 
             <div className="tl-row camera-row" onPointerDown={startScrub}>
-              {project.camera.map((k) => (
+              {project.cameras[0] ? shotsOf(project.cameras[0]).map((k) => (
                 <div
                   key={k.id}
                   className={'kf' + (selection?.kind === 'keyframe' && selection.id === k.id ? ' sel' : '')}
@@ -176,7 +176,7 @@ export default function Timeline() {
                   }}
                   onDoubleClick={() => removeKeyframe(k.id)}
                 />
-              ))}
+              )) : null}
             </div>
 
             {project.story.length > 0 && (
