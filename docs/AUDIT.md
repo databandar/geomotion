@@ -189,6 +189,26 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.39 A draft that reframed the composition (M38)
+
+The four remaining pipeline files are browser-driving orchestration, so rather than
+unit-test their structure, the pipeline was run end to end and the artifact inspected:
+a 4s project rendered to MP4 and checked with `ffprobe` — 60 frames at 15 fps, exactly
+4.000s in both streams, video and audio present, audio at -13.3 dB mean.
+
+That is where the bug turned up. `--draft` chose between 960x540 and 540x960 on nothing
+but portrait-versus-landscape, which is right for the two 16:9 presets and wrong for the
+rest. **Square 1:1 is a shipped preset**, and `height > width` is false when they are
+equal, so a 1080x1080 composition rendered as a 960x540 widescreen draft — confirmed by
+`ffprobe` on the output, not inferred. Everything positioned relative to the frame
+(titles, the legend, the readout card) therefore sat somewhere it would not sit in the
+final render, in the one artifact whose entire purpose is judging framing and timing.
+
+`draftSize` now scales by the long edge and keeps the ratio. It also stops *enlarging*
+small compositions — the old code upscaled a 640x360 project to 960x540, paying encoder
+time for pixels nobody asked for. The two 16:9 presets come out byte-identical to
+before, which is the common case and would otherwise invalidate every existing draft.
+
 ### 6.38 The survey reader (M37)
 
 The NFHS reader had no tests, and it is the one place in the pipeline where a mistake

@@ -15,6 +15,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { renderFrames } from './lib/render.mjs';
+import { draftSize } from './lib/draft.mjs';
 import { encode, grabThumbnail, muxEncoded } from './lib/encode.mjs';
 import { EncoderUnavailable, renderEncoded } from './lib/render-encoded.mjs';
 import { buildVoiceTrack } from './lib/tts.mjs';
@@ -50,8 +51,9 @@ const slug = opt('slug', (project.name || 'project').toLowerCase().replace(/[^\w
 
 if (draft) {
   project.fps = 15;
-  const scale = project.height > project.width ? { width: 540, height: 960 } : { width: 960, height: 540 };
-  Object.assign(project, scale);
+  // Aspect ratio preserved: a draft that reframes the composition cannot be used to
+  // judge the framing, which is most of what a draft is for. See draftSize.
+  Object.assign(project, draftSize(project.width, project.height));
 }
 
 const outDir = path.join(APP, 'out', slug + (draft ? '-draft' : ''));
