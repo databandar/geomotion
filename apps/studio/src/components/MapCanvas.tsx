@@ -72,7 +72,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     map.setPixelRatio(1);
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
     map.on('style.load', () => {
-      resetSyncCache();
+      resetSyncCache(map);
       applyTerrain(map);
       renderRef.current(true);
     });
@@ -254,7 +254,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     const map = mapRef.current;
     if (!map || styleIdRef.current === basemap) return;
     styleIdRef.current = basemap;
-    resetSyncCache();
+    resetSyncCache(map);
     map.setStyle(getBasemap(basemap).style as never);
   }, [basemap]);
 

@@ -189,6 +189,25 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.42 One cache per map (M41)
+
+The paint cache lived in a single module-level `Map`. It mirrors *a map's* GL state, so
+a second map — a preview thumbnail, a comparison view, two in one test process — would
+read the first one's answers and skip properties it had never been told.
+
+Nothing runs two maps today, which is precisely the shape that produced the dasharray
+bug in M31: correct only because of a relationship nothing states and nothing enforces.
+This was the last known instance of that pattern, so it is now keyed by the map itself
+in a `WeakMap`, and a discarded map takes its cache with it.
+
+`resetSyncCache` takes the map it is resetting. Both call sites already had one to hand;
+both are style reloads, which destroy every layer we added, so the cache has to go with
+them or it will claim properties are set on layers that no longer exist.
+
+Two tests, and reverting to a shared cache fails all three that touch it — including one
+that had been passing by accident. The style-reload path was also exercised in the real
+editor: switching basemap rebuilds all seven layers with no errors.
+
 ### 6.41 An undo that reversed nothing (M40)
 
 `History` and `transact` are covered in the document package. What was not covered is

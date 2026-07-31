@@ -75,7 +75,7 @@ const withRoute = (style = routeStyle()) =>
 let map: FakeMap;
 
 beforeEach(() => {
-  // The cache lives at module scope, so a test that did not clear it would inherit the
+  // The cache is keyed by map, so a test that did not clear it would inherit the
   // previous test's idea of what the map already shows.
   resetSyncCache();
   map = new FakeMap();
@@ -235,6 +235,42 @@ describe('syncScene — switching a shape between outline modes', () => {
     map.flush();
     sync(withShape());
     expect(map.state().layers).not.toContain('gm-shape-s1-3d');
+  });
+});
+
+describe('syncScene — two maps at once', () => {
+  it('does not let one map answer for another', () => {
+    /*
+     * The cache used to live in one module-level Map, so a second map read the first
+     * one's answers and skipped properties it had never been told. Nothing runs two
+     * maps today — which is precisely the shape of "safe because of something nothing
+     * states" that produced the dasharray bug.
+     */
+    const other = new FakeMap();
+    const s = withShape();
+    sync(s);
+    map.flush();
+
+    syncScene(other as never, s);
+    // The second map is empty, so it must receive everything, not be told it is current.
+    expect(other.ops('addLayer').length).toBeGreaterThan(0);
+    expect(other.ops('setPaint').length).toBeGreaterThan(0);
+  });
+
+  it('resetting one map leaves the other cache alone', () => {
+    const other = new FakeMap();
+    const s = withShape();
+    sync(s);
+    syncScene(other as never, s);
+    other.flush();
+    map.flush();
+
+    resetSyncCache(other as never);
+    syncScene(other as never, s);
+    expect(other.ops('setPaint').length).toBeGreaterThan(0);
+
+    sync(s);
+    expect(map.ops('setPaint')).toEqual([]);
   });
 });
 

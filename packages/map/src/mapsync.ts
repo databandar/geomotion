@@ -26,35 +26,55 @@ function measuredRing(ring: LngLat[]): MeasuredPath {
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
-const paintCache = new Map<string, unknown>();
+/**
+ * What each map has already been told, so a still frame re-sends nothing.
+ *
+ * Keyed by the map itself rather than held in one module-level Map. The cache mirrors
+ * *that map's* GL state, so a second map — a preview thumbnail, a comparison view, a
+ * test running two in one process — would read the first one's answers and skip
+ * properties it had never actually set. Nothing does that today, which is exactly the
+ * kind of "safe because of something nothing states" that produced the dasharray bug
+ * two milestones ago.
+ *
+ * Weak, so a discarded map takes its cache with it.
+ */
+const paintCaches = new WeakMap<MLMap, Map<string, unknown>>();
+
+function cacheFor(map: MLMap): Map<string, unknown> {
+  let c = paintCaches.get(map);
+  if (!c) {
+    c = new Map();
+    paintCaches.set(map, c);
+  }
+  return c;
+}
 
 /** Arrays/objects compare by value so we don't re-set line-dasharray every frame. */
 const cacheKeyOf = (v: unknown) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : v);
 
-/**
- * Skip a property that is already where we want it.
- *
- * `has` before `get`, because `undefined` is a real value here — it is how a paint
- * property is cleared back to its default, and `line-dasharray` is set to it on every
- * undashed line. A plain `get(key) === next` cannot tell "never set" from "set to
- * undefined", so the first attempt to clear a property was skipped. Nothing hit it
- * today only because the cache is reset exactly when the style reloads and every layer
- * is destroyed with it — a coupling nothing states and nothing enforces.
- */
-function shouldSkip(key: string, next: unknown): boolean {
-  return paintCache.has(key) && paintCache.get(key) === next;
-}
-
 function setPaint(map: MLMap, layerId: string, prop: string, value: unknown) {
+  const cache = cacheFor(map);
   const key = layerId + '|' + prop;
   const next = cacheKeyOf(value);
-  if (shouldSkip(key, next)) return;
-  paintCache.set(key, next);
+  /*
+   * `has` before `get`, because `undefined` is a real value here — it is how a paint
+   * property is cleared back to its default, and `line-dasharray` is set to it on every
+   * undashed line. A plain `get(key) === next` cannot tell "never set" from "set to
+   * undefined", so the first attempt to clear a property was skipped.
+   */
+  if (cache.has(key) && cache.get(key) === next) return;
+  cache.set(key, next);
   map.setPaintProperty(layerId, prop, value as never);
 }
 
-export function resetSyncCache() {
-  paintCache.clear();
+/**
+ * Forget what a map has been told.
+ *
+ * Called when the style reloads, which destroys every layer we added — so the cache
+ * must go with them or it will claim properties are set on layers that no longer exist.
+ */
+export function resetSyncCache(map?: MLMap) {
+  if (map) paintCaches.delete(map);
   shapeCache.clear();
 }
 
@@ -89,6 +109,8 @@ function parseShape(style: ShapeStyle): ShapeCacheEntry {
 
 export function syncScene(map: MLMap, scene: Scene) {
   if (!map.isStyleLoaded()) return;
+
+  const cache = cacheFor(map);
 
   const wanted = new Set<string>();
 
@@ -158,8 +180,8 @@ export function syncScene(map: MLMap, scene: Scene) {
     // values or ramp actually change — not every frame.
     const dataKey = `${src}!data`;
     const stamp = set.data.features.length + ':' + (set.regions[0]?.fill ?? '') + ':' + set.domain.join(',');
-    if (paintCache.get(dataKey) !== stamp) {
-      paintCache.set(dataKey, stamp);
+    if (cache.get(dataKey) !== stamp) {
+      cache.set(dataKey, stamp);
       (map.getSource(src) as GeoJSONSource | undefined)?.setData(set.data);
     }
 
@@ -229,11 +251,11 @@ export function syncScene(map: MLMap, scene: Scene) {
 
     // Only the active region changes state, so touch just the two that moved.
     const prevKey = `${src}!active`;
-    const prevActive = paintCache.get(prevKey) as number | undefined;
+    const prevActive = cache.get(prevKey) as number | undefined;
     if (prevActive !== r.activeId) {
       if (prevActive) map.setFeatureState({ source: src, id: prevActive }, { active: false });
       if (r.activeId) map.setFeatureState({ source: src, id: r.activeId }, { active: true });
-      paintCache.set(prevKey, r.activeId ?? undefined);
+      cache.set(prevKey, r.activeId ?? undefined);
     }
 
     ensureSource(map, traceSrc, EMPTY);
