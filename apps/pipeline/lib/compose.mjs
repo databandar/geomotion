@@ -467,12 +467,50 @@ export async function compose(script, timings) {
       },
     ],
     layers,
+    /*
+     * The beats, kept.
+     *
+     * They used to end here: `compose` returned them, `video.mjs` printed a listing and
+     * built subtitles, and the structure that produced the video never reached the file.
+     * A beat could not be retimed, and re-running the composer discarded every hand edit
+     * — the "generated then flattened" the design document rules out in its first
+     * commitment, and v1's frozen voice bed one level up.
+     */
+    story: beats.map((b) => storyBlockOf(b, layers)),
   };
 
   return { project, beats, duration };
 }
 
 /* ------------------------------------------------------------- subtitles */
+
+/**
+ * One beat as a document story block.
+ *
+ * The layers a block choreographs are found by the window they occupy rather than
+ * recorded as the composer builds them: a beat is a stretch of time, and a layer that
+ * lives inside that stretch is what it is animating. That keeps this a projection of the
+ * timeline rather than a second bookkeeping system that could disagree with it.
+ *
+ * A tour's stops are not expanded into separate blocks. The tour is one narrative beat
+ * that happens to visit several regions, and splitting it would make retiming the beat
+ * mean retiming six things that must stay adjacent.
+ */
+function storyBlockOf(beat, layers) {
+  const start = beat.start;
+  const end = start + beat.length;
+  return {
+    id: uid(),
+    t: start,
+    d: beat.length,
+    ...(beat.say ? { say: beat.say } : {}),
+    ...(beat.onScreen ? { onScreen: beat.onScreen } : {}),
+    ...(beat.kind ? { kind: beat.kind } : {}),
+    // Overlap, not containment: a title that starts inside a beat and runs past its end
+    // is still that beat's doing.
+    nodes: layers.filter((l) => l.in < end && l.out > start).map((l) => l.id),
+  };
+}
 
 export function buildSrt(beats) {
   const cues = [];

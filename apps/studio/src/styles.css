@@ -1636,7 +1636,25 @@ textarea.text-input.mono,
 
 
 /* Audio clips on the timeline: draggable, so they say so. */
+/*
+ * A cue is a chip at its own time, not a paragraph.
+ *
+ * There was no positioning rule here at all, so the `left` and `width` the component
+ * sets went nowhere and the chips stacked in normal flow — a project with six narration
+ * lines spilled its whole script down over three layer rows. Invisible with one short
+ * cue, which is why it survived.
+ */
 .voice-row .cue {
+  position: absolute;
+  top: 4px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border-radius: 4px;
+  background: rgb(96 165 250 / 0.16);
+  border: 1px solid rgb(96 165 250 / 0.5);
+  font-size: 11px;
   cursor: grab;
 }
 .voice-row .cue.sel {
@@ -1837,4 +1855,40 @@ body:has(.app.exporting)::before {
 
 .tl-row .prop-kf:hover {
   transform: rotate(45deg) scale(1.4);
+}
+
+/* ------------------------------------------------------------ story lane */
+
+.tl-gutter-row.track-story {
+  color: var(--t-text);
+}
+
+.story-block {
+  position: absolute;
+  top: 4px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border-radius: 4px;
+  /* The narration's own colour, distinct from any layer type: a block is not a layer. */
+  background: rgb(167 139 250 / 0.16);
+  border: 1px solid rgb(167 139 250 / 0.5);
+  overflow: hidden;
+}
+
+/* A narration line is a sentence; the chip is one row high. */
+.voice-row .cue,
+.voice-row .cue * {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.story-label {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

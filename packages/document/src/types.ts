@@ -1,4 +1,5 @@
 import type { BehaviourStacks, Track } from './track.ts';
+import type { StoryBlock } from './story.ts';
 // The canonical declaration lives in @geomotion/core (ENGINEERING_GUIDE §2 puts
 // vector-like primitives there). Imported for use below and re-exported under the
 // name v1 already uses, so the document types read the same.
@@ -413,6 +414,13 @@ export interface Project {
   terrainExaggeration: number;
   background: string;
   camera: CameraKeyframe[];
+  /**
+   * The narration-driven structure of the composition (§10).
+   *
+   * Empty for a project built layer by layer; populated by the composer, and editable
+   * afterwards — which is the point. See story.ts.
+   */
+  story: StoryBlock[];
   layers: Layer[];
   audio?: ProjectAudio;
 }

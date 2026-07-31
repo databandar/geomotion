@@ -53,3 +53,4 @@ export {
 } from './track.ts';
 export { windowTrack } from './project.ts';
 export { CURRENT_FORMAT, formatOf, runMigrations } from './migrations/index.ts';
+export { blockAt, blocksFor, storyEnd, storyInOrder, type StoryBlock } from './story.ts';

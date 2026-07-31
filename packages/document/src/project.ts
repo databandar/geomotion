@@ -255,6 +255,7 @@ export function emptyProject(): Project {
     background: '#0d1117',
     camera: [keyframe(0, [0, 20], 1.8)],
     layers: [],
+    story: [],
   };
 }
 

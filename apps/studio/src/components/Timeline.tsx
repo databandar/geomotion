@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import Icon from './Icon';
-import { isRetimable, trackedProps } from '@geomotion/document';
+import { isRetimable, storyInOrder, trackedProps } from '@geomotion/document';
 import type { Track } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
 
@@ -86,6 +86,7 @@ export default function Timeline() {
         <div className="tl-gutter" style={{ width: GUTTER }} ref={gutterRef}>
           <div className="tl-gutter-row tl-ruler-spacer" />
           <div className="tl-gutter-row track-camera">Camera</div>
+          {project.story.length > 0 && <div className="tl-gutter-row track-story">Story</div>}
           {project.audio && (
             <div className="tl-gutter-row track-voice">
               Audio
@@ -158,6 +159,21 @@ export default function Timeline() {
                 />
               ))}
             </div>
+
+            {project.story.length > 0 && (
+              <div className="tl-row story-row" onPointerDown={startScrub}>
+                {storyInOrder(project.story).map((b) => (
+                  <div
+                    key={b.id}
+                    className="story-block"
+                    style={{ left: b.t * pxPerSec, width: Math.max(4, b.d * pxPerSec) }}
+                    title={`${b.kind ?? 'block'} · ${b.d.toFixed(1)}s · ${b.nodes.length} layer${b.nodes.length === 1 ? '' : 's'}${b.say ? `\n${b.say}` : ''}`}
+                  >
+                    <span className="story-label">{b.say ?? b.onScreen ?? b.kind ?? 'block'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Order here must match the gutter above: Camera, then Narration. */}
             {project.audio && (
