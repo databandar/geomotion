@@ -189,6 +189,27 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.37 An export that lied about its audio (M36)
+
+The in-browser export's mixer had no coverage, so it got the treatment the renderer and
+map got: run it, and measure.
+
+**The timing is right, and now that is known rather than assumed.** A 440 Hz tone on a
+cue at `t: 2`, mixed through the real `prepareAudioTrack`, recorded from the same
+`MediaStreamTrack` the exporter hands to `MediaRecorder`, and measured with ffmpeg:
+`silence_end: 2.0016`. That path had never been verified end to end.
+
+**The reporting was wrong.** Decoding is deduplicated by URL — the point of the buffer
+cache — and importing one sting at two points in the timeline gives both cues an
+identical data URL. But a failed URL silences *every* cue using it, while the failure
+was attributed once. Measured before the fix: `count: 1, failed: ["sting one"]`, when
+nothing at all would play and both clips were gone. The export then tells you one clip
+made it in, and someone publishes on the strength of that number.
+
+Counting moved to `decodeReport`, which counts per cue rather than per URL and is pure,
+so it is tested in node instead of needing a browser. After: `count: 0, failed:
+["sting one", "sting two"]`.
+
 ### 6.36 A file with the right shape and the wrong types (M35)
 
 Opening a project is guarded by a `try/catch`, so a file that fails to parse — or that
