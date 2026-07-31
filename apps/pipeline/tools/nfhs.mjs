@@ -14,11 +14,38 @@
 import { loadNfhs, listIndicators, extract, changes, writeValuesFile, DEFAULT_CSV } from '../lib/nfhs.mjs';
 
 const [cmd, ...rest] = process.argv.slice(2);
-const args = rest.filter((a) => !a.startsWith('--'));
-const opt = (n, d) => {
-  const hit = rest.find((a) => a.startsWith(`--${n}=`));
-  return hit ? hit.split('=').slice(1).join('=') : d;
-};
+
+/*
+ * Accept `--out path` as well as `--out=path`.
+ *
+ * The usage above has always shown the space form, and only the equals form worked —
+ * so following this tool's own documentation printed "pass --out=<path>" and did
+ * nothing. Worse than the error is what the space form did to the positional
+ * arguments: the value was not recognised as belonging to a flag, so it stayed in the
+ * list and could be read as the indicator name.
+ *
+ * A one-pass scan, so a flag's value is consumed rather than left behind. `--flag`
+ * with nothing after it, or followed by another flag, stays a boolean.
+ */
+const flags = new Map();
+const args = [];
+for (let i = 0; i < rest.length; i++) {
+  const a = rest[i];
+  if (!a.startsWith('--')) {
+    args.push(a);
+    continue;
+  }
+  const eq = a.indexOf('=');
+  if (eq > -1) {
+    flags.set(a.slice(2, eq), a.slice(eq + 1));
+  } else if (rest[i + 1] !== undefined && !rest[i + 1].startsWith('--')) {
+    flags.set(a.slice(2), rest[i + 1]);
+    i++;
+  } else {
+    flags.set(a.slice(2), true);
+  }
+}
+const opt = (n, d) => (flags.has(n) ? flags.get(n) : d);
 
 /*
  * A failure here is almost always a misconfigured path or a mistyped indicator, and
@@ -54,7 +81,7 @@ if (cmd === 'list') {
 } else if (cmd === 'extract') {
   const e = extract(data, args[0], opt('round', 'total'));
   const out = opt('out', null);
-  if (!out) throw new Error('pass --out=<path>');
+  if (!out || out === true) throw new Error('pass --out <path>');
   const doc = await writeValuesFile(e, out);
   console.log(`wrote ${out}: ${Object.keys(doc.values).length} regions, national ${doc._national}`);
   if (doc._missing.length) console.log(`no value for: ${doc._missing.join(', ')}`);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { collectLines, compose, prepareScript } from './compose.mjs';
+import { BEAT_KINDS, collectLines, compose, prepareScript, validateScript } from './compose.mjs';
 
 /**
  * Behavioural spec for script composition — the first tests this app has had
@@ -172,5 +172,58 @@ describe('compose', () => {
     await expect(prepareScript({ values: 'no-such-preset', beats: [] })).rejects.toThrow(
       /unknown values preset.*Available presets/s,
     );
+  });
+});
+
+describe('validateScript', () => {
+  const beats = (...b) => ({ beats: b });
+
+  it('accepts every kind the composer can build', () => {
+    for (const kind of BEAT_KINDS) {
+      const beat = kind === 'tour' ? { kind, stops: [] } : { kind };
+      expect(() => validateScript(beats(beat))).not.toThrow();
+    }
+  });
+
+  it('rejects a beat with no kind, and says what the kinds are', () => {
+    /*
+     * The failure this exists for. A beat is looked up by `kind`, so one without it is
+     * never found — and the composer built the project anyway and reported success at
+     * every step. A script whose beats all lacked `kind` produced a 13-second video of
+     * an empty map with a credit line, after paying for speech synthesis, a render and
+     * an encode. The only hints were "1 layers" and `undefined` in the beat listing.
+     */
+    expect(() => validateScript(beats({ say: 'hello' }))).toThrow(/no "kind"/);
+    expect(() => validateScript(beats({ say: 'hello' }))).toThrow(/clouds, hook, outline, overview, tour, labels/);
+  });
+
+  it('rejects a misspelt kind rather than silently skipping it', () => {
+    expect(() => validateScript(beats({ kind: 'overveiw' }))).toThrow(/unknown kind "overveiw"/);
+  });
+
+  it('lists every bad beat at once, not just the first', () => {
+    // Fixing them one render at a time is the slow way to find out.
+    const e = (() => {
+      try {
+        validateScript(beats({ say: 'a' }, { kind: 'nope' }, { kind: 'tour', stops: [] }));
+      } catch (err) {
+        return String(err);
+      }
+    })();
+    expect(e).toMatch(/beat 1/);
+    expect(e).toMatch(/beat 2/);
+  });
+
+  it('rejects a tour with no stops array', () => {
+    expect(() => validateScript(beats({ kind: 'tour' }))).toThrow(/"stops" array/);
+  });
+
+  it('rejects a script with no beats at all', () => {
+    expect(() => validateScript({ beats: [] })).toThrow(/no beats/);
+    expect(() => validateScript({})).toThrow(/no beats/);
+  });
+
+  it('numbers beats from one, as a person reading the file would', () => {
+    expect(() => validateScript(beats({ kind: 'clouds' }, { say: 'x' }))).toThrow(/beat 2/);
   });
 });

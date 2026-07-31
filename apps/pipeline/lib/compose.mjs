@@ -33,6 +33,57 @@ async function readJson(p) {
  * `say` or `onScreen` keep the spoken numbers tied to the data — change a value
  * and the voiceover follows, instead of quietly contradicting the map.
  */
+/**
+ * The beat kinds `compose` knows how to build.
+ *
+ * `hook` is real but undocumented — it is the short-format opener. Listed here so a
+ * script using it is not rejected, and so this stays the single place the set is
+ * written down.
+ */
+export const BEAT_KINDS = ['clouds', 'hook', 'outline', 'overview', 'tour', 'labels'];
+
+/**
+ * Reject a script that cannot produce what it is asking for, before anything is spent.
+ *
+ * A beat is looked up by `kind`, so a beat with a missing or misspelt one is simply
+ * never found — and the composer went on to build a project without it and report
+ * success at every step. A script whose beats all lacked `kind` produced a 13-second
+ * video of an empty map with a credit line, after paying for speech synthesis, a
+ * render and an encode. Nothing in the output said the story was missing; the only
+ * hints were "1 layers" and `undefined` in the beat list.
+ *
+ * Called before narration rather than inside `compose`, because narration is the
+ * expensive step and it runs first.
+ */
+export function validateScript(script) {
+  const problems = [];
+  const beats = script.beats;
+
+  if (!Array.isArray(beats) || beats.length === 0) {
+    problems.push('no beats: a script needs at least one, or it renders an empty map');
+  } else {
+    beats.forEach((beat, i) => {
+      const at = `beat ${i + 1}`;
+      if (!beat || typeof beat !== 'object') {
+        problems.push(`${at}: not an object`);
+        return;
+      }
+      if (!beat.kind) {
+        problems.push(`${at}: no "kind" — one of ${BEAT_KINDS.join(', ')}`);
+      } else if (!BEAT_KINDS.includes(beat.kind)) {
+        problems.push(`${at}: unknown kind "${beat.kind}" — expected one of ${BEAT_KINDS.join(', ')}`);
+      }
+      if (beat.kind === 'tour' && !Array.isArray(beat.stops)) {
+        problems.push(`${at}: a tour needs a "stops" array`);
+      }
+    });
+  }
+
+  if (problems.length) {
+    throw new Error(`This script will not render what it describes:\n  - ${problems.join('\n  - ')}`);
+  }
+}
+
 export async function prepareScript(script) {
   const resolved = await resolveValues(script.values);
   const { values, previous } = resolved;

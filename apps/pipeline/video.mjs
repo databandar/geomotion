@@ -13,7 +13,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { collectLines, compose, buildSrt, prepareScript } from './lib/compose.mjs';
+import { collectLines, compose, buildSrt, prepareScript, validateScript } from './lib/compose.mjs';
 import { lineAudio, buildVoiceTrack } from './lib/tts.mjs';
 import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
@@ -41,7 +41,18 @@ if (!scriptPath) {
 const step = (n, msg) => console.log(`\n\x1b[36m[${n}]\x1b[0m ${msg}`);
 const ok = (msg) => console.log(`    \x1b[32m✓\x1b[0m ${msg}`);
 
+/*
+ * A failure here is a bad script or a missing input, and both arrive with a message
+ * written to be read. A stack trace buries it under frames from inside the composer.
+ */
+process.on('uncaughtException', (e) => {
+  console.error('\n' + (e instanceof Error ? e.message : String(e)) + '\n');
+  process.exit(1);
+});
+
 const script = JSON.parse(await fs.readFile(scriptPath, 'utf8'));
+// Before narration, which is the expensive step and runs first.
+validateScript(script);
 const slug = script.slug ?? path.basename(scriptPath, '.json');
 const draft = flag('draft');
 

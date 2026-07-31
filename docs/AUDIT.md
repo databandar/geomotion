@@ -189,6 +189,36 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.43 A story that rendered nothing and said it was fine (M42)
+
+With the defect backlog empty, the next best source of work was using the product: a
+real composition, built end to end from real NFHS data — women who have ever used the
+internet, 33.3% to 64.3% nationally.
+
+Two things got in the way, both found by doing it rather than reading it.
+
+**The tool's own documented usage did not work.** `nfhs.mjs` documents
+`extract "…" --out path`, and the parser only accepted `--out=path`, so following the
+usage line printed "pass --out=<path>" and did nothing. Worse than the error was what
+the space form did to the positional arguments: the value was not recognised as
+belonging to a flag, so it stayed in the list and could be read as the indicator name.
+Both forms work now.
+
+**A script with invalid beats rendered an empty map and reported success.** Beats are
+looked up by `kind`, so a beat missing one is never found — and the composer built the
+project without it, then narrated, rendered and encoded, printing a green tick at every
+step. The result was 13 seconds of empty dark map with a credit line: four steps of
+"✓", a 244 KB MP4, subtitles, a thumbnail. The only hints were `1 layers` and
+`undefined` in the beat listing, and the only way to find out was to watch it.
+
+`validateScript` now rejects the script *before* narration, which is the expensive step
+and runs first, listing every bad beat at once with the valid kinds. Both CLIs also
+print their errors instead of burying them in a stack trace.
+
+With a correct script the same pipeline produces exactly what it should: 437 frames,
+29.1s, video and audio, Goa at 94.0% ranked #1 of 36, and a legend domain of 48.8-94.0
+matching the real extremes. The product was working; only its failure mode was silent.
+
 ### 6.42 One cache per map (M41)
 
 The paint cache lived in a single module-level `Map`. It mirrors *a map's* GL state, so
