@@ -28,6 +28,14 @@ name the section each change answers to.
   re-composing discarded every hand edit. They are now a top-level document section,
   shown as a lane on the timeline. Purely additive: no format bump.
 
+### Cameras (v2 §02, §09)
+
+- **Double-click a region and the camera frames it** — the design document's signature
+  gesture. It writes a camera keyframe at the playhead, so the camera animates into the
+  region from wherever the previous key left it: an authoring act, not a navigation
+  shortcut. Framing comes from the same `fitBounds` solver the automated tour uses, so a
+  shot placed by hand and one placed by the composer are identical for identical inputs.
+
 ### Motion engine (v2 §04, §06)
 
 - **Behaviour stacks**, keyed by the property each modifies. `pop` and `pulse` were

@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useStore } from '../store';
 import { evaluate, type Scene } from '@geomotion/evaluator';
 import { syncScene, resetSyncCache } from '@geomotion/map';
+import { fitBounds, regionSet } from '@geomotion/entities';
 import { evalTrack } from '@geomotion/animation';
 import { drawOverlay, scaleFor } from '@geomotion/renderer';
 import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
@@ -81,6 +82,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     setMapReady(true);
     map.on('mousedown', onMouseDown);
     map.on('click', onClick);
+    map.on('dblclick', onDblClick);
 
     return () => {
       onHostReadyRef.current?.(null);
@@ -327,6 +329,59 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
   }, [width, height]);
 
   /* ------------------------------------------------------------ interaction */
+/**
+   * Double-click a region and the camera frames it — v2 §02's signature gesture, §09's
+   * "one-block rig".
+   *
+   * It writes a camera keyframe at the playhead rather than only moving the view. That
+   * makes it an *authoring* act: the camera animates into the region from wherever the
+   * previous keyframe left it, which is how a tour gets built by hand. Merely flying the
+   * preview would leave nothing behind and make the gesture a navigation shortcut, which
+   * §09 explicitly does not describe.
+   *
+   * The framing comes from `fitBounds` — the same solver the automated tour uses — so a
+   * shot placed by hand and one placed by the composer are identical for identical
+   * inputs, which is what §09 means by deterministic framing.
+   */
+  function onDblClick(e: maplibregl.MapMouseEvent) {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const hit = map
+      .queryRenderedFeatures(e.point)
+      .find((f) => f.layer?.id?.startsWith('gm-regions-') && f.layer.id.endsWith('-fill'));
+    if (!hit) return;
+
+    const { project } = useStore.getState();
+    const layerId = hit.layer.id.slice('gm-regions-'.length, -'-fill'.length);
+    const layer = project.layers.find((l) => l.id === layerId);
+    if (!layer || layer.type !== 'regions') return;
+
+    const set = regionSet(layer, getBasemap(project.basemap).dark);
+    const name = String(hit.properties?.[layer.nameKey] ?? '');
+    const region = set.regions.find((r) => r.name === name);
+    if (!region) return;
+
+    // MapLibre zooms on double-click by default; without this the camera is framed and
+    // then immediately shoved by a zoom nobody asked for.
+    e.preventDefault();
+
+    const shot = fitBounds(
+      region.bounds,
+      project.width,
+      project.height,
+      layer.tour.padding,
+      layer.tour.pitch,
+      layer.tour.maxZoom,
+    );
+    useStore.getState().addKeyframe({
+      center: shot.center,
+      zoom: shot.zoom,
+      bearing: shot.bearing,
+      pitch: shot.pitch,
+    });
+  }
+
   function onClick(e: maplibregl.MapMouseEvent) {
     const state = useStore.getState();
     const { tool, selection } = state;

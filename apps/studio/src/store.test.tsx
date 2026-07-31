@@ -210,3 +210,43 @@ describe('replaceProject', () => {
     expect(s().selection).toBeNull();
   });
 });
+
+describe('framing a region into the camera', () => {
+  /*
+   * The §02 signature gesture writes a camera keyframe at the playhead rather than only
+   * moving the view, which is what makes it an authoring act: the camera animates into
+   * the region from wherever the previous key left it. The gesture itself is browser-only
+   * (it needs a rendered map to hit-test); these pin the contract it relies on.
+   */
+  const shot = { center: [75.09, 33.71] as [number, number], zoom: 6.85, bearing: 0, pitch: 30 };
+
+  it('writes the framing it was handed', () => {
+    s().replaceProject({ ...emptyProject(), duration: 30, camera: [] });
+    useStore.getState().scrub(8);
+    useStore.getState().addKeyframe(shot);
+
+    const k = s().project.camera.find((x) => Math.abs(x.t - 8) < 0.02);
+    expect(k).toMatchObject({ zoom: 6.85, pitch: 30 });
+    expect(k?.center[0]).toBeCloseTo(75.09, 5);
+  });
+
+  it('reframes the key already at the playhead instead of stacking a second', () => {
+    // Double-clicking two regions in a row is ordinary; each should replace the shot, not
+    // leave a pile of keys at one instant where whichever sorts first silently wins.
+    s().replaceProject({ ...emptyProject(), duration: 30, camera: [] });
+    useStore.getState().addKeyframe(shot);
+    useStore.getState().addKeyframe({ ...shot, zoom: 4 });
+
+    expect(s().project.camera).toHaveLength(1);
+    expect(s().project.camera[0]?.zoom).toBe(4);
+  });
+
+  it('is undoable, like any other edit', () => {
+    // An AI or a gesture writes ordinary document content; nothing about it is special.
+    s().replaceProject({ ...emptyProject(), duration: 30, camera: [] });
+    useStore.getState().addKeyframe(shot);
+    expect(s().project.camera).toHaveLength(1);
+    useStore.getState().undo();
+    expect(s().project.camera).toHaveLength(0);
+  });
+});
