@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useStore, useSelectedCue, useSelectedKeyframe, useSelectedLayer } from '../store';
+import { useStore, useSelectedCue, useSelectedGroup, useSelectedKeyframe, useSelectedLayer } from '../store';
 import { envelopeOf, hasKeyAt, staticTrack, windowOf } from '@geomotion/document';
 import type { Track } from '@geomotion/document';
 import { evalTrack, compileExpr } from '@geomotion/animation';
+import { childrenOf } from '@geomotion/document';
 import type {
   AudioCue,
+  GroupNode,
   CloudsLayer,
   ImageLayer,
   MarkerLayer,
@@ -58,6 +60,7 @@ function LockedNotice({ id }: { id: string }) {
 
 export default function Inspector() {
   const layer = useSelectedLayer();
+  const group = useSelectedGroup();
   const kf = useSelectedKeyframe();
   const cue = useSelectedCue();
 
@@ -66,9 +69,11 @@ export default function Inspector() {
     ? { icon: 'audio' as const, name: cue.text || 'Audio clip', kind: 'Audio clip' }
     : kf
       ? { icon: 'camera' as const, name: 'Camera keyframe', kind: 'Camera' }
-      : layer
-        ? { icon: LAYER_ICON[layer.type], name: layer.name, kind: LAYER_KIND[layer.type] }
-        : null;
+      : group
+        ? { icon: 'folder' as const, name: group.name, kind: 'Group' }
+        : layer
+          ? { icon: LAYER_ICON[layer.type], name: layer.name, kind: LAYER_KIND[layer.type] }
+          : null;
 
   return (
     <div className="inspector">
@@ -98,7 +103,7 @@ export default function Inspector() {
         * has to say why nothing you type sticks. The store refuses the write silently,
         * and a silent refusal in a properties panel reads as a broken input.
         */}
-      {layer?.locked === true && <LockedNotice id={layer.id} />}
+      {(layer?.locked === true || group?.locked === true) && <LockedNotice id={(layer ?? group)!.id} />}
 
       {cue && <AudioInspector cue={cue} />}
       {kf && <KeyframeInspector />}
@@ -112,7 +117,8 @@ export default function Inspector() {
         * pointer, the store declines the write, and the value snaps back. That reads as
         * a broken control rather than a protected one.
         */}
-      <fieldset className="lock-guard" disabled={layer?.locked === true}>
+      <fieldset className="lock-guard" disabled={layer?.locked === true || group?.locked === true}>
+        {group && <GroupInspector group={group} />}
         {layer?.type === 'route' && <RouteInspector layer={layer} />}
         {layer?.type === 'marker' && <MarkerInspector layer={layer} />}
         {layer?.type === 'text' && <TextInspector layer={layer} />}
@@ -122,7 +128,7 @@ export default function Inspector() {
         {layer?.type === 'image' && <ImageInspector layer={layer} />}
         {layer && <TimingInspector />}
       </fieldset>
-      {!layer && !kf && !cue && (
+      {!layer && !group && !kf && !cue && (
         <div className="empty-hint">
           <p>Nothing selected.</p>
           <p>Pick a layer, a camera keyframe or an audio clip, or edit the composition below.</p>
@@ -130,6 +136,39 @@ export default function Inspector() {
       )}
       <CompositionInspector />
     </div>
+  );
+}
+
+/**
+ * A group: what it is called, and how much of it comes through.
+ *
+ * Opacity is the whole feature — a group multiplies into everything under it, so one
+ * keyframed number fades a beat as a unit rather than as four layers that have to agree.
+ * It uses the same tracked-number control as every other animatable property, which is
+ * what makes it keyframable without a second mechanism.
+ */
+function GroupInspector({ group }: { group: GroupNode }) {
+  const update = useStore((s) => s.updateLayer);
+  const ungroup = useStore((s) => s.ungroup);
+  const childCount = useStore((s) => childrenOf(s.project, group.id).length);
+
+  return (
+    <Section
+      title="Group"
+      right={
+        <button className="mini" onClick={() => ungroup(group.id)} title="Put the contents back where the group is (⇧⌘G)">
+          Ungroup
+        </button>
+      }
+    >
+      <Field label="Name">
+        <Text value={group.name} onChange={(name) => update(group.id, { name } as never, 'name')} />
+      </Field>
+      <TrackedNumber label="Opacity" layerId={group.id} prop="opacity" track={group.opacity} min={0} max={1} step={0.01} precision={2} />
+      <p className="hint">
+        {childCount === 1 ? '1 layer' : `${childCount} layers`} — hiding, locking and opacity apply to all of them.
+      </p>
+    </Section>
   );
 }
 

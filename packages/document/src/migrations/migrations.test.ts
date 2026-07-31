@@ -188,6 +188,33 @@ describe('migrate6to7', () => {
     expect((out.nodes as Record<string, object>).r).not.toHaveProperty('tourOrder');
   });
 
+  it('keeps a parent a node already declares', () => {
+    /*
+     * The composer writes the oldest shape and merges hand-added layers into it, so a
+     * project that has been through the editor and back arrives here already carrying
+     * parents. Overwriting them would flatten every group the user made — silently, in the
+     * one path whose whole job is not losing hand work.
+     */
+    const out = migrate6to7(
+      doc([
+        { id: 'g', type: 'group', order: 'k' },
+        { id: 'child', type: 'text', parentId: 'g', order: 'V' },
+      ]),
+    );
+    const nodes = out.nodes as Record<string, { parentId: unknown; order: string }>;
+    expect(nodes.child?.parentId).toBe('g');
+    expect(nodes.child?.order).toBe('V');
+    expect(nodes.g?.order).toBe('k');
+  });
+
+  it('still gives a fresh key to a layer whose order means something else', () => {
+    // A pre-M9 region layer's `order` is `valueDesc`, not a position.
+    const out = migrate6to7(doc([{ id: 'r', type: 'regions', order: 'alpha' }]));
+    const node = (out.nodes as Record<string, { order: string; tourOrder: string }>).r;
+    expect(node?.tourOrder).toBe('alpha');
+    expect(node?.order).not.toBe('alpha');
+  });
+
   it('survives a document with neither array', () => {
     // It runs against files this project did not write; a load that fails is a project
     // someone cannot open.

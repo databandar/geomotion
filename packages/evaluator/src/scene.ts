@@ -11,7 +11,7 @@ import type {
   TextRender,
 } from '@geomotion/renderer';
 import type { CameraNode, LngLat, Project, RegionsLayer, RouteLayer } from '@geomotion/document';
-import { layersOf, liveCamera, resolveMapContext } from '@geomotion/document';
+import { groupsOf, layersOf, liveCamera, resolveMapContext } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
 import { applyBehaviours, ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
@@ -122,6 +122,50 @@ export function clearPathCache(id?: string) {
 }
 
 /* --------------------------------------------------------------- lifecycle */
+
+/**
+ * How much of each group's alpha reaches the nodes under it, at this instant.
+ *
+ * A group multiplies into every descendant (docs/features/groups.md): hiding one hides its
+ * subtree, and a keyframed opacity fades a whole beat as one thing. The value is cumulative
+ * — a group inside a dimmed group is dimmed twice, which is what "inherits from its parent"
+ * means — so it is computed once per frame per group rather than walked per layer.
+ *
+ * `null` when the project has no groups, which is most of them: the layer loop then does
+ * exactly what it did before, and this allocates nothing.
+ */
+function groupAlphas(project: Project, time: number, hidden: ReadonlySet<string>, facts: FactLookup): Map<string, number> | null {
+  const groups = groupsOf(project);
+  if (groups.length === 0) return null;
+
+  const out = new Map<string, number>();
+  const alphaOf = (group: (typeof groups)[number]): number => {
+    const cached = out.get(group.id);
+    if (cached !== undefined) return cached;
+    // Marked before recursing: a parent cycle in a hand-edited file would otherwise
+    // recurse forever, and one frame of a wrong alpha beats a hung tab.
+    out.set(group.id, 0);
+
+    const own =
+      !group.visible || hidden.has(group.id)
+        ? 0
+        : // A group whose opacity expression is mid-edit contributes nothing rather than
+          // fully opaque: a subtree that vanishes reads as "the formula is broken", while
+          // one that renders normally hides the mistake.
+          clamp01(evalTrack(group.opacity, time, { facts, fallback: 0 }));
+
+    const parentId = group.parentId;
+    const parent = parentId === null ? undefined : project.nodes[parentId];
+    const inherited = parent && parent.type === 'group' ? alphaOf(parent) : 1;
+
+    const total = own * inherited;
+    out.set(group.id, total);
+    return total;
+  };
+
+  for (const group of groups) alphaOf(group);
+  return out;
+}
 
 /** 0 when fully hidden, 1 when fully on — includes the fade ramps. */
 export function layerAlpha(l: { in: number; out: number; fade: number; visible: boolean }, t: number): number {
@@ -410,8 +454,13 @@ export function evaluate(project: Project, time: number): Scene {
    */
   const hidden = resolveMapContext(project, time).hidden;
 
+  /** What each group lets through this frame; `null` when the project has none. */
+  const groupAlpha = groupAlphas(project, time, hidden, facts);
+
   for (const layer of layersOf(project)) {
-    const alpha = hidden.has(layer.id) ? 0 : layerAlpha(layer, time);
+    const parentId = layer.parentId;
+    const inherited = groupAlpha === null || parentId === null ? 1 : (groupAlpha.get(parentId) ?? 1);
+    const alpha = hidden.has(layer.id) ? 0 : layerAlpha(layer, time) * inherited;
 
     if (layer.type === 'route') {
       const path = routePath(layer);

@@ -528,6 +528,12 @@ function looseLayers(doc) {
   if (!doc || typeof doc !== 'object') return null;
   if (Array.isArray(doc.layers)) return doc.layers;
   if (!doc.nodes || typeof doc.nodes !== 'object') return null;
+  /*
+   * Groups come through with their children. Each node keeps the `parentId` and `order` it
+   * was saved with, and the format chain now honours both (migration 6→7), so a project
+   * that goes editor → composer → editor keeps its structure rather than coming back
+   * flattened.
+   */
   return Object.values(doc.nodes)
     .filter((n) => n && typeof n === 'object' && n.type !== 'camera')
     .sort((a, b) => (String(a.order) < String(b.order) ? -1 : String(a.order) > String(b.order) ? 1 : 0));

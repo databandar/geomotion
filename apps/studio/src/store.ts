@@ -3,13 +3,21 @@ import { create } from 'zustand';
 import {
   History,
   addNode,
+  ancestorsOf,
+  childrenOf,
   createCamera,
+  createGroup,
   createLayer,
+  descendantsOf,
+  duplicateNode,
+  isGroupNode,
   layerAt,
   layersOf,
   liveCamera,
   moveNodeBy,
+  nodesOf,
   removeNode,
+  setNodeParent,
   hasKeyAt,
   patchShot,
   removeShot,
@@ -29,7 +37,7 @@ import {
   withoutKeyAt,
 } from '@geomotion/document';
 import type { EasingName, Track } from '@geomotion/document';
-import type { AudioCue, CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
+import type { AudioCue, CameraKeyframe, DocNode, GroupNode, Layer, LayerType, Project } from '@geomotion/document';
 import { clamp, createId } from '@geomotion/core';
 import { clearPathCache } from '@geomotion/evaluator';
 import { clearRegionCache } from '@geomotion/entities';
@@ -60,6 +68,22 @@ interface State {
   /** narration playback in the editor; never affects a render */
   muted: boolean;
   selection: Selection;
+  /**
+   * Additional selected node ids, beside the primary `selection`.
+   *
+   * Editor state (§4): a view of the document, not part of it. Primary-plus-rest rather
+   * than one list, because the inspector edits *one* thing and a flat list would leave it
+   * guessing which of five layers it is showing. The primary is the last row you clicked.
+   */
+  also: string[];
+  /**
+   * Which groups are shut in the layer panel, by id.
+   *
+   * Editor state (§4): how *you* are looking at the document, not part of it. Two people
+   * on one project may reasonably have different rows open, and a collapsed group is not
+   * something anyone wants back on an undo.
+   */
+  collapsed: Record<string, boolean>;
   tool: Tool;
   /** timeline zoom */
   pxPerSec: number;
@@ -82,6 +106,11 @@ interface State {
   toggleLoop: () => void;
   toggleMuted: () => void;
   select: (s: Selection) => void;
+  /** Add or remove a node from the selection, keeping the primary. ⌘/Ctrl-click. */
+  toggleAlso: (id: string) => void;
+  /** Replace the whole selection: `ids` last-clicked-first. Shift-click ranges. */
+  selectMany: (primary: string, ids: string[]) => void;
+  toggleCollapsed: (id: string) => void;
   setTool: (t: Tool) => void;
   setPxPerSec: (v: number) => void;
   setExportStatus: (s: ExportStatus | null) => void;
@@ -138,6 +167,10 @@ interface State {
   /** Re-length a story block, pushing or pulling everything after it. */
   resizeStoryBlock: (id: string, d: number) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
+  /** Put the selected nodes in a new group, where the topmost of them sat. ⌘G. */
+  groupSelection: () => void;
+  /** Put a group's children back where the group was, and remove it. ⇧⌘G. */
+  ungroup: (id: string) => void;
   /** Lock or unlock a layer. Locked layers refuse every other edit — see `editable`. */
   setLayerLocked: (id: string, locked: boolean) => void;
 
@@ -200,20 +233,33 @@ function writeBack(p: Project, layers: readonly Layer[]): void {
   }
 }
 
+/** A lock, wherever it is. Cameras have none, which is why this is a guarded read. */
+const isLocked = (node: DocNode) => 'locked' in node && node.locked === true;
+
 /**
- * The layer to edit, or nothing if it is locked.
+ * The node to edit, or nothing if it — or anything above it — is locked.
  *
  * One gate rather than a check per control. A lock enforced in the UI is a lock the
  * next control forgets about — and there are already a dozen paths that reach a layer
  * (the inspector, four timeline drags, the keyframe row, the map canvas). Locking has to
  * mean the *document* refuses, so the answer is the same wherever the edit came from.
  *
+ * Ancestors count: a locked group protects what is inside it, or it protects nothing —
+ * "locked" that leaves every child editable is a label, not a lock.
+ *
  * `setLayerLocked` deliberately does not come through here — the way out of a lock
  * cannot be locked.
  */
-function editable(p: Project, id: string): Layer | undefined {
-  const layer = layerAt(p, id);
-  return layer?.locked === true ? undefined : layer;
+function editable(p: Project, id: string): DocNode | undefined {
+  const node = p.nodes[id];
+  if (!node || isLocked(node)) return undefined;
+  return ancestorsOf(p, id).some(isLocked) ? undefined : node;
+}
+
+/** Whether an edit addressed to this node would be refused — what the UI greys out on. */
+export function isEditLocked(p: Project, id: string): boolean {
+  const node = p.nodes[id];
+  return !!node && (isLocked(node) || ancestorsOf(p, id).some(isLocked));
 }
 
 /**
@@ -240,6 +286,8 @@ export const useStore = create<State>((set, get) => ({
   loop: true,
   muted: false,
   selection: null,
+  also: [],
+  collapsed: {},
   tool: 'select',
   pxPerSec: 70,
   historyRev: 0,
@@ -297,7 +345,26 @@ export const useStore = create<State>((set, get) => ({
   setPlaying: (v) => set({ playing: v }),
   toggleLoop: () => set((s) => ({ loop: !s.loop })),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
-  select: (selection) => set({ selection }),
+  // A plain click replaces the selection. Keeping the extras would make every click after
+  // a multi-select silently additive, which is not what any editor does.
+  select: (selection) => set({ selection, also: [] }),
+
+  toggleAlso: (id) => {
+    const { selection, also } = get();
+    if (!selection || selection.kind !== 'layer') return set({ selection: { kind: 'layer', id }, also: [] });
+    if (selection.id === id) {
+      // Deselecting the primary promotes the next one rather than emptying the selection.
+      const [next, ...rest] = also;
+      return set(next ? { selection: { kind: 'layer', id: next }, also: rest } : { selection: null, also: [] });
+    }
+    const without = also.filter((x) => x !== id);
+    set(without.length === also.length ? { also: [...also, id] } : { also: without });
+  },
+
+  selectMany: (primary, ids) =>
+    set({ selection: { kind: 'layer', id: primary }, also: ids.filter((id) => id !== primary) }),
+  toggleCollapsed: (id) => set((s) => ({ collapsed: { ...s.collapsed, [id]: !s.collapsed[id] } })),
+
   setTool: (tool) => set({ tool }),
   setPxPerSec: (v) => set({ pxPerSec: clamp(v, 12, 400) }),
   setExportStatus: (exportStatus) => set({ exportStatus }),
@@ -313,7 +380,7 @@ export const useStore = create<State>((set, get) => ({
   setRecording: (recording) => set({ recording }),
 
   addLayer: (type) => {
-    const { time, patch, project } = get();
+    const { time, patch, project, selection } = get();
     const layer = createLayer(type, Math.min(time, Math.max(0, project.duration - 1)));
     layer.out = Math.min(project.duration, layer.in + 6);
     // A new route reveals over four seconds, or up to the end of the composition if it
@@ -321,56 +388,60 @@ export const useStore = create<State>((set, get) => ({
     if (layer.type === 'route') {
       layer.progress = windowTrack(layer.in, Math.min(project.duration, layer.in + 4), 'easeInOutCubic');
     }
+    /*
+     * A new layer lands inside whatever container you are working in — the selected group,
+     * or the group holding the selected layer. Without this a group is a one-way door: you
+     * could make one and never put anything else in it.
+     */
+    const anchor = selection?.kind === 'layer' ? project.nodes[selection.id] : undefined;
+    const parentId = anchor ? (isGroupNode(anchor) ? anchor.id : anchor.parentId) : null;
+
     patch((p) => {
-      addNode(p, layer);
+      addNode(p, layer, { parentId });
     });
-    set({ selection: { kind: 'layer', id: layer.id }, tool: type === 'route' ? 'route' : type === 'marker' ? 'marker' : 'select' });
+    set({ also: [], selection: { kind: 'layer', id: layer.id }, tool: type === 'route' ? 'route' : type === 'marker' ? 'marker' : 'select' });
     return layer;
   },
 
   removeLayer: (id) => {
-    if (layerAt(get().project, id)?.locked === true) return;
-    clearPathCache(id);
-    clearRegionCache(id);
+    const project = get().project;
+    if (isEditLocked(project, id)) return;
+    // Read before the delete: afterwards the subtree is gone and there is nothing to ask.
+    const removed = descendantsOf(project, id);
+    for (const node of [id, ...removed]) {
+      clearPathCache(node);
+      clearRegionCache(node);
+    }
     get().patch((p) => {
       removeNode(p, id);
     });
+    // The subtree went with it, so anything under it leaves the selection too.
+    const gone = new Set([id, ...removed]);
     const sel = get().selection;
-    if (sel?.kind === 'layer' && sel.id === id) set({ selection: null });
+    set({
+      also: get().also.filter((x) => !gone.has(x)),
+      ...(sel?.kind === 'layer' && gone.has(sel.id) ? { selection: null } : {}),
+    });
   },
 
   duplicateLayer: (id) => {
-    const src = layerAt(get().project, id);
+    const src = get().project.nodes[id];
     if (!src) return;
-    // A duplicate must be independent of its source, so this one copy stays deep.
-    // structuredClone rather than a JSON round-trip: it is faster and does not
-    // quietly drop values JSON cannot represent.
-    const copy = { ...structuredClone(src), id: createId() } as Layer;
-    copy.name = src.name + ' copy';
     /*
-     * The copy comes out unlocked, even from a locked original.
+     * A group duplicates with everything under it, each copy given a fresh id — two rows
+     * sharing one id would be two panel entries editing one layer, and deleting either
+     * would take both.
      *
-     * A divergence from After Effects and Figma, which both hand back a locked
-     * duplicate — chosen because duplicating is how you get an *editable* version of a
-     * layer you locked to protect, and because the new layer is selected immediately.
-     * Inheriting the lock means the first thing you see is a fresh layer with a banner
-     * saying edits are refused, and a second step before you can do anything.
+     * The copy comes out unlocked, even from a locked original — a divergence from After
+     * Effects and Figma, chosen because duplicating is how you get an editable version of
+     * the thing you locked, and the copy is selected immediately. `duplicateNode` owns that
+     * rule now, so it holds for every node type.
      */
-    delete copy.locked;
-    /*
-     * The copy comes out unlocked, even from a locked original.
-     *
-     * A divergence from After Effects and Figma, which both hand back a locked
-     * duplicate — chosen because duplicating is how you get an *editable* version of a
-     * layer you locked to protect, and because the new layer is selected immediately.
-     * Inheriting the lock means the first thing you see is a fresh layer with a banner
-     * saying edits are refused, and a second step before you can do anything.
-     */
-    delete copy.locked;
+    let copyId: string | undefined;
     get().patch((p) => {
-      addNode(p, copy, { after: id });
+      copyId = duplicateNode(p, id, (name) => name + ' copy');
     });
-    set({ selection: { kind: 'layer', id: copy.id } });
+    if (copyId) set({ also: [], selection: { kind: 'layer', id: copyId } });
   },
 
   updateLayer: (id, patchObj, historyKey) => {
@@ -486,10 +557,12 @@ export const useStore = create<State>((set, get) => ({
    */
   setLayerLocked: (id, locked) => {
     get().patch((p) => {
-      const layer = layerAt(p, id);
-      if (!layer) return;
-      if (locked) layer.locked = true;
-      else delete layer.locked;
+      const node = p.nodes[id];
+      // A camera has no lock — it holds no user content to protect, and every edit to it
+      // goes through the shot helpers rather than the layer gate.
+      if (!node || node.type === 'camera') return;
+      if (locked) node.locked = true;
+      else delete node.locked;
     });
   },
 
@@ -498,6 +571,72 @@ export const useStore = create<State>((set, get) => ({
       if (!editable(p, id)) return;
       moveNodeBy(p, id, dir);
     });
+  },
+
+  /**
+   * Put the selection in a new group.
+   *
+   * The group lands where the *topmost* selected node sat, so a beat keeps its place in the
+   * draw order rather than jumping to the front. Members are reparented in the order they
+   * already had, which is what makes grouping and ungrouping a round trip.
+   *
+   * Only nodes sharing a parent are grouped together: pulling a layer out of one group and
+   * a layer out of another into a third would move things across the tree on a keystroke
+   * that reads as "put these together". The common parent is the primary selection's, and
+   * anything living elsewhere is left alone.
+   */
+  groupSelection: () => {
+    const { project, selection, also } = get();
+    if (selection?.kind !== 'layer') return;
+
+    const wanted = new Set([selection.id, ...also]);
+    const primary = project.nodes[selection.id];
+    if (!primary) return;
+    const parentId = primary.parentId ?? null;
+
+    // Document order, so the group's contents read the same as the panel did.
+    const members = nodesOf(project).filter(
+      (n) => wanted.has(n.id) && (n.parentId ?? null) === parentId && !isEditLocked(project, n.id),
+    );
+    if (members.length === 0) return;
+
+    const group = createGroup(members.length === 1 ? `${members[0]!.name} group` : 'Group');
+    const anchor = members[members.length - 1] as (typeof members)[number];
+
+    get().patch((p) => {
+      addNode(p, group, { parentId, after: anchor.id });
+      for (const member of members) setNodeParent(p, member.id, group.id);
+    });
+    set({ selection: { kind: 'layer', id: group.id }, also: [] });
+  },
+
+  /**
+   * Dissolve a group, leaving its children where it was.
+   *
+   * Each child is placed after the one before it, so the subtree comes out in the order it
+   * went in — reparenting them all "after the group" would hand them back reversed.
+   */
+  ungroup: (id) => {
+    const { project } = get();
+    const group = project.nodes[id];
+    if (!group || !isGroupNode(group) || isEditLocked(project, id)) return;
+
+    const children = childrenOf(project, id);
+    get().patch((p) => {
+      let after = id;
+      for (const child of children) {
+        setNodeParent(p, child.id, group.parentId ?? null, after);
+        after = child.id;
+      }
+      removeNode(p, id);
+    });
+    // The group is gone, so selecting what came out of it is the only sensible landing.
+    const first = children[0];
+    set(
+      first
+        ? { selection: { kind: 'layer', id: first.id }, also: children.slice(1).map((c) => c.id) }
+        : { selection: null, also: [] },
+    );
   },
 
   /**
@@ -612,6 +751,15 @@ if (import.meta.env.DEV) {
 /** Selected layer, or undefined. */
 export function useSelectedLayer(): Layer | undefined {
   return useStore((s) => (s.selection?.kind === 'layer' ? layerAt(s.project, s.selection.id) : undefined));
+}
+
+/** The selected group, or undefined. Groups and layers are both "selected layer" rows. */
+export function useSelectedGroup(): GroupNode | undefined {
+  return useStore((s) => {
+    if (s.selection?.kind !== 'layer') return undefined;
+    const node = s.project.nodes[s.selection.id];
+    return node && isGroupNode(node) ? node : undefined;
+  });
 }
 
 /** Selected audio clip, or undefined. */

@@ -41,6 +41,8 @@ export type IconName =
   | 'image'
   | 'arrow-up'
   | 'arrow-down'
+  | 'arrow-right'
+  | 'folder'
   | 'duplicate'
   | 'close'
   | 'camera'
@@ -100,6 +102,11 @@ const ICONS: Record<IconName, { paths?: string[]; fills?: string[] }> = {
   clouds: { paths: ['M4.7 12.2a3 3 0 0 1-.3-6 4 4 0 0 1 7.6.9 2.6 2.6 0 0 1-.5 5.1z'] },
   'arrow-up': { paths: ['M8 12.6V3.6', 'M4.4 7.2 8 3.6l3.6 3.6'] },
   'arrow-down': { paths: ['M8 3.4v9', 'M4.4 8.8 8 12.4l3.6-3.6'] },
+  // The disclosure pair. Drawn as bare chevrons rather than filled triangles so they read
+  // at 11px, which is the size a tree twist wants.
+  'arrow-right': { paths: ['M6.2 3.6 10.6 8l-4.4 4.4'] },
+  // A group. The tab makes it a folder rather than a rectangle, which is `shape`.
+  folder: { paths: ['M2.4 12.8V4.2h4l1.4 1.8h5.8v6.8z'] },
   duplicate: { paths: ['M6 6h7.2v7.2H6z', 'M10.4 6V2.8H3.2V10H6'] },
   layers: { paths: ['M8 1.8 14.6 5 8 8.2 1.4 5z', 'M1.4 8 8 11.2 14.6 8', 'M1.4 11 8 14.2 14.6 11'] },
   assets: { paths: ['M2.4 4.6h11.2v8.8H2.4z', 'M2.4 7.4h11.2', 'M6.2 4.6v-2h3.6v2'] },

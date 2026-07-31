@@ -13,7 +13,7 @@
  * metadata.
  */
 
-export { createLayer, defaultTour, emptyProject, migrate, projectWith } from './project.ts';
+export { createGroup, createLayer, defaultTour, emptyProject, migrate, projectWith } from './project.ts';
 export {
   cameraFromShots,
   createCamera,
@@ -39,10 +39,15 @@ export {
 } from './audio.ts';
 export {
   addNode,
+  ancestorsOf,
   camerasOf,
   childrenOf,
   descendantsOf,
+  duplicateNode,
+  groupsOf,
   isCameraNode,
+  isDrawOrdered,
+  isGroupNode,
   isLayerNode,
   layerAt,
   layersOf,

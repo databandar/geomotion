@@ -45,8 +45,26 @@ export function migrate6to7(doc: Loose): Loose {
     const claimed = typeof node.id === 'string' && node.id.length > 0 ? node.id : null;
     const id = claimed !== null && !(claimed in nodes) ? claimed : createId();
 
-    order = orderBetween(order, null);
-    nodes[id] = { ...node, ...movedAside(node), id, parentId: null, order };
+    /*
+     * A node that already says where it sits keeps saying it. Format 6 has no such node —
+     * but the composer writes the *oldest* shape and merges hand-added layers into it, so a
+     * project that has been through the editor and back arrives here as an array of nodes
+     * that already carry a parent and an order key. Overwriting those would silently
+     * flatten every group the user made.
+     *
+     * The exception is a pre-M9 region layer, whose `order` is the *region* ordering rather
+     * than a position — the collision `movedAside` exists for.
+     */
+    const aside = movedAside(node);
+    const declared = typeof node.order === 'string' && !('tourOrder' in aside) ? node.order : null;
+    const parentId = typeof node.parentId === 'string' ? node.parentId : null;
+
+    // The cursor only ever moves forward, so a kept key cannot make the next generated one
+    // collide with a node already placed.
+    if (declared === null) order = orderBetween(order, null);
+    else if (order === null || declared > order) order = declared;
+
+    nodes[id] = { ...node, ...aside, id, parentId, order: declared ?? (order as string) };
   }
 
   out.nodes = nodes;

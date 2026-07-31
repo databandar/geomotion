@@ -17,7 +17,16 @@ export const windowTrack = (from: number, to: number, easing: EasingName) =>
     { id: createId(), t: Math.max(from, to), value: 1, easing },
   ]);
 import type { Track } from './track.ts';
-import type { CameraNode, EasingName, Layer, LayerType, Project, RegionOrder, RegionTour } from './types.ts';
+import type {
+  CameraNode,
+  EasingName,
+  GroupNode,
+  Layer,
+  LayerType,
+  Project,
+  RegionOrder,
+  RegionTour,
+} from './types.ts';
 
 /**
  * Construction and migration for document nodes.
@@ -234,6 +243,27 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
   }
 }
 
+/**
+ * A container for other nodes (docs/features/groups.md).
+ *
+ * Opacity is a track from the start rather than a number, so a beat can fade as one thing
+ * and the fade is keyframable — §04's "every property is a track", applied to the first
+ * property a group has.
+ */
+export function createGroup(name = 'Group'): GroupNode {
+  return {
+    id: createId(),
+    type: 'group',
+    name,
+    // Placed by `addNode`, like every other node — a constructor cannot know its siblings.
+    parentId: null,
+    order: FIRST_ORDER,
+    visible: true,
+    opacity: staticTrack(1),
+    behaviours: {},
+  };
+}
+
 export function emptyProject(): Project {
   const camera = createCamera();
   return {
@@ -417,7 +447,7 @@ function fillNodes(loaded: unknown): Project['nodes'] {
     if (!value || typeof value !== 'object') continue;
     const raw = value as Record<string, unknown> & { type?: unknown };
 
-    const filled = raw.type === 'camera' ? fillCamera(raw) : fillLayer(raw);
+    const filled = raw.type === 'camera' ? fillCamera(raw) : raw.type === 'group' ? fillGroup(raw) : fillLayer(raw);
     filled.id = key;
     filled.parentId = typeof raw.parentId === 'string' ? raw.parentId : null;
     if (typeof raw.order === 'string' && raw.order.length > 0) {
@@ -429,6 +459,31 @@ function fillNodes(loaded: unknown): Project['nodes'] {
     out[key] = filled;
   }
   return out;
+}
+
+/**
+ * Repair a loaded group.
+ *
+ * Same shape of reasoning as `fillCamera`: the opacity track validates as a whole (a
+ * discriminated union cannot be field-merged), everything else falls back field by field, so
+ * a hand-edited file degrades to a usable group rather than to a crash.
+ */
+function fillGroup(raw: Record<string, unknown>): GroupNode {
+  const defaults = createGroup();
+  return {
+    id: typeof raw.id === 'string' ? raw.id : defaults.id,
+    type: 'group',
+    name: typeof raw.name === 'string' ? raw.name : defaults.name,
+    parentId: typeof raw.parentId === 'string' ? raw.parentId : null,
+    order: typeof raw.order === 'string' ? raw.order : defaults.order,
+    visible: typeof raw.visible === 'boolean' ? raw.visible : true,
+    ...(raw.locked === true ? { locked: true as const } : {}),
+    opacity: coerceTrack(raw.opacity, defaults.opacity),
+    behaviours:
+      raw.behaviours && typeof raw.behaviours === 'object' && !Array.isArray(raw.behaviours)
+        ? (raw.behaviours as GroupNode['behaviours'])
+        : {},
+  };
 }
 
 /** Fill one layer against its type's defaults, including the pre-M9 flat tour fields. */

@@ -149,6 +149,16 @@ function useShortcuts(host: RenderHost | null) {
         return;
       }
 
+      // ⌘G groups the selection, ⇧⌘G ungroups the selected group — the pair every editor
+      // uses. They move to the command registry when it exists (ARCHITECTURE §11).
+      if (meta && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (s.selection?.kind !== 'layer') return;
+        if (e.shiftKey) s.ungroup(s.selection.id);
+        else s.groupSelection();
+        return;
+      }
+
       switch (e.key) {
         case ' ':
           e.preventDefault();

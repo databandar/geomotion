@@ -328,6 +328,23 @@ describe('mergeComposed', () => {
     expect(mergeComposed(existing, composed()).layers.map((l) => l.id)).toEqual(['a', 'b', 'gen1', 'gen2']);
   });
 
+  it('carries a saved group through with its children', () => {
+    // Groups are nodes with a parent; the merge must keep both the group and what is in it,
+    // and the format chain keeps the parent when the composed file is opened again.
+    const existing = {
+      format: 7,
+      nodes: {
+        g: { id: 'g', type: 'group', name: 'Beat', parentId: null, order: 'k' },
+        kid: { id: 'kid', type: 'text', parentId: 'g', order: 'V' },
+      },
+      story: [],
+    };
+    const out = mergeComposed(existing, composed());
+    const kept = out.layers.filter((l) => ['g', 'kid'].includes(l.id));
+    expect(kept.map((l) => l.id)).toEqual(['kid', 'g']);
+    expect(kept.find((l) => l.id === 'kid')?.parentId).toBe('g');
+  });
+
   it('survives a project written before story blocks existed', () => {
     // Every project composed before this milestone has layers and no story at all.
     const out = mergeComposed({ layers: [{ id: 'old' }] }, composed());

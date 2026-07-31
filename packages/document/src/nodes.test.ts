@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createCamera } from './camera.ts';
 import {
   addNode,
+  ancestorsOf,
   camerasOf,
   childrenOf,
   descendantsOf,
+  duplicateNode,
+  isGroupNode,
+  isLayerNode,
   layerAt,
   layersOf,
   liveCamera,
@@ -13,9 +17,10 @@ import {
   removeNode,
   setNodeParent,
 } from './nodes.ts';
-import { createLayer, emptyProject } from './project.ts';
+import { createGroup, createLayer, emptyProject } from './project.ts';
 import { transact } from './transact.ts';
 import type { LayerType, Project } from './types.ts';
+import type { DocNode } from './nodes.ts';
 
 /** A project with `types` added in order, plus the camera `emptyProject` starts with. */
 function projectWith(...types: LayerType[]): Project {
@@ -233,5 +238,87 @@ describe('a camera in the store', () => {
     const p = transact(emptyProject(), (d) => addNode(d, createCamera())).next;
     expect(camerasOf(p)).toHaveLength(2);
     expect(liveCamera(p)).toBe(camerasOf(p)[0]);
+  });
+});
+
+describe('groups in the store', () => {
+  /** A project with `Beat` holding two layers, plus one at the root above it. */
+  function nested() {
+    const group = createGroup('Beat');
+    const inner1 = createLayer('marker', 0);
+    const inner2 = createLayer('text', 0);
+    const outer = createLayer('shape', 0);
+    const project = transact(emptyProject(), (d) => {
+      addNode(d, group);
+      addNode(d, inner1, { parentId: group.id });
+      addNode(d, inner2, { parentId: group.id });
+      addNode(d, outer);
+    }).next;
+    return { project, group, inner1, inner2, outer };
+  }
+
+  it('is not a layer, and does not appear in the draw order', () => {
+    const { project, group } = nested();
+    expect(isGroupNode(project.nodes[group.id] as DocNode)).toBe(true);
+    expect(isLayerNode(project.nodes[group.id] as DocNode)).toBe(false);
+    expect(layersOf(project).map((l) => l.id)).not.toContain(group.id);
+  });
+
+  it('draws its children where it sits, not at either end', () => {
+    const { project, inner1, inner2, outer } = nested();
+    expect(layersOf(project).map((l) => l.id)).toEqual([inner1.id, inner2.id, outer.id]);
+  });
+
+  it('reports the nodes above a layer, nearest first', () => {
+    const { project, group, inner1 } = nested();
+    expect(ancestorsOf(project, inner1.id).map((n) => n.id)).toEqual([group.id]);
+    expect(ancestorsOf(project, group.id)).toEqual([]);
+  });
+
+  it('steps a layer past a group, because both hold a place in the draw order', () => {
+    const { project, group, outer } = nested();
+    const next = transact(project, (d) => moveNodeBy(d, outer.id, -1)).next;
+    // The camera is a root too, and is deliberately not in the draw order — a layer that
+    // sorts either side of it renders identically, which is why it is filtered here.
+    const drawn = childrenOf(next, null).filter((n) => n.type !== 'camera');
+    expect(drawn.map((n) => n.id)).toEqual([outer.id, group.id]);
+  });
+
+  it('duplicates a subtree with fresh ids and the same order', () => {
+    const { project, group, inner1, inner2 } = nested();
+    let copyId: string | undefined;
+    const next = transact(project, (d) => {
+      copyId = duplicateNode(d, group.id, (name) => name + ' copy');
+    }).next;
+
+    const copied = childrenOf(next, copyId as string);
+    expect(next.nodes[copyId as string]?.name).toBe('Beat copy');
+    expect(copied.map((n) => n.type)).toEqual(['marker', 'text']);
+    expect(copied.map((n) => n.id)).not.toContain(inner1.id);
+    expect(copied.map((n) => n.id)).not.toContain(inner2.id);
+    // Both subtrees are intact and independent.
+    expect(childrenOf(next, group.id)).toHaveLength(2);
+  });
+
+  it('takes the subtree when the group is deleted', () => {
+    const { project, group, outer } = nested();
+    const next = transact(project, (d) => removeNode(d, group.id)).next;
+    expect(Object.keys(next.nodes).filter((id) => id !== outer.id && next.nodes[id]?.type !== 'camera')).toEqual([]);
+  });
+
+  it('stops rather than looping on a parent cycle', () => {
+    // Only reachable through a hand-edited file. The requirement is that the walk and the
+    // ancestor read both terminate — a hung tab is worse than a wrong row.
+    const a = createGroup('A');
+    const b = createGroup('B');
+    const project = transact(emptyProject(), (d) => {
+      addNode(d, a);
+      addNode(d, b, { parentId: a.id });
+      const nodeA = d.nodes[a.id];
+      if (nodeA) nodeA.parentId = b.id;
+    }).next;
+
+    expect(() => layersOf(project)).not.toThrow();
+    expect(ancestorsOf(project, a.id).length).toBeLessThanOrEqual(2);
   });
 });

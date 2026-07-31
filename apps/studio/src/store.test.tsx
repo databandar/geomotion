@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { camerasOf, emptyProject, layersOf, liveCamera, shotsOf, type MarkerLayer } from '@geomotion/document';
+import { camerasOf, childrenOf, emptyProject, layersOf, liveCamera, shotsOf, type MarkerLayer } from '@geomotion/document';
 import { useStore } from './store';
 
 /**
@@ -395,5 +395,180 @@ describe('locked layers', () => {
     expect(first().locked).toBe(true);
     s().setLayerLocked(id, false);
     expect('locked' in first()).toBe(false);
+  });
+});
+
+describe('grouping', () => {
+  /** Three markers, bottom to top, and their ids in that order. */
+  function three() {
+    const ids = ['a', 'b', 'c'].map((name) => {
+      const l = s().addLayer('marker');
+      s().updateLayer(l.id, { name });
+      return l.id;
+    });
+    return ids as [string, string, string];
+  }
+
+  const names = () => layers().map((l) => l.name);
+  const groupOf = (id: string) => s().project.nodes[id];
+
+  it('puts the selected layers in a group, keeping their order', () => {
+    const [, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+
+    // `a` is untouched at the bottom; b and c are inside the group, in the same order.
+    expect(names()).toEqual(['a', 'b', 'c']);
+    const groupId = s().selection?.kind === 'layer' ? s().selection!.id : '';
+    expect(groupOf(groupId)?.type).toBe('group');
+    expect(childrenOf(s().project, groupId).map((n) => n.name)).toEqual(['b', 'c']);
+  });
+
+  it('leaves the group where the beat was, not at the front', () => {
+    // Grouping the bottom two of three must not lift them above the third: a beat keeps
+    // its place in the draw order, or grouping silently restacks the composition.
+    const [a, b] = three();
+    expect(names()).toEqual(['a', 'b', 'c']);
+    s().selectMany(a, [a, b]);
+    s().groupSelection();
+    expect(names()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('is one undo step', () => {
+    const [, b, c] = three();
+    const before = names();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    s().undo();
+    expect(names()).toEqual(before);
+    expect(Object.values(s().project.nodes).some((n) => n.type === 'group')).toBe(false);
+  });
+
+  it('round-trips through ungroup', () => {
+    const [, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    const groupId = s().selection!.id;
+    s().ungroup(groupId);
+
+    expect(names()).toEqual(['a', 'b', 'c']);
+    expect(s().project.nodes[groupId]).toBeUndefined();
+    expect(layers().every((l) => l.parentId === null)).toBe(true);
+  });
+
+  it('only groups nodes that already share a parent', () => {
+    /*
+     * ⌘G reads as "put these together", not "move things across the tree". A layer that
+     * lives somewhere else is left where it is rather than being pulled out of its group.
+     */
+    const [a, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    const inner = childrenOf(s().project, s().selection!.id)[0]!;
+    expect(inner.name).toBe('b');
+
+    const firstGroup = inner.parentId;
+    s().selectMany(a, [a, inner.id]);
+    s().groupSelection();
+
+    // Only `a` — which shares the root with the primary — went in. `inner` stayed put.
+    expect(childrenOf(s().project, s().selection!.id).map((n) => n.name)).toEqual(['a']);
+    expect(s().project.nodes[inner.id]?.parentId).toBe(firstGroup);
+  });
+
+  it('deletes the whole subtree with the group', () => {
+    const [, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    s().removeLayer(s().selection!.id);
+
+    expect(names()).toEqual(['a']);
+    expect(s().selection).toBeNull();
+  });
+
+  it('duplicates a group with fresh ids for everything inside it', () => {
+    // Copies sharing child ids would be two rows editing one layer.
+    const [, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    const original = s().selection!.id;
+    const inside = childrenOf(s().project, original).map((n) => n.id);
+
+    s().duplicateLayer(original);
+    const copy = s().selection!.id;
+    const copied = childrenOf(s().project, copy).map((n) => n.id);
+
+    expect(copy).not.toBe(original);
+    expect(copied).toHaveLength(2);
+    for (const id of copied) expect(inside).not.toContain(id);
+    expect(names()).toEqual(['a', 'b', 'c', 'b', 'c']);
+  });
+
+  it('adds a new layer inside the selected group', () => {
+    // Otherwise a group is a one-way door: you could make one and never fill it.
+    const [, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    const groupId = s().selection!.id;
+
+    const added = s().addLayer('text');
+    expect(s().project.nodes[added.id]?.parentId).toBe(groupId);
+  });
+
+  it('refuses edits to a layer inside a locked group', () => {
+    // A lock that leaves every child editable is a label, not a lock.
+    const [, b, c] = three();
+    s().selectMany(b, [b, c]);
+    s().groupSelection();
+    const groupId = s().selection!.id;
+    const child = childrenOf(s().project, groupId)[0]!;
+
+    s().setLayerLocked(groupId, true);
+    s().updateLayer(child.id, { name: 'nope' });
+    expect(s().project.nodes[child.id]?.name).toBe('b');
+
+    s().setLayerLocked(groupId, false);
+    s().updateLayer(child.id, { name: 'yes' });
+    expect(s().project.nodes[child.id]?.name).toBe('yes');
+  });
+});
+
+describe('multi-select', () => {
+  it('toggles a row in and out beside the primary', () => {
+    const a = s().addLayer('marker').id;
+    const b = s().addLayer('marker').id;
+    s().select({ kind: 'layer', id: a });
+    s().toggleAlso(b);
+    expect(s().also).toEqual([b]);
+    s().toggleAlso(b);
+    expect(s().also).toEqual([]);
+  });
+
+  it('promotes the next selection when the primary is toggled off', () => {
+    // Emptying the selection because you clicked the one row that happened to be primary
+    // would lose the other four.
+    const a = s().addLayer('marker').id;
+    const b = s().addLayer('marker').id;
+    s().selectMany(a, [a, b]);
+    s().toggleAlso(a);
+    expect(s().selection).toEqual({ kind: 'layer', id: b });
+    expect(s().also).toEqual([]);
+  });
+
+  it('a plain click replaces the selection rather than adding to it', () => {
+    const a = s().addLayer('marker').id;
+    const b = s().addLayer('marker').id;
+    s().selectMany(a, [a, b]);
+    s().select({ kind: 'layer', id: b });
+    expect(s().also).toEqual([]);
+  });
+
+  it('drops deleted nodes from the selection', () => {
+    const a = s().addLayer('marker').id;
+    const b = s().addLayer('marker').id;
+    s().selectMany(a, [a, b]);
+    s().removeLayer(b);
+    expect(s().also).toEqual([]);
+    expect(s().selection).toEqual({ kind: 'layer', id: a });
   });
 });

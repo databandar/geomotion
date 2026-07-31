@@ -1,7 +1,7 @@
 import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
-import { layersOf, liveCamera, shotsOf } from '@geomotion/document';
-import type { LayerType } from '@geomotion/document';
+import { childrenOf, isGroupNode, liveCamera, shotsOf } from '@geomotion/document';
+import type { DocNode, LayerType, Project } from '@geomotion/document';
 import Icon, { type IconName } from './Icon';
 import { Menu } from './ui';
 
@@ -15,12 +15,43 @@ const ADD: { type: LayerType; label: string; icon: IconName }[] = [
   { type: 'image', label: 'Image', icon: 'image' },
 ];
 
+/** One rendered row: the node, how deep it sits, and whether it is inside a shut group. */
+interface Row {
+  node: DocNode;
+  depth: number;
+}
+
+/**
+ * The panel's rows, top of the picture first.
+ *
+ * The document is bottom-to-top (ascending `order` is draw order); a layer panel reads
+ * top-down, as the picture stacks. So each level is reversed, and a group's children are
+ * reversed within it — reversing the flattened list instead would put every group's rows
+ * *above* their group rather than under it.
+ *
+ * A collapsed group contributes its own row and none of its children's.
+ */
+function rowsOf(project: Project, collapsed: Record<string, boolean>, parentId: string | null = null, depth = 0): Row[] {
+  const out: Row[] = [];
+  for (const node of [...childrenOf(project, parentId)].reverse()) {
+    if (node.type === 'camera') continue;
+    out.push({ node, depth });
+    if (isGroupNode(node) && !collapsed[node.id]) out.push(...rowsOf(project, collapsed, node.id, depth + 1));
+  }
+  return out;
+}
+
 export default function LayerPanel() {
   const host = useRenderHost();
-  const layers = useStore((s) => layersOf(s.project));
+  const project = useStore((s) => s.project);
+  const collapsed = useStore((s) => s.collapsed);
   const selection = useStore((s) => s.selection);
-  const camera = useStore((s) => liveCamera(s.project));
+  const also = useStore((s) => s.also);
   const select = useStore((s) => s.select);
+  const toggleAlso = useStore((s) => s.toggleAlso);
+  const selectMany = useStore((s) => s.selectMany);
+  const toggleCollapsed = useStore((s) => s.toggleCollapsed);
+  const camera = liveCamera(project);
   const addLayer = useStore((s) => s.addLayer);
   const removeLayer = useStore((s) => s.removeLayer);
   const duplicateLayer = useStore((s) => s.duplicateLayer);
@@ -28,11 +59,41 @@ export default function LayerPanel() {
   const updateLayer = useStore((s) => s.updateLayer);
   const addKeyframe = useStore((s) => s.addKeyframe);
   const setLayerLocked = useStore((s) => s.setLayerLocked);
+  const groupSelection = useStore((s) => s.groupSelection);
+  const ungroup = useStore((s) => s.ungroup);
+
+  const rows = rowsOf(project, collapsed);
+  const selectedIds = new Set(selection?.kind === 'layer' ? [selection.id, ...also] : []);
+
+  /**
+   * Click, ⌘-click, shift-click — the three gestures every layer list has.
+   *
+   * The range is taken over the *rendered* rows rather than the document, because the rows
+   * are what you can see: shift-clicking two rows either side of a collapsed group should
+   * not silently take in the children you cannot see.
+   */
+  const onRowClick = (e: React.MouseEvent, id: string) => {
+    if (e.metaKey || e.ctrlKey) return toggleAlso(id);
+    if (e.shiftKey && selection?.kind === 'layer') {
+      const from = rows.findIndex((r) => r.node.id === selection.id);
+      const to = rows.findIndex((r) => r.node.id === id);
+      if (from >= 0 && to >= 0) {
+        const span = rows.slice(Math.min(from, to), Math.max(from, to) + 1).map((r) => r.node.id);
+        return selectMany(id, span);
+      }
+    }
+    select({ kind: 'layer', id });
+  };
 
   return (
     <div className="layer-panel">
       <div className="panel-head">
         <span>Layers</span>
+        {selectedIds.size > 1 && (
+          <button className="mini" onClick={groupSelection} title="Group the selected layers (⌘G)">
+            Group {selectedIds.size}
+          </button>
+        )}
       </div>
 
       {/*
@@ -84,56 +145,116 @@ export default function LayerPanel() {
           </button>
         </div>
 
-        {[...layers].reverse().map((l) => {
-          const sel = selection?.kind === 'layer' && selection.id === l.id;
-          const locked = l.locked === true;
+        {rows.map(({ node, depth }) => {
+          const sel = selectedIds.has(node.id);
+          const locked = 'locked' in node && node.locked === true;
+          const group = isGroupNode(node);
+          const visible = 'visible' in node ? node.visible : true;
+          /*
+           * A row inside a hidden or locked group shows it: the child's own `visible` is
+           * still true and its own lock still off, and a panel that drew them as if the
+           * inheritance were not there would be lying about what renders.
+           */
+          const inherited = { hidden: false, locked: false };
+          for (let p = node.parentId; p; ) {
+            const ancestor: DocNode | undefined = project.nodes[p];
+            if (!ancestor) break;
+            if ('visible' in ancestor && !ancestor.visible) inherited.hidden = true;
+            if ('locked' in ancestor && ancestor.locked === true) inherited.locked = true;
+            p = ancestor.parentId;
+          }
+
           return (
             <div
-              key={l.id}
-              className={'layer-item' + (sel ? ' sel' : '') + (locked ? ' locked' : '')}
-              onClick={() => select({ kind: 'layer', id: l.id })}
+              key={node.id}
+              className={
+                'layer-item' +
+                (sel ? ' sel' : '') +
+                (locked || inherited.locked ? ' locked' : '') +
+                (group ? ' group-row' : '') +
+                (inherited.hidden || !visible ? ' dim' : '')
+              }
+              style={depth > 0 ? { paddingLeft: 8 + depth * 14 } : undefined}
+              onClick={(e) => onRowClick(e, node.id)}
             >
-              <button
-                className={'icon-btn eye' + (l.visible ? '' : ' off')}
-                title={locked ? 'Locked' : l.visible ? 'Hide' : 'Show'}
-                disabled={locked}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  updateLayer(l.id, { visible: !l.visible });
-                }}
-              >
-                <Icon name={l.visible ? 'eye-open' : 'eye-off'} size={13} />
-              </button>
+              {group ? (
+                <button
+                  className={'icon-btn twist' + (collapsed[node.id] ? ' shut' : '')}
+                  title={collapsed[node.id] ? 'Expand' : 'Collapse'}
+                  aria-expanded={!collapsed[node.id]}
+                  onClick={(e) => (e.stopPropagation(), toggleCollapsed(node.id))}
+                >
+                  <Icon name={collapsed[node.id] ? 'arrow-right' : 'arrow-down'} size={11} />
+                </button>
+              ) : (
+                <button
+                  className={'icon-btn eye' + (visible ? '' : ' off')}
+                  title={locked ? 'Locked' : inherited.hidden ? 'Hidden by its group' : visible ? 'Hide' : 'Show'}
+                  disabled={locked || inherited.locked}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateLayer(node.id, { visible: !visible });
+                  }}
+                >
+                  <Icon name={visible ? 'eye-open' : 'eye-off'} size={13} />
+                </button>
+              )}
               {/* A dot in the type's colour before the icon: at a glance down the list
                   you read *kinds* by colour without decoding seven glyphs. */}
-              <span className={'row-dot t-' + l.type} />
-              <span className={'glyph t-' + l.type}>
-                <Icon name={ADD.find((a) => a.type === l.type)?.icon ?? 'shape'} size={13} />
+              <span className={'row-dot t-' + node.type} />
+              <span className={'glyph t-' + node.type}>
+                <Icon name={group ? 'folder' : (ADD.find((a) => a.type === node.type)?.icon ?? 'shape')} size={13} />
               </span>
-              <span className="lname">{l.name}</span>
+              <span className="lname">{node.name}</span>
+              {group && (
+                <>
+                  <span className="count">{childrenOf(project, node.id).length}</span>
+                  <button
+                    className={'icon-btn eye' + (visible ? '' : ' off')}
+                    title={visible ? 'Hide the group and everything in it' : 'Show'}
+                    disabled={locked || inherited.locked}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateLayer(node.id, { visible: !visible });
+                    }}
+                  >
+                    <Icon name={visible ? 'eye-open' : 'eye-off'} size={13} />
+                  </button>
+                </>
+              )}
               <div className="layer-actions">
                 {/* Lock stays on the row rather than in the menu: it is a *state* you
                     need to see without opening anything, and the row is how you read
                     which layers are pinned down. It shows through when engaged. */}
                 <button
                   className={'icon-btn lock' + (locked ? ' on' : '')}
-                  title={locked ? 'Unlock' : 'Lock — refuse edits to this layer'}
+                  title={
+                    inherited.locked
+                      ? 'Locked by its group'
+                      : locked
+                        ? 'Unlock'
+                        : 'Lock — refuse edits to this layer'
+                  }
                   aria-pressed={locked}
-                  onClick={(e) => (e.stopPropagation(), setLayerLocked(l.id, !locked))}
+                  disabled={inherited.locked}
+                  onClick={(e) => (e.stopPropagation(), setLayerLocked(node.id, !locked))}
                 >
                   <Icon name={locked ? 'lock' : 'unlock'} size={12} />
                 </button>
                 <Menu
-                  label={`Actions for ${l.name}`}
+                  label={`Actions for ${node.name}`}
                   items={[
-                    { label: 'Move up', icon: 'arrow-up', onSelect: () => moveLayer(l.id, 1), disabled: locked },
-                    { label: 'Move down', icon: 'arrow-down', onSelect: () => moveLayer(l.id, -1), disabled: locked },
+                    { label: 'Move up', icon: 'arrow-up', onSelect: () => moveLayer(node.id, 1), disabled: locked },
+                    { label: 'Move down', icon: 'arrow-down', onSelect: () => moveLayer(node.id, -1), disabled: locked },
+                    ...(group
+                      ? [{ label: 'Ungroup', icon: 'shape' as const, onSelect: () => ungroup(node.id), disabled: locked }]
+                      : []),
                     // Duplicating a locked layer is allowed — it reads the layer and
                     // writes a new one, so nothing the lock protects is touched. The
                     // copy comes out unlocked, which is what you want if you locked the
                     // original to keep a version of it.
-                    { label: 'Duplicate', icon: 'duplicate', onSelect: () => duplicateLayer(l.id) },
-                    { label: 'Delete', icon: 'close', onSelect: () => removeLayer(l.id), danger: true, disabled: locked },
+                    { label: 'Duplicate', icon: 'duplicate', onSelect: () => duplicateLayer(node.id) },
+                    { label: 'Delete', icon: 'close', onSelect: () => removeLayer(node.id), danger: true, disabled: locked },
                   ]}
                 />
               </div>
@@ -141,7 +262,7 @@ export default function LayerPanel() {
           );
         })}
 
-        {layers.length === 0 && <p className="hint pad">No layers yet. Add a route, marker or title above.</p>}
+        {rows.length === 0 && <p className="hint pad">No layers yet. Add a route, marker or title above.</p>}
       </div>
     </div>
   );

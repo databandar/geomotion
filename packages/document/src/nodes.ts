@@ -19,9 +19,10 @@
  * - **Deletion is by id.** Every write path had to find an index first; each one was a place
  *   to be off by one.
  */
-import { isDraft, original } from 'immer';
+import { current, isDraft, original } from 'immer';
+import { createId } from '@geomotion/core';
 import { compareOrder, orderBetween } from './order.ts';
-import type { CameraNode, Layer, Project } from './types.ts';
+import type { CameraNode, GroupNode, Layer, Project } from './types.ts';
 
 export type NodeId = string;
 
@@ -32,18 +33,32 @@ export type NodeId = string;
  * "a `type` string plus the fields that type needs". Groups and scenes join this union
  * without any existing member changing.
  */
-export type DocNode = Layer | CameraNode;
+export type DocNode = Layer | CameraNode | GroupNode;
 
 /** The store itself. A plain record, so it serialises and structurally shares as it stands. */
 export type NodeStore = Record<NodeId, DocNode>;
 
-/** Whether a node draws. The complement of `isCameraNode`; the two must stay exhaustive. */
-export function isLayerNode(node: DocNode): node is Layer {
-  return node.type !== 'camera';
-}
-
+/**
+ * What a node is. Three answers, and they must stay exhaustive over `DocNode`.
+ *
+ * `isLayerNode` means *this draws*. A group is a container and a camera is an observer;
+ * neither emits anything, and the evaluator's loop should never have to ask.
+ */
 export function isCameraNode(node: DocNode): node is CameraNode {
   return node.type === 'camera';
+}
+
+export function isGroupNode(node: DocNode): node is GroupNode {
+  return node.type === 'group';
+}
+
+export function isLayerNode(node: DocNode): node is Layer {
+  return !isCameraNode(node) && !isGroupNode(node);
+}
+
+/** Whether a node takes part in draw order — everything except the cameras. */
+export function isDrawOrdered(node: DocNode): boolean {
+  return !isCameraNode(node);
 }
 
 /* ------------------------------------------------------------------- reading */
@@ -103,18 +118,88 @@ export function childrenOf(project: Project, parentId: NodeId | null = null): Do
 }
 
 /**
- * The layers, in draw order — what `project.layers` used to be, exactly.
+ * The layers that draw, in draw order — §6.5's "depth-first document order".
  *
- * Ascending `order` is bottom-to-top, which is the array order every consumer already
- * expects: the evaluator draws in list order, and the layer panel reverses it so the topmost
- * layer sits at the top of the list.
+ * Siblings in ascending `order`, descending into each group at the position the group
+ * occupies. Ascending is bottom-to-top, which is the order every consumer already expects:
+ * the evaluator draws in list order, and the layer panel reverses it so the topmost layer
+ * sits at the top of the list.
  *
- * Flat for now: this returns *every* layer in the document rather than only the roots,
- * because nothing can have a parent yet. When groups land it becomes a depth-first walk, and
- * §6.5's "depth-first document order" is the rule it will walk by.
+ * Groups are walked *through*, never returned: they draw nothing. For a project with no
+ * groups this is exactly the flat ordered list it always was.
  */
 export function layersOf(project: Project): Layer[] {
-  return memo(layerCache, project.nodes, () => sortedIn(project.nodes).filter(isLayerNode));
+  return memo(layerCache, project.nodes, () => walkLayers(project.nodes));
+}
+
+function walkLayers(nodes: NodeStore): Layer[] {
+  const byParent = childIndex(nodes);
+  const out: Layer[] = [];
+  const seen = new Set<NodeId>();
+
+  const descend = (parentId: NodeId | null) => {
+    for (const node of byParent.get(parentId) ?? []) {
+      // A cycle in a hand-edited file would otherwise recurse forever. A node reached twice
+      // is drawn once, at the first place the walk found it.
+      if (seen.has(node.id)) continue;
+      seen.add(node.id);
+      if (isGroupNode(node)) descend(node.id);
+      else if (isLayerNode(node)) out.push(node);
+    }
+  };
+
+  descend(null);
+  /*
+   * A node whose parent is missing — a group deleted by a hand edit, or a patch that landed
+   * out of order — is unreachable from the root and would silently vanish from the render.
+   * It draws at the end instead: visibly wrong beats invisibly absent.
+   */
+  for (const node of sortedIn(nodes)) {
+    if (!seen.has(node.id) && isLayerNode(node)) out.push(node);
+  }
+  return out;
+}
+
+/** Children by parent id, each list sorted. Built once per walk. */
+function childIndex(nodes: NodeStore): Map<NodeId | null, DocNode[]> {
+  const byParent = new Map<NodeId | null, DocNode[]>();
+  for (const node of Object.values(nodes)) {
+    const parent = node.parentId ?? null;
+    // A parent that is not in the store is no parent; those nodes are swept up separately.
+    const key = parent !== null && !nodes[parent] ? undefined : parent;
+    if (key === undefined) continue;
+    const list = byParent.get(key);
+    if (list) list.push(node);
+    else byParent.set(key, [node]);
+  }
+  for (const list of byParent.values()) list.sort(compareOrder);
+  return byParent;
+}
+
+/** The groups, in document order. */
+export function groupsOf(project: Project): GroupNode[] {
+  return sortedIn(project.nodes).filter(isGroupNode);
+}
+
+/**
+ * The nodes above `id`, nearest parent first.
+ *
+ * Inheritance reads this — a locked group locks its subtree, a hidden one hides it — so it
+ * stops at a missing or repeated parent rather than looping on a broken file.
+ */
+export function ancestorsOf(project: Project, id: NodeId): DocNode[] {
+  const out: DocNode[] = [];
+  const seen = new Set<NodeId>([id]);
+  let parentId = project.nodes[id]?.parentId ?? null;
+
+  while (parentId !== null && !seen.has(parentId)) {
+    const parent = project.nodes[parentId];
+    if (!parent) break;
+    seen.add(parentId);
+    out.push(parent);
+    parentId = parent.parentId ?? null;
+  }
+  return out;
 }
 
 /** The cameras, in order. Cameras observe; they never appear in `layersOf`. */
@@ -275,15 +360,15 @@ export function removeNode(draft: Project, id: NodeId): void {
 }
 
 /**
- * Move a node one place up or down among the siblings of its own kind.
+ * Move a node one place up or down among the siblings it shares a draw order with.
  *
  * `+1` is toward the front of the draw order (later, on top) — what the layer panel's "Move
  * up" meant when it swapped array slots. Refuses at the ends rather than wrapping.
  *
- * *Of its own kind*, because until groups exist a camera and a layer are siblings by
- * accident: §04 puts cameras in their own group beside the map context, and there is nowhere
- * else to park them yet. A camera has no place in draw order, so stepping a layer past one
- * would be a move that changes nothing on screen and reads as a broken button.
+ * Layers and groups are peers here: a group occupies a position in the draw order and a
+ * layer can step past it. Cameras are not, because until §04's camera group exists they are
+ * siblings of content by accident, and a camera has no place in draw order — stepping a
+ * layer past one would be a move that changes nothing on screen and reads as a broken button.
  *
  * The neighbour is not touched: the moving node takes a key on the far side of it. That is
  * the difference from the array swap this replaces — one patch to one field, so two people
@@ -292,8 +377,8 @@ export function removeNode(draft: Project, id: NodeId): void {
 export function moveNodeBy(draft: Project, id: NodeId, dir: -1 | 1): void {
   const node = draft.nodes[id];
   if (!node) return;
-  const kind = isLayerNode(node) ? isLayerNode : isCameraNode;
-  const siblings = siblingsIn(draft.nodes, node.parentId ?? null).filter(kind);
+  const peer = isCameraNode(node) ? isCameraNode : isDrawOrdered;
+  const siblings = siblingsIn(draft.nodes, node.parentId ?? null).filter(peer);
   const i = siblings.findIndex((n) => n.id === id);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= siblings.length) return;
@@ -306,6 +391,47 @@ export function moveNodeBy(draft: Project, id: NodeId, dir: -1 | 1): void {
   node.order =
     dir === 1 ? orderBetween(target.order, beyond?.order ?? null) : orderBetween(beyond?.order ?? null, target.order);
   rewritten.add(draft.nodes);
+}
+
+/**
+ * Copy a node, and everything under it, into the same parent.
+ *
+ * Every copied node gets a fresh id: a duplicated group that shared its children's ids would
+ * be two rows in the panel editing one layer, and deleting either would take both.
+ * `rename` is applied to the top node only — "Beat 2 copy" reads better than a subtree where
+ * every child has been renamed too.
+ *
+ * Returns the new top-level id, so the caller can select what it just made.
+ */
+export function duplicateNode(draft: Project, id: NodeId, rename?: (name: string) => string): NodeId | undefined {
+  const source = draft.nodes[id];
+  if (!source) return undefined;
+
+  // structuredClone rather than a JSON round-trip: faster, and it does not quietly drop
+  // values JSON cannot represent.
+  const copyOf = (node: DocNode, parentId: NodeId | null, newId: NodeId): DocNode =>
+    ({ ...structuredClone(current(node)), id: newId, parentId }) as DocNode;
+
+  const fresh = new Map<NodeId, NodeId>([[id, createId()]]);
+  for (const child of descendantsIn(draft.nodes, id)) fresh.set(child, createId());
+
+  const top = copyOf(source, source.parentId ?? null, fresh.get(id) as NodeId);
+  if (rename) top.name = rename(top.name);
+  // A duplicate of a locked node comes out unlocked: duplicating is how you get an editable
+  // version of the thing you locked, and the copy is selected immediately. (A camera has no
+  // lock, which is why this is guarded rather than a plain delete.)
+  if (!isCameraNode(top)) delete top.locked;
+  addNode(draft, top, { after: id });
+
+  // Children keep their own order keys, so the copied subtree reads in the same order as
+  // the original — they are only ever compared with their new siblings.
+  for (const child of descendantsIn(draft.nodes, id)) {
+    const node = draft.nodes[child];
+    if (!node) continue;
+    const parent = fresh.get(node.parentId ?? '') ?? (node.parentId ?? null);
+    draft.nodes[fresh.get(child) as NodeId] = copyOf(node, parent, fresh.get(child) as NodeId);
+  }
+  return fresh.get(id);
 }
 
 /**

@@ -62,11 +62,15 @@ tree-merge nightmare.
 
 *Rejected:* v1's nested JSON, which deep-cloned the whole project per keystroke.
 
-**Built** (document format 7): `project.nodes` is that flat record, layers and cameras
-together, every node carrying `parentId` and a fractional-index `order`; the ordered lists —
-`layersOf`, `camerasOf`, `childrenOf` — are derived and memoised, never stored. See
-[`docs/features/node-store.md`](docs/features/node-store.md). Still to come on top of it:
-group and scene node types, `space` on the node, and `props: Record<string, Track>`.
+**Built** (document format 7): `project.nodes` is that flat record, layers, groups and
+cameras together, every node carrying `parentId` and a fractional-index `order`; the ordered
+lists — `layersOf` (a depth-first walk, §6.5's z-order), `camerasOf`, `childrenOf` — are
+derived and memoised, never stored. `group` is the first node type with children, inheriting
+visibility, lock and opacity to its subtree. See
+[`docs/features/node-store.md`](docs/features/node-store.md) and
+[`docs/features/groups.md`](docs/features/groups.md). Still to come on top of it: scene and
+map-context node types, `space` on the node, transform inheritance, and
+`props: Record<string, Track>`.
 
 ### Every property is a track
 

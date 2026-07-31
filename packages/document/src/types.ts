@@ -70,6 +70,41 @@ export interface CameraNode {
   behaviours: BehaviourStacks;
 }
 
+/**
+ * A container — the first node type that uses §04's `parentId` (docs/features/groups.md).
+ *
+ * A group holds other nodes and draws nothing itself. That is why it is not a `Layer`:
+ * `layersOf` returns what draws, and the evaluator's loop should never have to ask whether
+ * the thing it is holding is one of the drawable ones.
+ *
+ * What it deliberately does not carry:
+ *
+ * - **A time window.** A group whose `in`/`out` clipped its children would silently truncate
+ *   a layer whose bar you can see, at its authored length, on the timeline — a composition
+ *   disagreeing with its own timeline. Children keep their own timing. When nested scenes
+ *   land (§10) *that* node type owns a window and a local clock; a group is a container, a
+ *   scene is a composition, and conflating the two is what makes precomps confusing.
+ * - **A transform.** §04 has nodes inherit transforms from their parents, and they will —
+ *   but layers today have no shared transform to inherit (a route has `coords`, a marker a
+ *   `coord`, a text `x`/`y`). Opacity is the part of inheritance expressible now, so it is
+ *   the part that ships.
+ */
+export interface GroupNode {
+  id: string;
+  type: 'group';
+  name: string;
+  parentId: string | null;
+  order: string;
+  /** Hiding a group hides everything under it; the children's own `visible` is untouched. */
+  visible: boolean;
+  /** A locked group refuses edits to its whole subtree — see the store's `editable`. */
+  locked?: boolean;
+  /** Multiplies into every descendant's alpha. A track, so a beat can fade as one thing. */
+  opacity: Track<number>;
+  /** The rig/behaviour home §06 gives every node. Empty until that milestone reaches groups. */
+  behaviours: BehaviourStacks;
+}
+
 export interface LayerBase {
   id: string;
   name: string;
@@ -487,7 +522,7 @@ export interface Project {
    * views the rest of the app reads — `layersOf`, `camerasOf`, `childrenOf` — are derived
    * from `parentId` and `order`, never stored. See nodes.ts.
    */
-  nodes: Record<string, CameraNode | Layer>;
+  nodes: Record<string, CameraNode | GroupNode | Layer>;
   /**
    * What the map looks like during a stretch of time, keyed by id.
    *

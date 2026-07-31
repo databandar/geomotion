@@ -7,6 +7,34 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The editor — M2.3, groups (§04, §6.5)
+
+- **Layers can be grouped.** `⌘G` puts the selected layers in a named group where the
+  topmost of them sat; `⇧⌘G` puts them back. The layer panel is a tree: a disclosure
+  triangle, a child count, an eye and a lock per group, children indented under it.
+  - A group is a **node type**, not a flag — the first one to use the `parentId` the flat
+    store put on every node. It draws nothing, so it is not a `Layer`, and the evaluator's
+    loop never has to ask which of the things it is holding are drawable.
+  - **Hiding, locking and opacity apply to everything under it.** Opacity is a track, so a
+    beat fades as one thing and the fade is keyframable; the child's own `visible` is left
+    alone, so the panel can show inheritance rather than rewriting what you set.
+  - Draw order is §6.5's rule exactly: depth-first document order. A group occupies a
+    position, so a layer steps past it.
+  - Deleting takes the subtree; duplicating deep-copies it with fresh ids.
+- **Multi-select in the layer panel.** ⌘/Ctrl-click toggles, Shift-click extends, and the
+  last row clicked stays the primary — the one the inspector edits, so a selection of five
+  never leaves the panel guessing which one it is showing.
+- **A new layer lands inside the selected group**, so a group is not a one-way door.
+- **What a group deliberately does not have**: a time window (a group that clipped its
+  children would silently truncate a layer whose bar you can see at its authored length —
+  nested scenes are the node type that owns a clock, §10) and a transform (nothing has a
+  shared one to inherit yet).
+- **Additive: no format bump**, and all ten golden frames are unchanged — a new node type
+  must not move the projects that do not use it.
+- **Fixed on the way:** re-composing a project that had been through the editor would have
+  flattened every group. The composer writes the oldest document shape, so those nodes reach
+  the format chain already carrying a parent, and the 6→7 step was overwriting it.
+
 ### The document model — M2.2, the flat node store (§04 Decision 01)
 
 - **The scene becomes one flat store.** `project.layers` and `project.cameras` are gone;
