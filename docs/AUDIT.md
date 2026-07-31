@@ -189,6 +189,35 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.38 The survey reader (M37)
+
+The NFHS reader had no tests, and it is the one place in the pipeline where a mistake
+becomes a *wrong number on a map* rather than a crash. Three things wrong, in
+descending order of how certain they were to bite.
+
+**The default CSV path was absolute, into one developer's home directory.** It resolved
+on exactly one machine; everyone else got `ENOENT` from inside a render. The survey data
+is deliberately not vendored — it is third-party published figures with their own
+provenance, and carrying it would make this repo the apparent source of numbers it did
+not produce — so the path is configuration now: `--csv` or `NFHS_CSV`, with an error
+that names what to set.
+
+**A quote in the middle of a field swallowed the rest of the file.** RFC4180 gives a
+quote meaning only at the *start* of a field; treating any quote as an opener meant a
+stray inch mark absorbed every following comma and newline, collapsing the remainder
+into one field — `12" pipe,5` parsed as a single value and the number column vanished.
+The published export contains no quotes at all, so this never fired. It is guarded
+because the parser's job is to read a file this project does not control, and the survey
+republishes.
+
+**The helpful errors were buried in stack traces.** The CLI had no top-level handler, so
+the sentence explaining what to fix arrived under six frames of Node plumbing.
+
+Twenty tests, checked by breaking the parser, the alias expansion and the blank-value
+guard in turn and confirming the matching test failed each time. The real 405-column
+file still reads identically: 101 indicators, 36 regions, no missing values, and the
+merged union territory still resolving to both of its boundary names.
+
 ### 6.37 An export that lied about its audio (M36)
 
 The in-browser export's mixer had no coverage, so it got the treatment the renderer and

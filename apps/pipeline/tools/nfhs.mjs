@@ -6,6 +6,10 @@
  *   node pipeline/tools/nfhs.mjs list internet              # filtered
  *   node pipeline/tools/nfhs.mjs show "Women who have ever used the internet (%)"
  *   node pipeline/tools/nfhs.mjs extract "…" --out src/data/foo.json
+ *
+ * The survey CSV is not in this repository — it is third-party published data with its
+ * own provenance. Point at it with `--csv=<path>` or the `NFHS_CSV` environment
+ * variable.
  */
 import { loadNfhs, listIndicators, extract, changes, writeValuesFile, DEFAULT_CSV } from '../lib/nfhs.mjs';
 
@@ -15,6 +19,17 @@ const opt = (n, d) => {
   const hit = rest.find((a) => a.startsWith(`--${n}=`));
   return hit ? hit.split('=').slice(1).join('=') : d;
 };
+
+/*
+ * A failure here is almost always a misconfigured path or a mistyped indicator, and
+ * both come with a message written to be read. A stack trace buries it under frames
+ * from inside the loader, so the operator sees Node's plumbing rather than the sentence
+ * telling them what to fix.
+ */
+process.on('uncaughtException', (e) => {
+  console.error(e instanceof Error ? e.message : String(e));
+  process.exit(1);
+});
 
 const data = await loadNfhs(opt('csv', DEFAULT_CSV));
 

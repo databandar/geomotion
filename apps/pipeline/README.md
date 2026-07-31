@@ -215,6 +215,7 @@ lib/compose.mjs      script + measured durations → project JSON + SRT
 lib/render.mjs       serves dist/, drives it in headless Chrome, writes PNGs
 lib/encode.mjs       ffmpeg: frames + audio → MP4, plus the thumbnail
 lib/nfhs.mjs         reads the NFHS pivoted csv, maps names to the boundary set
+                     (set NFHS_CSV or pass --csv; the survey data is not vendored)
 ```
 
 `compose.mjs` emits an ordinary GeoMotion project, which is why the generated

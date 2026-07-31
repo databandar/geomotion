@@ -9,7 +9,31 @@ import path from 'node:path';
  * possible without joining two files.
  */
 
-export const DEFAULT_CSV = '/Users/sugandhkhobragade/Study/pystuff/nfhsdata/NFHS6/nfhs6_pivoted.csv';
+/**
+ * Where the pivoted NFHS CSV lives.
+ *
+ * The survey data is not in this repository — it is ~100 KB of third-party published
+ * figures with its own provenance, and vendoring it would make this repo the apparent
+ * source of numbers it did not produce. So the path is configuration.
+ *
+ * This used to be an absolute path into one developer's home directory, which resolved
+ * on exactly one machine and gave everyone else `ENOENT` from inside a render.
+ */
+export const DEFAULT_CSV = process.env.NFHS_CSV ?? '';
+
+/** Read the CSV, failing with something a reader can act on. */
+async function readCsv(csvPath) {
+  if (!csvPath) {
+    throw new Error(
+      'No NFHS CSV configured. Pass --csv <path>, or set NFHS_CSV to the pivoted factsheet export.',
+    );
+  }
+  try {
+    return await fs.readFile(csvPath, 'utf8');
+  } catch (e) {
+    throw new Error(`Could not read the NFHS CSV at ${csvPath}: ${e.code ?? e.message}`);
+  }
+}
 
 /** NFHS spellings → the names used by the bundled boundary sets. */
 const ALIASES = {
@@ -20,7 +44,17 @@ const ALIASES = {
   DNHDD: ['Dadra and Nagar Haveli', 'Daman and Diu'],
 };
 
-/** Minimal RFC4180 CSV parse — the factsheet text contains commas and quotes. */
+/**
+ * Minimal RFC4180 CSV parse.
+ *
+ * A quote only opens a quoted field at the *start* of a field; anywhere else it is a
+ * literal character, which is what RFC4180 says and what a spreadsheet does. Treating
+ * any quote as an opener meant a stray one — an inch mark, an unbalanced apostrophe —
+ * swallowed every comma and newline after it, collapsing the rest of the file into a
+ * single field. The published NFHS export happens to contain no quotes at all, so this
+ * has never fired; it is guarded because the parser's job is to read a file this
+ * project does not control and the survey republishes.
+ */
 function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -38,7 +72,8 @@ function parseCsv(text) {
       } else field += c;
       continue;
     }
-    if (c === '"') quoted = true;
+    // Only at the start of a field, which is the sole place RFC4180 gives it meaning.
+    if (c === '"' && field === '') quoted = true;
     else if (c === ',') {
       row.push(field);
       field = '';
@@ -59,7 +94,7 @@ function parseCsv(text) {
 const ROUNDS = { total: 'Total', urban: 'Urban', rural: 'Rural', previous: 'NFHS-5' };
 
 export async function loadNfhs(csvPath = DEFAULT_CSV) {
-  const rows = parseCsv(await fs.readFile(csvPath, 'utf8'));
+  const rows = parseCsv(await readCsv(csvPath));
   const header = rows[0];
   const body = rows.slice(1).filter((r) => r[0]?.trim());
   return { header, body, csvPath };
