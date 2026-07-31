@@ -1,0 +1,103 @@
+{
+ "version": 1,
+ "name": "ci-smoke",
+ "duration": 2,
+ "fps": 15,
+ "width": 720,
+ "height": 720,
+ "basemap": "dark",
+ "terrain": false,
+ "terrainExaggeration": 1.4,
+ "background": "#0d1117",
+ "camera": [
+  {
+   "id": "bhebw10v",
+   "t": 0,
+   "center": [
+    139,
+    35.5
+   ],
+   "zoom": 5,
+   "bearing": 0,
+   "pitch": 0,
+   "easing": "easeInOutCubic",
+   "dip": 0
+  },
+  {
+   "id": "qy5aosnl",
+   "t": 2,
+   "center": [
+    139.5,
+    35.7
+   ],
+   "zoom": 6,
+   "bearing": 0,
+   "pitch": 0,
+   "easing": "easeInOutCubic",
+   "dip": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "yhnx2ild",
+   "visible": true,
+   "in": 0,
+   "out": 2,
+   "fade": 0.4,
+   "type": "route",
+   "name": "Flight",
+   "coords": [
+    [
+     137,
+     34
+    ],
+    [
+     141,
+     36
+    ]
+   ],
+   "curve": "geodesic",
+   "color": "#4cc2ff",
+   "width": 5,
+   "opacity": 1,
+   "dashed": false,
+   "glow": true,
+   "drawStart": 0,
+   "drawEnd": 2,
+   "drawEasing": "easeInOutCubic",
+   "marker": {
+    "enabled": true,
+    "icon": "dot",
+    "color": "#ffffff",
+    "size": 6,
+    "rotate": true
+   },
+   "follow": {
+    "enabled": false,
+    "zoom": 9,
+    "pitch": 55,
+    "faceHeading": true
+   }
+  },
+  {
+   "id": "ir2yjrnq",
+   "visible": true,
+   "in": 0,
+   "out": 2,
+   "fade": 0.5,
+   "type": "text",
+   "name": "Title",
+   "text": "CI SMOKE",
+   "x": 0.5,
+   "y": 0.16,
+   "size": 48,
+   "color": "#ffffff",
+   "weight": 700,
+   "align": "center",
+   "background": false,
+   "backgroundColor": "#000000aa",
+   "letterSpacing": 0,
+   "anim": "slideUp"
+  }
+ ]
+}

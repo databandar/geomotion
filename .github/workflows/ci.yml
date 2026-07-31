@@ -98,6 +98,51 @@ jobs:
           GOLDEN_URL: http://127.0.0.1:5173/
         run: pnpm --filter @geomotion/testing golden:smoke
 
+  pipeline:
+    name: the pipeline still produces a video
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+
+      # ffmpeg is not on the runner image; the pipeline muxes and probes with it.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - run: pnpm build
+
+      - name: Render the fixture
+        # A 2s, 30-frame composition — long enough to exercise the whole path, short
+        # enough that software rendering on a runner is not the slowest job here.
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          ffmpeg -y -v error -f lavfi -i "sine=frequency=440:duration=2" -ar 48000 /tmp/tone.wav
+          node apps/pipeline/render-project.mjs \
+            apps/pipeline/fixtures/ci-smoke.geomotion.json --draft --audio=/tmp/tone.wav
+
+      # The exit code above only says ffmpeg ran. These are the properties that were
+      # wrong while it exited 0: a draft that reframed a square composition to
+      # widescreen, and `-shortest` dropping the audio stream while logging the mapping
+      # and succeeding. The fixture is square precisely because 1:1 is where the aspect
+      # bug bit and 16:9 would not have shown it.
+      - name: Check the video is the one the project asked for
+        run: |
+          node apps/pipeline/tools/check-render.mjs \
+            apps/pipeline/out/ci-smoke-draft/ci-smoke-draft.mp4 \
+            --width=720 --height=720 --fps=15 --duration=2 --audio
+
   secrets:
     name: no credentials in the tree
     runs-on: ubuntu-latest

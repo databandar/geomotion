@@ -189,6 +189,30 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.40 Guarding the pipeline in CI (M39)
+
+M38's bug was found by running the pipeline by hand and looking at the file. That is not
+a gate, so it became one: a fourth CI job renders a fixture project and asserts the MP4
+is the one the project asked for.
+
+The fixture is **square on purpose**. 1:1 is where the aspect-ratio bug bit, and a 16:9
+fixture would have rendered correctly under the broken code and guarded nothing. It
+carries audio for the same reason — `-shortest` alongside `-c:v copy` drops the audio
+stream while logging the mapping and exiting 0, which is how that defect survived
+before.
+
+`check-render.mjs` asserts size, frame rate, duration, stream presence, and the frame
+count — *decoded*, not read from the header, because `nb_frames` is metadata a muxer
+writes and can be wrong or missing, while decoding is the only way to know what a player
+will see.
+
+The checker was tested against the defects it exists to catch rather than only against a
+good file: wrong size, missing audio and wrong duration each exit 1, and a correct file
+exits 0.
+
+Roughly 20 s of runner time, and it covers the four pipeline files that unit tests were
+never going to reach.
+
 ### 6.39 A draft that reframed the composition (M38)
 
 The four remaining pipeline files are browser-driving orchestration, so rather than
