@@ -1,6 +1,6 @@
 # Property tracks
 
-**Status:** M1 landed — the primitive and its evaluation. Adoption is staged; see below.
+**Status:** M2 landed — the primitive, the per-channel interpolators, and the camera on tracks.
 
 **Governing sections:** ARCHITECTURE §04 ("every property is a track"), §06 (normative
 evaluation order). ENGINEERING_GUIDE §2 (`animation` owns `evalTrack`), §3.8, §126.
@@ -64,18 +64,41 @@ which are already plain scalar keyframes. Adopting them runs the evaluator again
 behaviour already covered by tests and golden frames, and it produces bit-identical
 output.
 
-Worth being precise about what that adoption does and does not prove. `cameraAt` handles
-its own out-of-range cases before delegating, so the camera exercises `evalTrack`'s
-interpolation and easing but never its clamping or its multi-key scan — verified by
-breaking each in turn and watching which suites went red. The camera caught the easing
-break; the primitive's own tests caught all three. The substrate is guarded by its own
-suite, and the adoption proves it composes, not that it is correct.
+In M1 that adoption was shallower than it looked: `cameraAt` still handled its own
+out-of-range cases before delegating, so the camera exercised interpolation and easing
+but never the clamp or the multi-key scan. Breaking each in turn, only the easing break
+turned the evaluator red.
 
-`center` and `bearing` stay hand-rolled for now — they need the longitude-wrapping and
-angle interpolators, and `dip` is a per-segment modifier that is not a track at all. They
-move in M2 with the interpolators.
+## M2 — the interpolators, and the whole camera
 
-## Not in M1
+All four channels now resolve through `evalTrack`, each with its own interpolator:
+longitude wraps at the antimeridian, bearing takes the short way round the compass, zoom
+and pitch are ordinary numbers. `cameraAt` no longer scans or clamps for itself, so the
+same three deliberate breaks now turn it red — the adoption guards the substrate rather
+than merely using it.
 
-Document adoption beyond the camera, the inspector's source pip, timeline keyframe rows
-for layer properties, `bound`, `expr`. Each is a later milestone with its own entry.
+The interpolators live in `core`, not `animation`. `core` already owns `LngLat`,
+`lerp` and `lerpAngle`, and putting coordinate semantics in the motion engine is exactly
+what the decision above rules out.
+
+**`dip` is not a track.** It pulls the camera back mid-move and settles it again, peaks
+at the middle in *raw* time regardless of easing, and is authored on the keyframe the
+segment leaves. That is a modifier over `base(t)` — the first genuine behaviour in §06's
+sense, and the concrete second consumer the behaviour stack has been waiting for. It
+stays written out in `cameraAt` until that stack exists. `trackSegment` exposes the raw
+segment position it needs, so it does not re-scan the keys behind the evaluator's back.
+
+**Equivalence.** The rewrite was checked against the previous implementation
+differentially — 60 random projects × 241 times, over 14,000 pairs including
+antimeridian crossings, bearings past ±360 and random dips — all exactly equal, plus ten
+bit-identical golden frames. That harness is not kept: it embeds a frozen copy of the old
+code and would block any intended change to camera behaviour. Property tests replace it.
+
+Channel tracks are cached per keyframe array in a `WeakMap`, which also removes a sort
+that used to run every frame. Coordinates are copied in and out, so nothing downstream
+can reach through the scene into the cache — or the document — and mutate a keyframe.
+
+## Not yet
+
+Document adoption beyond the camera, the inspector's source pip, timeline keyframe rows,
+`bound`, `expr`. Each is a later milestone with its own entry.

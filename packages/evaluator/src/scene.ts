@@ -11,8 +11,8 @@ import type {
   TextRender,
 } from '@geomotion/renderer';
 import type { CameraKeyframe, LngLat, Project, RegionsLayer, RouteLayer, Track } from '@geomotion/document';
-import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
-import { ease, evalTrack } from '@geomotion/animation';
+import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
+import { ease, evalTrack, trackSegment } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionAtStop, regionSet, type RegionSet } from '@geomotion/entities';
@@ -34,66 +34,82 @@ export type { CameraState, Scene } from '@geomotion/renderer';
 /* ------------------------------------------------------------------ camera */
 
 /**
- * The camera's scalar channels as property tracks.
+ * The camera as four property tracks.
  *
- * Camera keyframes predate `Track` and are stored as whole-camera rows rather than
- * per-channel tracks — the shape §04 eventually wants. Rather than migrate the document
- * before the primitive has been used in anger, the two channels that are already plain
- * scalars are read through `evalTrack`, so the substrate is exercised by real playback
- * and by the golden frames.
+ * Camera keyframes are stored as whole-camera rows — one keyframe carries centre, zoom,
+ * bearing and pitch together. §04 wants per-channel tracks, and this is the seam: the
+ * rows are projected into four tracks and every channel resolves through `evalTrack`,
+ * so the camera animates by the same rule as everything else will. The document shape
+ * changes in a later milestone; this proves the evaluation first.
  *
- * `center` and `bearing` stay below: they need the wrapping and angle interpolators, and
- * `dip` is a per-segment modifier that is not a track at all. Both move in the next
- * milestone, with the document change that makes them per-channel for real.
+ * Each channel brings its own interpolator, which is the whole reason `evalTrack` takes
+ * one: longitude wraps at the antimeridian, bearing takes the short way round the
+ * compass, zoom and pitch are ordinary numbers.
  */
-const channelTrack = (kfs: readonly CameraKeyframe[], of: (k: CameraKeyframe) => number): Track<number> => ({
-  kind: 'keyframed',
-  keys: kfs.map((k) => ({ id: k.id, t: k.t, value: of(k), easing: k.easing })),
-});
+interface CameraTracks {
+  keys: CameraKeyframe[];
+  center: Track<LngLat>;
+  zoom: Track<number>;
+  bearing: Track<number>;
+  pitch: Track<number>;
+}
+
+/*
+ * Built once per keyframe array rather than per frame.
+ *
+ * The array's identity changes whenever the camera is edited — transactions produce a
+ * new one — so a weak key is exactly right: the tracks live as long as the edit they
+ * describe and go with it. This also removes a sort that used to run on every frame.
+ */
+const cameraTrackCache = new WeakMap<readonly CameraKeyframe[], CameraTracks>();
+
+function cameraTracks(camera: readonly CameraKeyframe[]): CameraTracks {
+  const hit = cameraTrackCache.get(camera);
+  if (hit) return hit;
+
+  const keys = [...camera].sort((a, b) => a.t - b.t);
+  const channel = <T>(of: (k: CameraKeyframe) => T): Track<T> => ({
+    kind: 'keyframed',
+    keys: keys.map((k) => ({ id: k.id, t: k.t, value: of(k), easing: k.easing })),
+  });
+
+  const built: CameraTracks = {
+    keys,
+    // Copied, so nothing downstream can reach through the scene into the document and
+    // mutate a keyframe's coordinate in place.
+    center: channel((k) => [k.center[0], k.center[1]] as LngLat),
+    zoom: channel((k) => k.zoom),
+    bearing: channel((k) => k.bearing),
+    pitch: channel((k) => k.pitch),
+  };
+  cameraTrackCache.set(camera, built);
+  return built;
+}
 
 export function cameraAt(project: Project, time: number): CameraState {
-  const kfs = [...project.camera].sort((a, b) => a.t - b.t);
-  const first = kfs[0];
-  const last = kfs[kfs.length - 1];
-  if (!first || !last) return DEFAULT_CAMERA;
-  if (kfs.length === 1 || time <= first.t) return pick(first);
-  if (time >= last.t) return pick(last);
+  const tracks = cameraTracks(project.camera);
+  if (tracks.keys.length === 0) return DEFAULT_CAMERA;
 
-  // The surrounding pair. Both exist: `time` is strictly inside the range, so the
-  // scan stops before the final keyframe.
-  let i = 0;
-  while (i < kfs.length - 1 && (kfs[i + 1]?.t ?? Infinity) <= time) i++;
-  const a = kfs[i];
-  const b = kfs[i + 1];
-  if (!a || !b) return pick(first);
+  /*
+   * `dip` pulls the camera back mid-move and settles it again — the cinematic arc. It is
+   * not an authored value at any keyframe, it is a modifier over the segment, and it
+   * peaks at the middle in raw time regardless of the easing. That makes it the first
+   * real behaviour in §06's sense, and it is written here rather than in a track until
+   * the behaviour stack exists to hold it.
+   */
+  const seg = trackSegment(tracks.zoom, time);
+  const dip = seg ? (tracks.keys[seg.index]?.dip ?? 0) * Math.sin(Math.PI * seg.u) : 0;
 
-  const u = invLerp(a.t, b.t, time);
-  const e = ease(a.easing, u);
-
-  // Keep longitude interpolation on the short way around the globe.
-  const lngA = a.center[0];
-  let lngB = b.center[0];
-  while (lngB - lngA > 180) lngB -= 360;
-  while (lngB - lngA < -180) lngB += 360;
-
-  const dip = (a.dip ?? 0) * Math.sin(Math.PI * u);
-
+  const center = evalTrack(tracks.center, time, lerpLngLat, DEFAULT_CAMERA.center);
   return {
-    center: [lerp(lngA, lngB, e), lerp(a.center[1], b.center[1], e)],
-    // `dip` is applied outside the track: it modifies the segment rather than the
-    // authored values, so it is not something a keyframe holds.
-    zoom: Math.max(0, evalTrack(channelTrack(kfs, (k) => k.zoom), time) - dip),
-    bearing: lerpAngle(a.bearing, b.bearing, e),
-    pitch: evalTrack(channelTrack(kfs, (k) => k.pitch), time),
+    // Copied on the way out: a caller that mutated this would be writing into the cache.
+    center: [center[0], center[1]],
+    zoom: Math.max(0, evalTrack(tracks.zoom, time) - dip),
+    bearing: evalTrack(tracks.bearing, time, lerpAngle),
+    pitch: evalTrack(tracks.pitch, time),
   };
 }
 
-const pick = (k: { center: LngLat; zoom: number; bearing: number; pitch: number }): CameraState => ({
-  center: [k.center[0], k.center[1]],
-  zoom: k.zoom,
-  bearing: k.bearing,
-  pitch: k.pitch,
-});
 
 /* -------------------------------------------------------------- path cache */
 

@@ -107,6 +107,43 @@ export function evalTrack<T>(
   return fallback as T;
 }
 
+/** Where a time falls inside a keyframed track, in raw un-eased terms. */
+export interface TrackSegment<T> {
+  /** Index of the key the segment leaves. */
+  index: number;
+  from: Keyframe<T>;
+  to: Keyframe<T>;
+  /** 0..1 across the segment, *before* easing. */
+  u: number;
+}
+
+/**
+ * The segment `time` falls in, or null outside the keyed range.
+ *
+ * For modifiers that act on a segment rather than on the authored values — the camera's
+ * `dip` pulls the zoom back mid-move and peaks at the middle regardless of the easing,
+ * so it needs raw progress, which `evalTrack` deliberately does not expose.
+ *
+ * Null before the first key, at or after the last, and on a hold: none of those are
+ * inside a moving segment, and a modifier that fired there would act where nothing is
+ * travelling. Sharing this scan is also what keeps a caller from rolling its own and
+ * drifting from the evaluator's idea of which segment is current.
+ */
+export function trackSegment<T>(track: Track<T>, time: number): TrackSegment<T> | null {
+  if (track.kind !== 'keyframed') return null;
+  const keys = track.keys;
+  const i = segmentAt(keys, time);
+  if (i < 0) return null;
+
+  const from = keys[i] as Keyframe<T>;
+  const to = keys[i + 1];
+  if (!to || from.hold) return null;
+
+  const span = to.t - from.t;
+  if (span <= 0) return null;
+  return { index: i, from, to, u: clamp01((time - from.t) / span) };
+}
+
 /** Whether `evalTrack` can actually evaluate this kind yet. See the feature doc. */
 export function trackKindSupported<T>(track: Track<T>): boolean {
   return track.kind === 'static' || track.kind === 'keyframed';

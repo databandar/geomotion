@@ -18,4 +18,4 @@ export {
   type Rgba,
 } from './palettes.ts';
 export { clamp, clamp01, invLerp, lerp, lerpAngle } from './numeric.ts';
-export type { LngLat } from './units.ts';
+export { lerpLngLat, type LngLat } from './units.ts';

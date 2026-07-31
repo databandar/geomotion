@@ -15,5 +15,7 @@ export {
   holdValue,
   lerpNumber,
   trackKindSupported,
+  trackSegment,
   type Interpolate,
+  type TrackSegment,
 } from './track.ts';

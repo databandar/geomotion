@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Project, RegionsLayer, RegionTour } from '@geomotion/document';
+import type { CameraKeyframe, Project, RegionsLayer, RegionTour } from '@geomotion/document';
 import { createLayer, defaultTour, emptyProject, keyframe } from '@geomotion/document';
 import type { CameraState } from './scene.ts';
 import { cameraAt, layerAlpha, resolveCamera, tourPhases } from './scene.ts';
@@ -265,5 +265,76 @@ describe('cameraAt — the channels that resolve through evalTrack', () => {
     };
     expect(cameraAt(p, 1).zoom).toBeCloseTo(4, 6);
     expect(cameraAt(p, 4).zoom).toBeCloseTo(5, 6);
+  });
+});
+
+describe('cameraAt — the per-channel interpolators', () => {
+  /*
+   * The camera moved onto property tracks in M2. Equivalence with the previous
+   * hand-rolled implementation was established by a differential run — 60 random
+   * projects x 241 times each, over 14,000 pairs, exactly equal — which is not kept as a
+   * test because it embeds a frozen copy of the old code that would block any intended
+   * change to camera behaviour. These pin the properties instead.
+   */
+  const at = (a: Partial<CameraKeyframe>, b: Partial<CameraKeyframe>, t: number) =>
+    cameraAt(
+      {
+        ...emptyProject(),
+        duration: 10,
+        camera: [
+          { ...keyframe(0, [0, 0], 4), easing: 'linear', ...a },
+          { ...keyframe(4, [0, 0], 4), easing: 'linear', ...b },
+        ],
+      },
+      t,
+    );
+
+  it('crosses the antimeridian the short way', () => {
+    // Tokyo to San Francisco is across the Pacific, not backwards over Eurasia. The
+    // result deliberately runs past 180 — that is what keeps the move continuous.
+    const c = at({ center: [170, 0] }, { center: [-170, 0] }, 2).center;
+    expect(c[0]).toBeCloseTo(180, 6);
+  });
+
+  it('turns the short way round the compass', () => {
+    const b = at({ bearing: 350 }, { bearing: 10 }, 2).bearing;
+    expect(b).toBeCloseTo(360, 6);
+  });
+
+  it('pulls the zoom back mid-move and settles it again', () => {
+    // `dip` is a modifier over the segment, not an authored value at either end.
+    const withDip = at({ zoom: 6, dip: 2 }, { zoom: 6 }, 2).zoom;
+    const without = at({ zoom: 6 }, { zoom: 6 }, 2).zoom;
+    expect(without).toBeCloseTo(6, 6);
+    expect(withDip).toBeCloseTo(4, 6);
+    // Gone by each end.
+    expect(at({ zoom: 6, dip: 2 }, { zoom: 6 }, 0).zoom).toBeCloseTo(6, 6);
+    expect(at({ zoom: 6, dip: 2 }, { zoom: 6 }, 4).zoom).toBeCloseTo(6, 6);
+  });
+
+  it('peaks the dip in raw time, not eased time', () => {
+    // It is an arc through the move; easing retimes the values, not the arc.
+    const eased = at({ zoom: 6, dip: 2, easing: 'easeInOutCubic' }, { zoom: 6 }, 2).zoom;
+    expect(eased).toBeCloseTo(4, 6);
+  });
+
+  it('never returns a negative zoom', () => {
+    expect(at({ zoom: 1, dip: 5 }, { zoom: 1 }, 2).zoom).toBe(0);
+  });
+
+  it('hands back a centre the caller cannot use to corrupt the document', () => {
+    /*
+     * The channel tracks are cached per keyframe array, so a returned coordinate that
+     * aliased the cache would let one frame's mutation change every later frame — and
+     * the document with it.
+     */
+    const project: Project = {
+      ...emptyProject(),
+      camera: [{ ...keyframe(0, [10, 20], 4), easing: 'linear' }],
+    };
+    const got = cameraAt(project, 0);
+    got.center[0] = 999;
+    expect(cameraAt(project, 0).center[0]).toBe(10);
+    expect(project.camera[0]!.center[0]).toBe(10);
   });
 });
