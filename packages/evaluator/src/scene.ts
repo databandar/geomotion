@@ -12,7 +12,7 @@ import type {
 } from '@geomotion/renderer';
 import type { CameraKeyframe, LngLat, Project, RegionsLayer, RouteLayer, Track } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
-import { ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
+import { applyBehaviours, ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionAtStop, regionSet, type RegionSet } from '@geomotion/entities';
@@ -450,9 +450,15 @@ export function evaluate(project: Project, time: number): Scene {
       }
     } else if (layer.type === 'marker') {
       const local = time - layer.in;
-      const popT = layer.pop ? clamp01(local / 0.55) : 1;
-      // Slight overshoot so markers land with a bit of weight.
-      const scale = layer.pop ? overshoot(popT) : 1;
+      /*
+       * §06's pipeline, in order: the base track, then the behaviour stack over it.
+       *
+       * Scale has no authored track yet — its base is 1 — so this is the stack acting
+       * alone. That is the honest shape: `pop` and `pulse` were never authored values,
+       * they were rules, and they now say so.
+       */
+      const scale = applyBehaviours(1, layer.behaviours, { time, local });
+
       /*
        * Tracks resolve here and nowhere downstream.
        *
@@ -529,8 +535,3 @@ export function tourDuration(layer: RegionsLayer, basemapIsDark: boolean): numbe
   return end - layer.in;
 }
 
-function overshoot(t: number): number {
-  if (t >= 1) return 1;
-  const c = 1.70158 + 1;
-  return 1 + c * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
-}

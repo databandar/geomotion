@@ -45,6 +45,8 @@ export {
   keyframedTrack,
   restValue,
   staticTrack,
+  type Behaviour,
+  type BehaviourType,
   type Keyframe,
   type Track,
 } from './track.ts';

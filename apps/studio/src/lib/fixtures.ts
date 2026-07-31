@@ -33,18 +33,26 @@ export function demoProject(): Project {
     label: 'San Francisco',
     color: '#ff5f56',
     out: 15,
-    pulse: true,
   } as Partial<Layer>) as Extract<Layer, { type: 'marker' }>;
   sf.coord = SF;
+  /*
+   * Assigned after construction, not passed through the `Partial<Layer>` cast above.
+   *
+   * That cast accepts any field name, so when `drawStart` and then `pulse` were replaced
+   * it swallowed both silently and the fixture rendered with defaults — twice caught only
+   * by a golden frame moving. Assigning to the typed object makes the next such rename a
+   * compile error instead.
+   */
+  sf.pulse = true;
 
   const tokyo = createLayer('marker', 9.2, {
     name: 'Tokyo',
     label: 'Tokyo',
     color: '#ffbd2e',
     out: 15,
-    pulse: true,
   } as Partial<Layer>) as Extract<Layer, { type: 'marker' }>;
   tokyo.coord = TOKYO;
+  tokyo.pulse = true;
 
   const title = createLayer('text', 0.3, {
     name: 'Title',

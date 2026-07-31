@@ -17,9 +17,10 @@
  */
 import { migrate1to2 } from './1-to-2.ts';
 import { migrate2to3 } from './2-to-3.ts';
+import { migrate3to4 } from './3-to-4.ts';
 
 /** The format this build writes. Bump only alongside a new step below. */
-export const CURRENT_FORMAT = 3;
+export const CURRENT_FORMAT = 4;
 
 /**
  * Ordered steps, `from` → `from + 1`.
@@ -30,6 +31,7 @@ export const CURRENT_FORMAT = 3;
 const STEPS: { from: number; run: (doc: Record<string, unknown>) => Record<string, unknown> }[] = [
   { from: 1, run: migrate1to2 },
   { from: 2, run: migrate2to3 },
+  { from: 3, run: migrate3to4 },
 ];
 
 /**

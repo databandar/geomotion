@@ -1,0 +1,93 @@
+{
+  "format": 4,
+  "name": "Format 1 — frozen",
+  "duration": 12,
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "basemap": "dark",
+  "terrain": false,
+  "terrainExaggeration": 1.4,
+  "background": "#0d1117",
+  "camera": [
+    {
+      "id": "k1",
+      "t": 0,
+      "center": [
+        139.7,
+        35.68
+      ],
+      "zoom": 5,
+      "bearing": 0,
+      "pitch": 0,
+      "easing": "linear",
+      "dip": 0
+    },
+    {
+      "id": "k2",
+      "t": 6,
+      "center": [
+        -122.4,
+        37.77
+      ],
+      "zoom": 4,
+      "bearing": 20,
+      "pitch": 30,
+      "easing": "easeInOutCubic",
+      "dip": 1.5
+    }
+  ],
+  "layers": [
+    {
+      "id": "m1",
+      "visible": true,
+      "in": 0,
+      "out": 12,
+      "fade": 0.5,
+      "type": "marker",
+      "name": "Tokyo",
+      "coord": [
+        139.7,
+        35.68
+      ],
+      "color": "#ffbd2e",
+      "size": {
+        "kind": "static",
+        "value": 14
+      },
+      "label": "Tokyo",
+      "labelSize": 16,
+      "labelColor": "#ffffff",
+      "labelOffset": 16,
+      "halo": true,
+      "pulse": false,
+      "behaviours": [
+        {
+          "id": "5ic5p8u8",
+          "type": "pop",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "t1",
+      "visible": true,
+      "in": 0,
+      "out": 6,
+      "fade": 0.5,
+      "type": "text",
+      "name": "Title",
+      "text": "Format one",
+      "x": 0.5,
+      "y": 0.16,
+      "size": 44,
+      "color": "#ffffff",
+      "weight": 700,
+      "align": "center",
+      "background": false,
+      "backgroundColor": "#000000aa",
+      "letterSpacing": 0,
+      "anim": "slideUp"
+    }
+  ]
+}

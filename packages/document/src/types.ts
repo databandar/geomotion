@@ -1,4 +1,4 @@
-import type { Track } from './track.ts';
+import type { Behaviour, Track } from './track.ts';
 // The canonical declaration lives in @geomotion/core (ENGINEERING_GUIDE §2 puts
 // vector-like primitives there). Imported for use below and re-exported under the
 // name v1 already uses, so the document types read the same.
@@ -95,9 +95,21 @@ export interface MarkerLayer extends LayerBase {
   labelColor: string;
   labelOffset: number;
   halo: boolean;
+  /** An expanding ring around the marker. See the note on `behaviours`. */
   pulse: boolean;
-  /** scale-in pop when the layer enters */
-  pop: boolean;
+  /**
+   * Rules applied over this marker's **scale**, in order (§06).
+   *
+   * Replaces the `pop` boolean, which was a rule — `overshoot(local / 0.55)` — with its
+   * constants inlined in the evaluator, so every marker in every project popped
+   * identically and it could be neither retimed nor combined with anything.
+   *
+   * `pulse` deliberately did *not* move here. A stack belongs to a property, and pulse
+   * does not modify scale — it draws a ring. Putting it in this stack made the marker
+   * itself throb, which is a different picture from the one the project had. It needs a
+   * stack over its own channel, which is a later step.
+   */
+  behaviours: Behaviour[];
 }
 
 export interface TextLayer extends LayerBase {

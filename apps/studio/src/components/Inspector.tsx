@@ -622,9 +622,27 @@ function MarkerInspector({ layer }: { layer: MarkerLayer }) {
         <Field label="Pulse">
           <Toggle value={layer.pulse} onChange={(pulse) => set({ pulse })} />
         </Field>
-        <Field label="Pop in">
-          <Toggle value={layer.pop} onChange={(pop) => set({ pop })} />
-        </Field>
+      </Section>
+
+      <Section title="Behaviours">
+        {/*
+          * §06 shows the stack as an ordered list you can toggle. Listing every
+          * behaviour rather than only the enabled ones is deliberate: a switch you
+          * cannot see is a feature nobody finds.
+          */}
+        <p className="hint">Rules applied over the marker, in order.</p>
+        {layer.behaviours.map((b) => (
+          <Field key={b.id} label={BEHAVIOUR_LABELS[b.type] ?? b.type}>
+            <Toggle
+              value={b.enabled}
+              onChange={(enabled) =>
+                set({
+                  behaviours: layer.behaviours.map((x) => (x.id === b.id ? { ...x, enabled } : x)),
+                })
+              }
+            />
+          </Field>
+        ))}
       </Section>
 
       <Section title="Label">
@@ -1351,6 +1369,12 @@ function ImageInspector({ layer }: { layer: ImageLayer }) {
  * needs. Anything else can be typed into the project file; the point of the control is
  * that the common cases are one click and the setting is visible at all.
  */
+/** Display names for behaviour types; the document's names are not display copy. */
+const BEHAVIOUR_LABELS: Record<string, string> = {
+  pop: 'Pop in',
+  pulse: 'Pulse',
+};
+
 const NUMBER_LOCALES = [
   { value: 'en-US', label: '1,234.5 — comma groups' },
   { value: 'de-DE', label: '1.234,5 — dot groups' },

@@ -278,7 +278,8 @@ describe('migrate — a file with fields of the wrong type', () => {
   });
 
   it('replaces a boolean field holding a number', () => {
-    expect(load({ pulse: 1 }).pulse).toBe(false);
+    // `halo`, because the marker's booleans moved onto the behaviour stack in M10.
+    expect(load({ halo: 1 }).halo).toBe(true);
   });
 
   it('rejects NaN and Infinity, which are typeof number and pass every other check', () => {
@@ -291,7 +292,7 @@ describe('migrate — a file with fields of the wrong type', () => {
     // A track now, so the deliberate zero has to survive inside it.
     expect(load({ size: 0 }).size).toEqual({ kind: 'static', value: 0 });
     expect(load({ label: 'Tokyo' }).label).toBe('Tokyo');
-    expect(load({ pulse: true }).pulse).toBe(true);
+    expect(load({ halo: false }).halo).toBe(false);
   });
 
   it('replaces an array field holding something else', () => {

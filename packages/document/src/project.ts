@@ -130,7 +130,7 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         labelOffset: 16,
         halo: true,
         pulse: false,
-        pop: true,
+        behaviours: [{ id: createId(), type: 'pop', enabled: true }],
         ...(opts as object),
       } as Layer;
     case 'text':

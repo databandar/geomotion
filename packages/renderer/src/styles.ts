@@ -50,6 +50,7 @@ export interface MarkerStyle {
   labelColor: string;
   labelOffset: number;
   halo: boolean;
+  /** Whether the ring pulses — resolved from the layer's behaviour stack. */
   pulse: boolean;
 }
 

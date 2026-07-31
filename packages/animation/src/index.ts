@@ -11,6 +11,12 @@
 
 export { EASING_NAMES, EASINGS, ease } from './easing.ts';
 export {
+  BEHAVIOURS,
+  applyBehaviours,
+  type BehaviourContext,
+  type BehaviourFn,
+} from './behaviour.ts';
+export {
   evalTrack,
   holdValue,
   lerpNumber,
