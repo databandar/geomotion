@@ -30,8 +30,13 @@ export { applyPatches, isNoop, transact, type Patch, type Transaction } from './
 export type * from './types.ts';
 
 export {
+  KEY_EPSILON,
   TRACK_KINDS,
   coerceTrack,
+  hasKeyAt,
+  toKeyframed,
+  withValueAt,
+  withoutKeyAt,
   isAnimated,
   isTrack,
   keyframedTrack,

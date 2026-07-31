@@ -1,7 +1,7 @@
 # Property tracks
 
-**Status:** M3 landed — the primitive, the interpolators, the camera, and the first tracked
-property in the document with a format chain behind it.
+**Status:** M4 landed — the substrate, the format chain, and a property you can animate
+from the inspector.
 
 **Governing sections:** ARCHITECTURE §04 ("every property is a track"), §06 (normative
 evaluation order). ENGINEERING_GUIDE §2 (`animation` owns `evalTrack`), §3.8, §126.
@@ -133,9 +133,49 @@ project would have carried the junk. `coerceTrack` validates the union as a whol
 marker back to its layer. Added, and the map canvas now reads the marker's resolved size
 off the scene rather than resolving the track a second time.
 
+## M4 — the pip
+
+§04: "the inspector shows a source pip per property (grey static · teal keyframed ·
+violet bound · amber expression) and any property can be retargeted between kinds in
+place". That is now true for marker size, and `TrackedNumber` is the shape every other
+tracked property will use — a two-line change at the call site, which has to be cheap
+before eighteen bespoke tweens can fold in.
+
+The colour is the point: one glance down the inspector shows which properties move and
+which are pinned, without opening anything.
+
+Decisions:
+
+- **Editing a static property does not silently start animating it.** Becoming animated
+  is a deliberate act, on the pip. Auto-keyframing because the playhead happened to move
+  is how a tool loses work you did not know you were doing.
+- **Switching modes never moves the picture.** Animating seeds one key with the value
+  already showing; freezing takes the value showing. A jump on a mode change reads as a
+  bug.
+- **A drag adjusts the key under the playhead, not a trail behind it.** `KEY_EPSILON` is
+  half a frame at 60fps — under any interval a person can scrub to, over the error in a
+  float playhead.
+- **Removing the last key falls back to static, holding that value**, so a property is
+  always readable.
+
+This also fixes what M3 shipped with: the slider replaced the whole track and discarded
+every keyframe.
+
+### Corrected along the way
+
+The pip sits outside the `<label>`, and the reason first written down was wrong. A label
+does *not* forward clicks to a sibling control from a nested button — measured in Chrome
+with a real mouse click, twice. The real reason is the accessible name: a control's name
+is its label's whole text content, so nesting made the slider announce as "Size Fixed
+value — click to animate" instead of "Size". The structure stayed; the justification was
+replaced with the one that is true, and the test asserts the structure because jsdom
+computes no accessible name for a wrapped range input at all.
+
+Component tests were also silently sharing a document — Testing Library only registers
+its own cleanup when vitest runs with `globals`, which this project does not. Every
+`render` in a file piled into the same DOM. Tests reaching for the first match survived
+it; anything asking for *the* button found several.
+
 ## Not yet
 
-The inspector's source pip and an animate control (M4) — today the slider shows the
-resting value and writing replaces the track with a static one, which discards keyframes.
-That is deliberate and visible rather than hidden behind a helper. Then timeline keyframe
-rows, the remaining bespoke tweens, `bound`, `expr`.
+Timeline keyframe rows, the remaining bespoke tweens, `bound`, `expr`.

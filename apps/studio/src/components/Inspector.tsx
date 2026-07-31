@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useStore, useSelectedCue, useSelectedKeyframe, useSelectedLayer } from '../store';
-import { envelopeOf, restValue, staticTrack } from '@geomotion/document';
+import { envelopeOf, hasKeyAt } from '@geomotion/document';
+import type { Track } from '@geomotion/document';
+import { evalTrack } from '@geomotion/animation';
 import type {
   AudioCue,
   CloudsLayer,
@@ -20,7 +22,7 @@ import indiaStatesNE from '../data/india-states.json';
 import { EASING_NAMES } from '@geomotion/animation';
 import { useRenderHost } from '../render/host';
 import { BASEMAPS, getBasemap } from '@geomotion/map';
-import { Color, Field, Num, Section, Select, Slider, Text, Toggle } from './ui';
+import { Color, Field, Num, Section, Select, Slider, Text, Toggle, TrackPip } from './ui';
 import { haversine, measure, buildPath } from '@geomotion/geometry';
 
 export default function Inspector() {
@@ -446,6 +448,56 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
 
 /* ---------------------------------------------------------------- marker */
 
+/**
+ * A number driven by a property track.
+ *
+ * Reads at the playhead, so the slider shows what is actually on screen rather than a
+ * resting value that may be nothing like it. Writing goes through the store, which knows
+ * whether to change a static value or set a key — the control does not, and should not.
+ *
+ * This is the shape every tracked property will use. It exists once rather than per
+ * field so that adding a track to a property is a two-line change at the call site, which
+ * is what has to be true before the eighteen bespoke tween fields can be folded in.
+ */
+function TrackedNumber({
+  label,
+  layerId,
+  prop,
+  track,
+  ...num
+}: {
+  label: string;
+  layerId: string;
+  prop: string;
+  track: Track<number>;
+  min: number;
+  max: number;
+  step?: number;
+  precision?: number;
+}) {
+  const time = useStore((s) => s.time);
+  const setTrack = useStore((s) => s.setLayerTrack);
+  const toggleTrack = useStore((s) => s.toggleLayerTrack);
+  const toggleKey = useStore((s) => s.toggleLayerKey);
+  const value = evalTrack(track, time);
+
+  return (
+    <Field
+      label={label}
+      right={
+        <TrackPip
+          kind={track.kind}
+          hasKey={hasKeyAt(track, time)}
+          onToggleTrack={() => toggleTrack(layerId, prop, value)}
+          onToggleKey={() => toggleKey(layerId, prop, value)}
+        />
+      }
+    >
+      <Slider value={value} onChange={(v) => setTrack(layerId, prop, v, prop)} {...num} />
+    </Field>
+  );
+}
+
 function MarkerInspector({ layer }: { layer: MarkerLayer }) {
   const host = useRenderHost();
   const update = useStore((s) => s.updateLayer);
@@ -489,23 +541,16 @@ function MarkerInspector({ layer }: { layer: MarkerLayer }) {
         <Field label="Colour">
           <Color value={layer.color} onChange={(color) => set({ color })} />
         </Field>
-        <Field label="Size">
-          {/*
-            * Reads and writes the resting value. A keyframed size shows its first key
-            * and editing replaces the whole track with a static one — which is the
-            * honest behaviour until M4 adds the source pip and an animate control, and
-            * is why it is written out rather than hidden behind a helper that would
-            * quietly discard keyframes.
-            */}
-          <Slider
-            value={restValue(layer.size) ?? 8}
-            onChange={(size) => set({ size: staticTrack(size) }, 'size')}
-            min={2}
-            max={40}
-            step={0.5}
-            precision={1}
-          />
-        </Field>
+        <TrackedNumber
+          label="Size"
+          layerId={layer.id}
+          prop="size"
+          track={layer.size}
+          min={2}
+          max={40}
+          step={0.5}
+          precision={1}
+        />
         <Field label="Halo">
           <Toggle value={layer.halo} onChange={(halo) => set({ halo })} />
         </Field>

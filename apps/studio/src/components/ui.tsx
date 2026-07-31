@@ -12,14 +12,41 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
  */
 const FieldLabel = createContext<string | undefined>(undefined);
 
-export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
-  return (
+export function Field({
+  label,
+  children,
+  hint,
+  right,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+  /**
+   * A slot beside the label — the source pip, today.
+   *
+   * Rendered *outside* the `<label>` on purpose. A control's accessible name is the
+   * label's whole text content, so nesting the pip inside would fold the pip's own
+   * label into it — Chrome announces the slider as "Size Fixed value — click to
+   * animate" nested, and "Size" as a sibling. Measured, not assumed; the click
+   * forwarding one might expect from a label does not happen for a button, so the name
+   * is the actual reason.
+   */
+  right?: React.ReactNode;
+}) {
+  const field = (
     <label className="field" title={hint}>
       <span className="field-label">{label}</span>
       <div className="field-control">
         <FieldLabel.Provider value={label}>{children}</FieldLabel.Provider>
       </div>
     </label>
+  );
+  if (!right) return field;
+  return (
+    <div className="field-with-slot">
+      {field}
+      {right}
+    </div>
   );
 }
 
@@ -214,3 +241,59 @@ export function Text({
 }
 
 const round = (v: number, p: number) => Math.round(v * 10 ** p) / 10 ** p;
+
+/**
+ * A property's source, and the controls for changing it.
+ *
+ * ARCHITECTURE §04: "the inspector shows a source pip per property (grey static · teal
+ * keyframed · violet bound · amber expression) and any property can be retargeted
+ * between kinds in place". The colour is the whole point — with one glance down the
+ * inspector you can see which properties move and which are pinned, without opening
+ * anything.
+ *
+ * The diamond beside it is the keyframe at the playhead: filled when there is one,
+ * hollow when there is not, and clicking it adds or removes. That is the shape every
+ * animation tool uses, and copying it here is worth more than any better idea.
+ */
+const PIP: Record<string, { color: string; title: string }> = {
+  static: { color: 'var(--dim)', title: 'Fixed value — click to animate' },
+  keyframed: { color: '#22d3ee', title: 'Animated — click to freeze at the current value' },
+  bound: { color: '#a78bfa', title: 'Bound to an entity fact' },
+  expr: { color: '#ffbd2e', title: 'Driven by an expression' },
+};
+
+export function TrackPip({
+  kind,
+  hasKey,
+  onToggleTrack,
+  onToggleKey,
+}: {
+  kind: string;
+  hasKey: boolean;
+  onToggleTrack: () => void;
+  onToggleKey: () => void;
+}) {
+  const pip = PIP[kind] ?? PIP.static!;
+  const animated = kind === 'keyframed';
+  return (
+    <span className="track-pip">
+      <button
+        type="button"
+        className="pip-dot"
+        style={{ background: pip.color }}
+        title={pip.title}
+        aria-label={pip.title}
+        onClick={onToggleTrack}
+      />
+      {animated && (
+        <button
+          type="button"
+          className={'pip-key' + (hasKey ? ' on' : '')}
+          title={hasKey ? 'Remove the keyframe here' : 'Add a keyframe here'}
+          aria-label={hasKey ? 'Remove the keyframe here' : 'Add a keyframe here'}
+          onClick={onToggleKey}
+        />
+      )}
+    </span>
+  );
+}

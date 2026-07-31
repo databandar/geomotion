@@ -1,5 +1,17 @@
 import { create } from 'zustand';
-import { History, createLayer, keyframe, transact } from '@geomotion/document';
+import {
+  History,
+  createLayer,
+  hasKeyAt,
+  isTrack,
+  keyframe,
+  staticTrack,
+  toKeyframed,
+  transact,
+  withValueAt,
+  withoutKeyAt,
+} from '@geomotion/document';
+import type { Track } from '@geomotion/document';
 import type { AudioCue, CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
 import { clamp, createId } from '@geomotion/core';
 import { clearPathCache } from '@geomotion/evaluator';
@@ -61,6 +73,18 @@ interface State {
   removeLayer: (id: string) => void;
   duplicateLayer: (id: string) => void;
   updateLayer: <T extends Layer>(id: string, patch: Partial<T>, historyKey?: string) => void;
+  /**
+   * Set a tracked property at the playhead.
+   *
+   * Separate from `updateLayer` because the write depends on the track's kind: a static
+   * property takes the value, an animated one takes a key at `time`. A caller that had
+   * to work that out for itself would end up reimplementing it at every control.
+   */
+  setLayerTrack: (id: string, prop: string, value: number, historyKey?: string) => void;
+  /** Turn animation on or off for a tracked property, keeping what is on screen. */
+  toggleLayerTrack: (id: string, prop: string, valueNow: number) => void;
+  /** Add or remove the key at the playhead. */
+  toggleLayerKey: (id: string, prop: string, valueNow: number) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
 
   addAudioCue: (cue: Omit<AudioCue, 'id'>) => void;
@@ -217,6 +241,41 @@ export const useStore = create<State>((set, get) => ({
       if (!existing) return;
       assignChanged(existing, patchObj as Partial<Layer>);
     }, historyKey ? `${id}:${historyKey}` : undefined);
+  },
+
+  setLayerTrack: (id, prop, value, historyKey) => {
+    const time = get().time;
+    get().patch((p) => {
+      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const track = layer?.[prop];
+      if (!isTrack(track)) return;
+      layer![prop] = withValueAt(track as Track<number>, time, value, 'linear');
+    }, historyKey ? `${id}:${prop}:${historyKey}` : undefined);
+  },
+
+  toggleLayerTrack: (id, prop, valueNow) => {
+    const time = get().time;
+    get().patch((p) => {
+      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const track = layer?.[prop];
+      if (!isTrack(track)) return;
+      const t = track as Track<number>;
+      // Seeded with what is on screen, so switching modes never moves the picture.
+      layer![prop] = t.kind === 'keyframed' ? staticTrack(valueNow) : toKeyframed(t, time, valueNow, 'linear');
+    });
+  },
+
+  toggleLayerKey: (id, prop, valueNow) => {
+    const time = get().time;
+    get().patch((p) => {
+      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const track = layer?.[prop];
+      if (!isTrack(track)) return;
+      const t = track as Track<number>;
+      layer![prop] = hasKeyAt(t, time)
+        ? withoutKeyAt(t, time)
+        : withValueAt(toKeyframed(t, time, valueNow, 'linear'), time, valueNow, 'linear');
+    });
   },
 
   moveLayer: (id, dir) => {

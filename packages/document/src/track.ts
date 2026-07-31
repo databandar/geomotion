@@ -11,6 +11,7 @@
  * `evalTrack`; this package must stay free of it so the renderer and the pipeline can
  * read the document without pulling in the motion engine.
  */
+import { createId } from '@geomotion/core';
 import type { EasingName } from './types.ts';
 
 /**
@@ -121,4 +122,81 @@ export function coerceTrack<T>(loaded: unknown, fallback: Track<T>): Track<T> {
     default:
       return fallback;
   }
+}
+
+/* ------------------------------------------------------------- editing */
+
+/**
+ * How close two key times must be to count as the same instant.
+ *
+ * Editing happens at the playhead, which is a float. Without a tolerance, dragging a
+ * slider at 2.0000001s would lay down a new key beside the one at 2s on every pointer
+ * move — hundreds of keys a second, none of them removable by clicking where they look
+ * to be. Half a frame at 60fps is under any interval a person can scrub to and well over
+ * the error in a playhead.
+ */
+export const KEY_EPSILON = 1 / 120;
+
+const at = <T>(keys: readonly Keyframe<T>[], time: number) =>
+  keys.findIndex((k) => Math.abs(k.t - time) < KEY_EPSILON);
+
+/**
+ * Set the value at `time`, replacing the key there or adding one.
+ *
+ * Upsert rather than append: this runs from a slider, and a drag must adjust the one key
+ * under the playhead rather than lay down a trail behind it.
+ *
+ * On a static track it simply changes the value. A control should not silently start
+ * animating a property because the playhead happened to move — turning a property into
+ * an animated one is a deliberate act, and `toKeyframed` is where it happens.
+ */
+export function withValueAt<T>(track: Track<T>, time: number, value: T, easing: EasingName): Track<T> {
+  if (track.kind === 'static') return { kind: 'static', value };
+  if (track.kind !== 'keyframed') return track;
+
+  const i = at(track.keys, time);
+  if (i >= 0) {
+    const keys = [...track.keys];
+    keys[i] = { ...(keys[i] as Keyframe<T>), value };
+    return { kind: 'keyframed', keys };
+  }
+  return keyframedTrack([...track.keys, { id: createId(), t: time, value, easing }]);
+}
+
+/**
+ * Start animating: one key at `time` holding what the property already shows.
+ *
+ * `valueNow` is passed in rather than evaluated here, because evaluation lives in
+ * `@geomotion/animation` and this package must not depend on it — the renderer and the
+ * pipeline read documents without pulling in the motion engine.
+ *
+ * Seeding with the current value means switching a property to animated changes nothing
+ * on screen. The alternative — an empty track, or a key at zero — makes the picture jump
+ * the moment you click the pip, which reads as a bug rather than a mode change.
+ */
+export function toKeyframed<T>(track: Track<T>, time: number, valueNow: T, easing: EasingName): Track<T> {
+  if (track.kind === 'keyframed') return track;
+  return { kind: 'keyframed', keys: [{ id: createId(), t: time, value: valueNow, easing }] };
+}
+
+/**
+ * Remove the key at `time`, if there is one.
+ *
+ * Removing the last key would leave a track that evaluates to nothing, so the property
+ * falls back to static holding that key's value — which is what the user sees at the
+ * moment they delete it, and keeps every property always readable.
+ */
+export function withoutKeyAt<T>(track: Track<T>, time: number): Track<T> {
+  if (track.kind !== 'keyframed') return track;
+  const i = at(track.keys, time);
+  if (i < 0) return track;
+
+  const keys = track.keys.filter((_, k) => k !== i);
+  if (keys.length === 0) return { kind: 'static', value: (track.keys[i] as Keyframe<T>).value };
+  return { kind: 'keyframed', keys };
+}
+
+/** Whether a key sits at `time` — for showing the playhead\'s keyframe as filled. */
+export function hasKeyAt<T>(track: Track<T>, time: number): boolean {
+  return track.kind === 'keyframed' && at(track.keys, time) >= 0;
 }

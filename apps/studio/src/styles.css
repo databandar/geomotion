@@ -1737,3 +1737,67 @@ body:has(.app.exporting)::before {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------- property tracks */
+
+/* The label keeps its grid; the slot rides alongside without disturbing it. */
+.field-with-slot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.field-with-slot > .field {
+  min-width: 0;
+}
+
+.track-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: var(--sp-1);
+}
+
+.pip-dot,
+.pip-key {
+  /* 14px of paint inside a 20px target — the row is 24px and cannot grow. */
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  position: relative;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.pip-dot {
+  border-radius: 50%;
+}
+
+.pip-dot::after,
+.pip-key::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.pip-dot:hover,
+.pip-key:hover {
+  transform: scale(1.35);
+}
+
+/* A diamond, which is what a keyframe is in every timeline anyone has used. */
+.pip-key {
+  background: none;
+  border: 1.5px solid var(--dim);
+  transform: rotate(45deg);
+}
+
+.pip-key:hover {
+  transform: rotate(45deg) scale(1.35);
+}
+
+.pip-key.on {
+  background: #22d3ee;
+  border-color: #22d3ee;
+}
