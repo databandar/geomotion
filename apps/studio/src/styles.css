@@ -1864,6 +1864,7 @@ body:has(.app.exporting)::before {
 }
 
 .story-block {
+  cursor: grab;
   position: absolute;
   top: 4px;
   height: 22px;
@@ -1883,6 +1884,10 @@ body:has(.app.exporting)::before {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.story-block:active {
+  cursor: grabbing;
 }
 
 .story-label {

@@ -3,6 +3,8 @@ import {
   History,
   createLayer,
   hasKeyAt,
+  rippleBlockLength,
+  rippleBlockTo,
   isTrack,
   keyframe,
   staticTrack,
@@ -91,6 +93,10 @@ interface State {
   moveLayerKey: (id: string, prop: string, keyId: string, t: number) => void;
   /** Rewrite a tracked property as a plain 0..1 window between two times. */
   setLayerWindow: (id: string, prop: string, from: number, to: number, easing: EasingName) => void;
+  /** Drag a story block, taking what it choreographs and re-anchoring what follows. */
+  moveStoryBlock: (id: string, t: number) => void;
+  /** Re-length a story block, pushing or pulling everything after it. */
+  resizeStoryBlock: (id: string, d: number) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
 
   addAudioCue: (cue: Omit<AudioCue, 'id'>) => void;
@@ -303,6 +309,24 @@ export const useStore = create<State>((set, get) => ({
       if (!layer || !isTrack(layer[prop])) return;
       layer[prop] = windowTrack(Math.max(0, from), Math.max(0, to), easing);
     }, `${id}:${prop}:window`);
+  },
+
+  moveStoryBlock: (id, t) => {
+    get().patch((p) => {
+      const out = rippleBlockTo(p.story, p.layers, p.audio?.cues ?? [], id, t);
+      p.story = out.story;
+      p.layers = out.layers;
+      if (p.audio) p.audio.cues = out.cues;
+    }, `${id}:block:move`);
+  },
+
+  resizeStoryBlock: (id, d) => {
+    get().patch((p) => {
+      const out = rippleBlockLength(p.story, p.layers, p.audio?.cues ?? [], id, d);
+      p.story = out.story;
+      p.layers = out.layers;
+      if (p.audio) p.audio.cues = out.cues;
+    }, `${id}:block:len`);
   },
 
   moveLayer: (id, dir) => {

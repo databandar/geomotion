@@ -20,6 +20,8 @@ export default function Timeline() {
   const updateKeyframe = useStore((s) => s.updateKeyframe);
   const removeKeyframe = useStore((s) => s.removeKeyframe);
   const updateAudioCue = useStore((s) => s.updateAudioCue);
+  const moveStoryBlock = useStore((s) => s.moveStoryBlock);
+  const resizeStoryBlock = useStore((s) => s.resizeStoryBlock);
   const removeAudioCue = useStore((s) => s.removeAudioCue);
   const setPxPerSec = useStore((s) => s.setPxPerSec);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -167,9 +169,24 @@ export default function Timeline() {
                     key={b.id}
                     className="story-block"
                     style={{ left: b.t * pxPerSec, width: Math.max(4, b.d * pxPerSec) }}
+                    onPointerDown={(e) => {
+                      // The whole ripple is one gesture and one undo step: half a ripple
+                      // is a composition whose narration and picture disagree.
+                      e.stopPropagation();
+                      const t0 = b.t;
+                      dragSeconds(e, (dt) => moveStoryBlock(b.id, snap(t0 + dt)));
+                    }}
                     title={`${b.kind ?? 'block'} · ${b.d.toFixed(1)}s · ${b.nodes.length} layer${b.nodes.length === 1 ? '' : 's'}${b.say ? `\n${b.say}` : ''}`}
                   >
                     <span className="story-label">{b.say ?? b.onScreen ?? b.kind ?? 'block'}</span>
+                    <i
+                      className="grip r"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        const d0 = b.d;
+                        dragSeconds(e, (dt) => resizeStoryBlock(b.id, Math.max(0.1, d0 + dt)));
+                      }}
+                    />
                   </div>
                 ))}
               </div>
