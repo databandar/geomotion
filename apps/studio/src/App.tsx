@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import MapCanvas from './components/MapCanvas';
 import Timeline from './components/Timeline';
 import LayerPanel from './components/LayerPanel';
+import Storyboard from './components/Storyboard';
 import Inspector from './components/Inspector';
 import Toolbar from './components/Toolbar';
 import Transport from './components/Transport';
@@ -50,6 +51,9 @@ export default function App() {
       <div className="workspace">
         <aside className="left">
           <LayerPanel />
+          {/* Below the layers rather than in a tab: the two answer different questions
+              and a writer wants both on screen at once. */}
+          <Storyboard />
         </aside>
 
         <main className="center">

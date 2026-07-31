@@ -23,6 +23,10 @@ name the section each change answers to.
   - Cue ownership is compared with a tolerance. The composer writes cue times rounded and
     block times not, so three of six lines in a real project were orphaned by four
     ten-thousandths of a second.
+- **Storyboard panel.** The script, in order, with the beat under the playhead marked and
+  each card a jump into the composition. A timeline is the right tool for *when*
+  something happens and the wrong one for *what is being said* — the lane shows a
+  truncated line in a chip a centimetre wide.
 - **Story blocks live in the document.** The composer wrote its beats to a subtitle file
   and a console listing, then flattened them away — so a beat could not be retimed and
   re-composing discarded every hand edit. They are now a top-level document section,
