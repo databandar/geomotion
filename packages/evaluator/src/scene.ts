@@ -457,7 +457,15 @@ export function evaluate(project: Project, time: number): Scene {
        * alone. That is the honest shape: `pop` and `pulse` were never authored values,
        * they were rules, and they now say so.
        */
-      const scale = applyBehaviours(1, layer.behaviours, { time, local });
+      /*
+       * §06's pipeline per property: each channel's base, then its own stack over it.
+       * Scale starts at 1 because nothing has authored it; the ring's phase starts at 0,
+       * which is what "no ring" means — so a disabled stack reproduces the old boolean
+       * exactly rather than approximately.
+       */
+      const bctx = { time, local };
+      const scale = applyBehaviours(1, layer.behaviours.scale, bctx);
+      const ringPhase = applyBehaviours(0, layer.behaviours.ring, bctx);
 
       /*
        * Tracks resolve here and nowhere downstream.
@@ -468,10 +476,10 @@ export function evaluate(project: Project, time: number): Scene {
        * and it is why `style` is now a built object rather than the layer passed through.
        */
       markers.push({
-        style: { ...layer, size: evalTrack(layer.size, time, { facts, fallback: 8 }) },
+        style: { ...layer, size: evalTrack(layer.size, time, { facts, fallback: 8 }), pulse: ringPhase > 0 },
         alpha,
         scale,
-        pulse: layer.pulse ? (local % 1.6) / 1.6 : 0,
+        pulse: ringPhase,
       });
     } else if (layer.type === 'text') {
       const span = Math.max(0.0001, layer.fade || 0.5);

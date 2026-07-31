@@ -46,6 +46,7 @@ export {
   restValue,
   staticTrack,
   type Behaviour,
+  type BehaviourStacks,
   type BehaviourType,
   type Keyframe,
   type Track,

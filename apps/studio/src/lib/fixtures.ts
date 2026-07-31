@@ -1,3 +1,4 @@
+import { createId } from '@geomotion/core';
 import { createLayer, defaultTour, emptyProject, keyframe, windowTrack } from '@geomotion/document';
 import type { Layer, LngLat, Project, RegionsLayer } from '@geomotion/document';
 import indiaStates from '../data/india-states-official.json';
@@ -15,6 +16,9 @@ import indiaOutline from '../data/india-outline-official.json';
 
 const SF: LngLat = [-122.4194, 37.7749];
 const TOKYO: LngLat = [139.6917, 35.6895];
+
+/** The demo's markers carry a pulsing ring; the rest of the stack keeps its defaults. */
+const ringOn = () => [{ id: createId(), type: 'pulse' as const, enabled: true }];
 
 export function demoProject(): Project {
   const route = createLayer('route', 2.4, {
@@ -43,7 +47,7 @@ export function demoProject(): Project {
    * by a golden frame moving. Assigning to the typed object makes the next such rename a
    * compile error instead.
    */
-  sf.pulse = true;
+  sf.behaviours = { ...sf.behaviours, ring: ringOn() };
 
   const tokyo = createLayer('marker', 9.2, {
     name: 'Tokyo',
@@ -52,7 +56,7 @@ export function demoProject(): Project {
     out: 15,
   } as Partial<Layer>) as Extract<Layer, { type: 'marker' }>;
   tokyo.coord = TOKYO;
-  tokyo.pulse = true;
+  tokyo.behaviours = { ...tokyo.behaviours, ring: ringOn() };
 
   const title = createLayer('text', 0.3, {
     name: 'Title',

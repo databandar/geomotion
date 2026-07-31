@@ -255,7 +255,7 @@ export function windowOf(track: Track<number>): { from: number; to: number; easi
  * The behaviour types this format knows. Adding one is additive; removing one needs a
  * migration, because a document may name it.
  */
-export type BehaviourType = 'pop';
+export type BehaviourType = 'pop' | 'pulse';
 
 /**
  * One rule in a layer's stack (§06).
@@ -271,3 +271,18 @@ export interface Behaviour {
   enabled: boolean;
   params?: Record<string, number>;
 }
+
+/**
+ * A node's behaviour stacks, keyed by the property each one modifies.
+ *
+ * §06's pipeline is `value(t) = behaviors(expr(base(t)))` **per property**. M10 stored a
+ * single list on the layer and applied it to scale, which held only while there was one
+ * behaviour: adding `pulse` — which draws a ring, not a size — made every marker throb.
+ * Keying by property is what makes "which value does this modify" answerable rather than
+ * implied.
+ *
+ * Keyed by the same names the property tracks use, so the flat node store (§04's
+ * `props: Record<string, Track>`) can carry both side by side without either needing to
+ * know about the other.
+ */
+export type BehaviourStacks = Record<string, Behaviour[]>;

@@ -619,9 +619,6 @@ function MarkerInspector({ layer }: { layer: MarkerLayer }) {
         <Field label="Halo">
           <Toggle value={layer.halo} onChange={(halo) => set({ halo })} />
         </Field>
-        <Field label="Pulse">
-          <Toggle value={layer.pulse} onChange={(pulse) => set({ pulse })} />
-        </Field>
       </Section>
 
       <Section title="Behaviours">
@@ -630,19 +627,24 @@ function MarkerInspector({ layer }: { layer: MarkerLayer }) {
           * behaviour rather than only the enabled ones is deliberate: a switch you
           * cannot see is a feature nobody finds.
           */}
-        <p className="hint">Rules applied over the marker, in order.</p>
-        {layer.behaviours.map((b) => (
-          <Field key={b.id} label={BEHAVIOUR_LABELS[b.type] ?? b.type}>
-            <Toggle
-              value={b.enabled}
-              onChange={(enabled) =>
-                set({
-                  behaviours: layer.behaviours.map((x) => (x.id === b.id ? { ...x, enabled } : x)),
-                })
-              }
-            />
-          </Field>
-        ))}
+        <p className="hint">Rules applied over each property, in order.</p>
+        {Object.entries(layer.behaviours).map(([prop, stack]) =>
+          stack.map((b) => (
+            <Field key={b.id} label={BEHAVIOUR_LABELS[b.type] ?? b.type} hint={`Modifies ${prop}`}>
+              <Toggle
+                value={b.enabled}
+                onChange={(enabled) =>
+                  set({
+                    behaviours: {
+                      ...layer.behaviours,
+                      [prop]: stack.map((x) => (x.id === b.id ? { ...x, enabled } : x)),
+                    },
+                  })
+                }
+              />
+            </Field>
+          )),
+        )}
       </Section>
 
       <Section title="Label">

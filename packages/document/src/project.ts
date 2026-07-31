@@ -129,8 +129,10 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         labelColor: '#ffffff',
         labelOffset: 16,
         halo: true,
-        pulse: false,
-        behaviours: [{ id: createId(), type: 'pop', enabled: true }],
+        behaviours: {
+          scale: [{ id: createId(), type: 'pop', enabled: true }],
+          ring: [{ id: createId(), type: 'pulse', enabled: false }],
+        },
         ...(opts as object),
       } as Layer;
     case 'text':

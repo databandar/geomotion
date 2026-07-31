@@ -1,6 +1,6 @@
 # The behaviour stack
 
-**Status:** M10 landed — the runtime, and `pop` as the first behaviour.
+**Status:** M11 landed — the runtime, stacks keyed by property, `pop` and `pulse`.
 
 **Governing sections:** ARCHITECTURE §06 and its Decision 03.
 
@@ -37,18 +37,24 @@ behaviour and reaches the renderer as a shape that silently fails to draw.
 
 ## A stack belongs to a property, not to a layer
 
-This is the correction the milestone turned on, and it cost a golden failure to find.
+M10 stored one list on the layer and applied it to scale. That held while there was a
+single behaviour in existence. The moment `pulse` was added it had nowhere correct to go
+— it draws a ring, it does not change a size — and every marker in the demo began to
+throb. Three golden frames caught it, and the answer was to ask *why* rather than to
+recapture.
 
-`pulse` looks like a behaviour, and is one — a continuous oscillation with no last
-keyframe to write. So it went into the marker's stack alongside `pop`. But that stack
-applies to **scale**, and pulse does not modify scale: it draws a ring. The result was
-that every marker in the demo began to throb, which is a different picture from the one
-the project had — caught by three golden frames moving, then by asking *why* rather than
-recapturing.
+M11 keys stacks by the property each modifies: `scale` carries the pop, `ring` carries
+the pulse. `pulse` is back as a real behaviour, and the two coexist without either
+needing to know about the other.
 
-`pulse` stayed where it was. It needs a stack over its own channel, which is a later
-step. One behaviour that is correct is worth more than two where one has been forced into
-the wrong slot.
+**A generator is a legitimate behaviour.** `pulse` ignores the value handed to it. §06
+says behaviours observe "the value so far"; nothing requires one to *use* it, and a
+ring's phase has no base to build on. Its base is 0 — which is exactly what "no ring"
+meant as a boolean, so a disabled stack reproduces the old picture rather than
+approximating it.
+
+Crossing the two channels deliberately moves the same three golden frames that found the
+original error, which is the check that this shape is what is holding them apart.
 
 ## Equivalence
 

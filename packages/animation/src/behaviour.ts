@@ -59,16 +59,31 @@ const pop: BehaviourFn = (value, ctx, params) => {
 };
 
 /**
+ * A repeating 0..1 phase — what an expanding ring rides on.
+ *
+ * A *generator*: it ignores the value it is handed rather than modifying it, which is
+ * allowed and occasionally the point. §06 says behaviours observe "the value so far";
+ * nothing requires one to use it.
+ *
+ * Unlike `pop` this never finishes, which is why it cannot be a track: there is no last
+ * keyframe to write. Its base is 0, so a disabled stack leaves a marker with no ring —
+ * exactly what the old boolean meant.
+ */
+const pulse: BehaviourFn = (_value, ctx, params) => {
+  const period = params.period && params.period > 0 ? params.period : 1.6;
+  return (ctx.local % period) / period;
+};
+
+/**
  * The behaviours this build can evaluate.
  *
  * A table rather than a `switch`, so the set is one list a reader can see the whole of,
  * and so an unknown type from a newer document is a lookup miss rather than a crash.
  *
- * One entry, deliberately. `pulse` looks like a behaviour and is one, but it modifies a
- * marker's *ring*, not its scale — and a stack belongs to a property. Adding it here
- * made every marker throb, which is a different picture from the one projects had.
+ * `pulse` sits beside `pop` now that stacks are keyed by property. In format 4 it could
+ * not: with one list per layer it landed on scale and made every marker throb.
  */
-export const BEHAVIOURS: Record<BehaviourType, BehaviourFn> = { pop };
+export const BEHAVIOURS: Record<BehaviourType, BehaviourFn> = { pop, pulse };
 
 /**
  * Fold a stack over a base value, in order.
