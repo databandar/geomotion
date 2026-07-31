@@ -87,6 +87,26 @@ const history = new History();
 
 let saveTimer: number | undefined;
 
+/**
+ * Merge `patch` into `target` in place, and say whether anything actually moved.
+ *
+ * These actions used to assign a spread object — `p.layers[i] = { ...cur, ...patch }` —
+ * which Immer records as a replacement whether or not a single field differs. So
+ * retyping a number as the value it already held, or dragging a slider back to where it
+ * started, spent an undo step that reversed nothing. `patch`'s guard against empty
+ * transactions could never catch it, because the transaction was not empty.
+ *
+ * Assigning field by field lets Immer's own equality check do the work: an assignment
+ * of an identical value marks nothing dirty, so a no-op edit produces no patches and
+ * `patch` drops it.
+ */
+function assignChanged<T extends object>(target: T, patch: Partial<T>): void {
+  for (const key of Object.keys(patch) as (keyof T)[]) {
+    const next = patch[key];
+    if (next !== undefined && target[key] !== next) target[key] = next as T[keyof T];
+  }
+}
+
 export const useStore = create<State>((set, get) => ({
   project: loadLocal() ?? demoProject(),
   time: 0,
@@ -193,9 +213,9 @@ export const useStore = create<State>((set, get) => ({
 
   updateLayer: (id, patchObj, historyKey) => {
     get().patch((p) => {
-      const i = p.layers.findIndex((l) => l.id === id);
-      if (i < 0) return;
-      p.layers[i] = { ...p.layers[i], ...(patchObj as object) } as Layer;
+      const existing = p.layers.find((l) => l.id === id);
+      if (!existing) return;
+      assignChanged(existing, patchObj as Partial<Layer>);
     }, historyKey ? `${id}:${historyKey}` : undefined);
   },
 
@@ -235,7 +255,7 @@ export const useStore = create<State>((set, get) => ({
         if (!p.audio || i < 0) return;
         const existing = p.audio.cues[i];
         if (!existing) return;
-        p.audio.cues[i] = { ...existing, ...patch };
+        assignChanged(existing, patch);
       },
       historyKey ? `${id}:${historyKey}` : undefined,
     );
@@ -274,8 +294,10 @@ export const useStore = create<State>((set, get) => ({
       if (i < 0) return;
       const existing = p.camera[i];
       if (!existing) return;
-      p.camera[i] = { ...existing, ...patchObj };
-      p.camera.sort((a, b) => a.t - b.t);
+      assignChanged(existing, patchObj);
+      // Only a retime can disturb the order, and sorting an already-sorted array
+      // unconditionally would make every other keyframe edit look like a change.
+      if (patchObj.t !== undefined) p.camera.sort((a, b) => a.t - b.t);
     }, historyKey ? `${id}:${historyKey}` : undefined);
   },
 

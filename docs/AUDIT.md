@@ -189,6 +189,35 @@ came back as `d: 6.278` — matching ffprobe to the millisecond — the chip ren
 retime moved it to 9.5s and undo returned it to 3s, and a recording produced
 `video/webm;codecs=vp8,opus` with **both** an audio and a video track.
 
+### 6.41 An undo that reversed nothing (M40)
+
+`History` and `transact` are covered in the document package. What was not covered is
+how the store *composes* them — which is where a document editor's undo goes wrong: not
+by losing data, but by needing three presses to reverse one drag.
+
+**The bug.** Every update action assigned a spread object —
+`p.layers[i] = { ...cur, ...patch }` — which Immer records as a replacement whether or
+not a single field differs. So retyping a number as the value it already held, or
+dragging a slider back to where it started, spent an undo step that reversed nothing.
+The guard in `patch` against empty transactions could never catch it, because the
+transaction was not empty. Assigning field by field instead lets Immer's own equality
+check do the work.
+
+Fixed in all three update actions. The keyframe one also stopped re-sorting the camera
+on every edit, since only a retime can disturb the order and an unconditional sort makes
+every other edit look like a change.
+
+**Two things that looked like bugs and were not.** `halo` defaults to *on*, so a test
+expecting it off after undo was wrong about the default, not about undo. And undoing a
+layer's creation leaves the selection pointing at the vanished layer — asymmetric with
+deletion, which clears it — but that was checked rather than assumed: the inspector
+renders "Nothing selected" without throwing, an edit addressed to the missing layer is a
+no-op costing no history, and *keeping* the selection is what lets redo restore the
+layer with it still selected. Pinned as intended behaviour.
+
+Fifteen tests over coalescing, the redo branch, the playhead clamp, and the selection
+rules.
+
 ### 6.40 Guarding the pipeline in CI (M39)
 
 M38's bug was found by running the pipeline by hand and looking at the file. That is not
