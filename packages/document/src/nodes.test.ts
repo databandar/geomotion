@@ -17,7 +17,8 @@ import {
   removeNode,
   setNodeParent,
 } from './nodes.ts';
-import { createGroup, createLayer, emptyProject } from './project.ts';
+import { createLayer, emptyProject } from './project.ts';
+import { createGroup } from './schema/index.ts';
 import { transact } from './transact.ts';
 import type { LayerType, Project } from './types.ts';
 import type { DocNode } from './nodes.ts';

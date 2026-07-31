@@ -146,7 +146,13 @@ export default function Icon({
   /** Give the icon its own accessible name — only when nothing beside it has one. */
   label?: string;
 }) {
-  const { paths = [], fills = [] } = ICONS[name];
+  /*
+   * An unknown name draws nothing rather than throwing. `IconName` is a closed union, so this
+   * is only reachable from a value that arrived at runtime — the type of a node a plugin
+   * registered, or one from a newer build — and a missing glyph is a far better failure than
+   * a properties panel that will not render at all.
+   */
+  const { paths = [], fills = [] } = ICONS[name] ?? {};
   return (
     <svg
       className="icon"

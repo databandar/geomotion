@@ -7,6 +7,30 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The document model — M2.4, the node-type registry (§3.4, §11, §15)
+
+- **One description per node type.** What a fresh node holds and how each of its properties
+  is edited now live together, in `document/schema/` — nine types, defaults and property
+  metadata side by side. Construction, the load repair and the inspector all read it.
+  - Previously the defaults were a `switch` in `project.ts` and the editing metadata was
+    1,600 lines of hand-written inspector rows, with nothing relating the two: a property
+    could be added to the model and never appear in the UI, or appear with a range nothing
+    enforced, or be renamed in one place and not the other.
+  - **A coverage test in both directions** keeps it honest: every field a fresh node
+    constructs is described or explicitly marked `custom`, and nothing is described that the
+    node does not have. Both failures are invisible in a hand-written panel.
+- **A node type the editor has never heard of gets an inspector from its metadata alone** —
+  §15's promise, now tested by registering one and driving its rows. That is what makes
+  plugin node types first-class rather than second.
+- The group's opacity row is the first generated one. The seven layer types keep their
+  hand-written panels for now; their metadata is written and aligned to the labels and ranges
+  those panels use, and converting them is a milestone of its own.
+- No document change, no format bump, and all ten golden frames unchanged.
+- **Fixed on the way:** an unknown node type crashed the properties panel (an icon lookup
+  that returned `undefined`), and a node from a newer build was being rewritten into a text
+  layer on load — complete with "Your title here" — which the next save then wrote to disk.
+  Unknown types now round-trip intact.
+
 ### The editor — M2.3, groups (§04, §6.5)
 
 - **Layers can be grouped.** `⌘G` puts the selected layers in a named group where the

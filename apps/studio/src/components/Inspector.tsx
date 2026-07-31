@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useStore, useSelectedCue, useSelectedGroup, useSelectedKeyframe, useSelectedLayer } from '../store';
-import { envelopeOf, hasKeyAt, staticTrack, windowOf } from '@geomotion/document';
+import { envelopeOf, staticTrack, windowOf } from '@geomotion/document';
 import type { Track } from '@geomotion/document';
-import { evalTrack, compileExpr } from '@geomotion/animation';
-import { childrenOf } from '@geomotion/document';
+import { childrenOf, nodeTypeDef } from '@geomotion/document';
 import type {
   AudioCue,
   GroupNode,
@@ -24,7 +23,9 @@ import indiaStatesNE from '../data/india-states.json';
 import { EASING_NAMES } from '@geomotion/animation';
 import { useRenderHost } from '../render/host';
 import { BASEMAPS, getBasemap } from '@geomotion/map';
-import { Color, Field, Num, Section, Select, Slider, Text, Toggle, TrackPip } from './ui';
+import { Color, Field, Num, Section, Select, Slider, Text, Toggle } from './ui';
+import TrackedNumber from './TrackedNumber';
+import SchemaRows from './SchemaRows';
 import Icon from './Icon';
 import { haversine, measure, buildPath } from '@geomotion/geometry';
 
@@ -34,15 +35,15 @@ const LAYER_ICON = {
   regions: 'regions', clouds: 'clouds', image: 'image',
 } as const;
 
-const LAYER_KIND: Record<string, string> = {
-  route: 'Line layer',
-  marker: 'Point layer',
-  text: 'Text layer',
-  shape: 'Shape layer',
-  regions: 'Choropleth layer',
-  clouds: 'Cloud layer',
-  image: 'Image layer',
-};
+/**
+ * What a node type is called, from the registry that also holds its defaults and its
+ * property metadata (§3.4). It used to be a second table here, which is the drift the
+ * registry exists to remove: a node type nobody added to this map showed up as nothing.
+ */
+const kindOf = (type: string) => nodeTypeDef(type)?.kind ?? 'Layer';
+
+/** Which layer types this build draws a hand-written panel for. */
+const HAS_PANEL = new Set(['route', 'marker', 'text', 'shape', 'regions', 'clouds', 'image']);
 
 /** The banner a locked layer shows, with the one control that still works on it. */
 function LockedNotice({ id }: { id: string }) {
@@ -70,9 +71,9 @@ export default function Inspector() {
     : kf
       ? { icon: 'camera' as const, name: 'Camera keyframe', kind: 'Camera' }
       : group
-        ? { icon: 'folder' as const, name: group.name, kind: 'Group' }
+        ? { icon: 'folder' as const, name: group.name, kind: kindOf('group') }
         : layer
-          ? { icon: LAYER_ICON[layer.type], name: layer.name, kind: LAYER_KIND[layer.type] }
+          ? { icon: LAYER_ICON[layer.type] ?? ('shape' as const), name: layer.name, kind: kindOf(layer.type) }
           : null;
 
   return (
@@ -119,6 +120,15 @@ export default function Inspector() {
         */}
       <fieldset className="lock-guard" disabled={layer?.locked === true || group?.locked === true}>
         {group && <GroupInspector group={group} />}
+        {/* Opacity, and anything else the group's metadata declares — the same generator a
+            plugin's node type will get for free (§15). */}
+        {group && <SchemaRows node={group} />}
+        {/*
+          * A node this build has no panel for: a document from a newer version, or a type a
+          * plugin registered. Its metadata is all the editor needs to show it, which is the
+          * whole argument for keeping the description in the document package (§3.4).
+          */}
+        {layer && !HAS_PANEL.has(layer.type) && <SchemaRows node={layer} />}
         {layer?.type === 'route' && <RouteInspector layer={layer} />}
         {layer?.type === 'marker' && <MarkerInspector layer={layer} />}
         {layer?.type === 'text' && <TextInspector layer={layer} />}
@@ -164,7 +174,6 @@ function GroupInspector({ group }: { group: GroupNode }) {
       <Field label="Name">
         <Text value={group.name} onChange={(name) => update(group.id, { name } as never, 'name')} />
       </Field>
-      <TrackedNumber label="Opacity" layerId={group.id} prop="opacity" track={group.opacity} min={0} max={1} step={0.01} precision={2} />
       <p className="hint">
         {childCount === 1 ? '1 layer' : `${childCount} layers`} — hiding, locking and opacity apply to all of them.
       </p>
@@ -643,111 +652,7 @@ function TrackWindow({
   );
 }
 
-function TrackedNumber({
-  label,
-  layerId,
-  prop,
-  track,
-  ...num
-}: {
-  label: string;
-  layerId: string;
-  prop: string;
-  track: Track<number>;
-  min: number;
-  max: number;
-  step?: number;
-  precision?: number;
-}) {
-  const time = useStore((s) => s.time);
-  const setTrack = useStore((s) => s.setLayerTrack);
-  const toggleTrack = useStore((s) => s.toggleLayerTrack);
-  const toggleKey = useStore((s) => s.toggleLayerKey);
-  const toggleExpr = useStore((s) => s.toggleLayerExpr);
-  // A fallback of 0 rather than none: this feeds a slider and a readout, and an
-  // `undefined` here makes React swap the input to uncontrolled mid-edit.
-  const value = evalTrack(track, time, { fallback: 0 });
 
-  return (
-    <Field
-      label={label}
-      right={
-        <TrackPip
-          kind={track.kind}
-          hasKey={hasKeyAt(track, time)}
-          onToggleTrack={() => toggleTrack(layerId, prop, value)}
-          onToggleKey={() => toggleKey(layerId, prop, value)}
-          onToggleExpr={() => toggleExpr(layerId, prop, value)}
-        />
-      }
-    >
-      {track.kind === 'expr' ? (
-        <ExprField layerId={layerId} prop={prop} track={track} value={value} />
-      ) : (
-        <Slider value={value} onChange={(v) => setTrack(layerId, prop, v, prop)} {...num} />
-      )}
-    </Field>
-  );
-}
-
-/**
- * The formula, with what it currently evaluates to.
- *
- * Held in local state and committed on change rather than bound straight to the store:
- * an expression is invalid at almost every keystroke on the way to being right — `8 + ` is
- * a normal thing to have typed — and writing each prefix into the document would fill the
- * undo stack with fragments.
- *
- * The readout underneath is the whole point of the control. An expression is the one
- * track kind whose value you cannot see by looking at it, so the panel says both what was
- * written and what it comes to at the playhead.
- */
-function ExprField({
-  layerId,
-  prop,
-  track,
-  value,
-}: {
-  layerId: string;
-  prop: string;
-  track: Extract<Track<number>, { kind: 'expr' }>;
-  value: number;
-}) {
-  const setExpr = useStore((s) => s.setLayerExpr);
-  const [draft, setDraft] = useState(track.source);
-  const compiled = compileExpr(draft);
-  // Names the formula reads that nothing has bound. Reported separately from a syntax
-  // error because the formula is *right* — it is the wiring that is missing.
-  const unbound = compiled.refs.filter((r) => !track.inputs?.[r]);
-
-  // A source changed from elsewhere — undo, or loading a project — has to reach the box.
-  if (track.source !== draft && document.activeElement?.getAttribute('data-expr') !== prop) {
-    setDraft(track.source);
-  }
-
-  return (
-    <div className="expr-field">
-      <input
-        className={'text-in mono' + (compiled.ok ? '' : ' bad')}
-        data-expr={prop}
-        value={draft}
-        spellCheck={false}
-        aria-label={`${prop} expression`}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setExpr(layerId, prop, e.target.value);
-        }}
-      />
-      <span className={'expr-note' + (compiled.ok ? '' : ' bad')}>
-        {!compiled.ok
-          ? compiled.error
-          : unbound.length
-            ? `unbound: ${unbound.join(', ')}`
-            : `= ${Number(value.toFixed(3))}`}
-      </span>
-    </div>
-  );
-}
 
 function MarkerInspector({ layer }: { layer: MarkerLayer }) {
   const host = useRenderHost();

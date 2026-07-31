@@ -13,7 +13,21 @@
  * metadata.
  */
 
-export { createGroup, createLayer, defaultTour, emptyProject, migrate, projectWith } from './project.ts';
+export { createLayer, emptyProject, migrate, projectWith } from './project.ts';
+export { windowTrack } from './window.ts';
+export {
+  LAYER_TYPES,
+  createGroup,
+  createNode,
+  defaultTour,
+  nodeTypeDef,
+  nodeTypes,
+  propsOf,
+  registerNodeType,
+  type NodeTypeDef,
+  type PropertyMeta,
+  type PropertyRow,
+} from './schema/index.ts';
 export {
   cameraFromShots,
   createCamera,
@@ -88,7 +102,6 @@ export {
   type Keyframe,
   type Track,
 } from './track.ts';
-export { windowTrack } from './project.ts';
 export { CURRENT_FORMAT, formatOf, runMigrations } from './migrations/index.ts';
 export { blockAt, blocksFor, storyEnd, storyInOrder, type StoryBlock } from './story.ts';
 export { cuesIn, rippleBlockLength, rippleBlockTo, shiftCue, shiftLayer, type RippleResult } from './ripple.ts';

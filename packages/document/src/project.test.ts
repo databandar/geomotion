@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Layer, RegionsLayer } from './types.ts';
-import { createLayer, defaultTour, migrate } from './project.ts';
+import { createLayer, migrate } from './project.ts';
+import { defaultTour } from './schema/index.ts';
 import { keyframe, shotsOf } from './camera.ts';
 import { camerasOf, layersOf, liveCamera } from './nodes.ts';
 
