@@ -11,6 +11,7 @@ import type {
   TextRender,
 } from '@geomotion/renderer';
 import type { CameraKeyframe, LngLat, Project, RegionsLayer, RouteLayer, Track } from '@geomotion/document';
+import { resolveMapContext } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
 import { applyBehaviours, ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
@@ -88,6 +89,24 @@ function cameraTracks(camera: readonly CameraKeyframe[]): CameraTracks {
 
 export function cameraAt(project: Project, time: number): CameraState {
   const tracks = cameraTracks(project.camera);
+
+  /*
+   * A map context can supply where the camera sits during its blocks — but only as a
+   * default. `resolveMapContext` withholds it when the author placed a keyframe inside
+   * the block, because keyframing is deliberate and a default that beat it would make the
+   * timeline lie about what it is showing.
+   */
+  const ctx = resolveMapContext(project, time);
+  if (ctx.camera) {
+    const base = tracks.keys.length ? evaluateTracks(tracks, time) : DEFAULT_CAMERA;
+    return {
+      center: ctx.camera.center ? [ctx.camera.center[0], ctx.camera.center[1]] : base.center,
+      zoom: ctx.camera.zoom ?? base.zoom,
+      bearing: ctx.camera.bearing ?? base.bearing,
+      pitch: ctx.camera.pitch ?? base.pitch,
+    };
+  }
+
   if (tracks.keys.length === 0) return DEFAULT_CAMERA;
 
   /*
@@ -100,6 +119,11 @@ export function cameraAt(project: Project, time: number): CameraState {
   const seg = trackSegment(tracks.zoom, time);
   const dip = seg ? (tracks.keys[seg.index]?.dip ?? 0) * Math.sin(Math.PI * seg.u) : 0;
 
+  return evaluateTracks(tracks, time, dip);
+}
+
+/** The four channels, evaluated. Split out so a context default can reuse the result. */
+function evaluateTracks(tracks: CameraTracks, time: number, dip = 0): CameraState {
   const center = evalTrack(tracks.center, time, { interpolate: lerpLngLat, fallback: DEFAULT_CAMERA.center });
   return {
     // Copied on the way out: a caller that mutated this would be writing into the cache.
@@ -415,8 +439,15 @@ export function evaluate(project: Project, time: number): Scene {
    */
   const facts = factsFor(regions);
 
+  /*
+   * A context can hold layers back for the stretch it covers — a reference map that
+   * should not appear during the close-up. Hidden rather than deleted: the layer belongs
+   * to the composition, only this stretch of it wants the layer gone.
+   */
+  const hidden = resolveMapContext(project, time).hidden;
+
   for (const layer of project.layers) {
-    const alpha = layerAlpha(layer, time);
+    const alpha = hidden.has(layer.id) ? 0 : layerAlpha(layer, time);
 
     if (layer.type === 'route') {
       const path = routePath(layer);

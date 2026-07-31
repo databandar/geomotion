@@ -1,5 +1,6 @@
 import type { BehaviourStacks, Track } from './track.ts';
 import type { StoryBlock } from './story.ts';
+import type { MapContext } from './context.ts';
 // The canonical declaration lives in @geomotion/core (ENGINEERING_GUIDE §2 puts
 // vector-like primitives there). Imported for use below and re-exported under the
 // name v1 already uses, so the document types read the same.
@@ -414,6 +415,13 @@ export interface Project {
   terrainExaggeration: number;
   background: string;
   camera: CameraKeyframe[];
+  /**
+   * What the map looks like during a stretch of time, keyed by id.
+   *
+   * A lightweight stand-in for §04's scene-owned map context; see context.ts. Empty for
+   * a project that never switches basemap, projection or terrain — which is most.
+   */
+  contexts: MapContext[];
   /**
    * The narration-driven structure of the composition (§10).
    *

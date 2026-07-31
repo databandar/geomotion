@@ -57,6 +57,14 @@ export interface StoryBlock {
    */
   nodes: string[];
   /**
+   * The map context this block plays under, by id.
+   *
+   * A reference rather than an inline copy, so two blocks can share one — a tour
+   * returning to the same view — and so a scene container can reference the same context
+   * later without any of this moving.
+   */
+  context?: string;
+  /**
    * Which composer beat produced this block, when one did.
    *
    * Kept so a re-compose can recognise its own work and update it in place rather than

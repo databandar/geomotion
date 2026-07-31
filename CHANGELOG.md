@@ -32,6 +32,18 @@ name the section each change answers to.
   re-composing discarded every hand edit. They are now a top-level document section,
   shown as a lane on the timeline. Purely additive: no format bump.
 
+### Map contexts (v2 §04)
+
+- **A story block can switch what the map looks like** — basemap, terrain, and which
+  layers are held back — for the stretch of time it covers. A lightweight stand-in for
+  §04's scene-owned map context, kept compatible with scene containers arriving later:
+  contexts are a top-level table keyed by id and a block references one.
+- A context's camera is a **default**, applying only where the block is not keyframed.
+- **Projection is carried but not applied.** MapLibre 5.24 throws asynchronously when the
+  projection changes after a basemap switch; three guards failed to contain it, and
+  shipping an uncaught error on an ordinary edit is worse than the feature is worth. See
+  `docs/features/map-contexts.md`.
+
 ### Cameras (v2 §02, §09)
 
 - **Double-click a region and the camera frames it** — the design document's signature

@@ -55,3 +55,4 @@ export { windowTrack } from './project.ts';
 export { CURRENT_FORMAT, formatOf, runMigrations } from './migrations/index.ts';
 export { blockAt, blocksFor, storyEnd, storyInOrder, type StoryBlock } from './story.ts';
 export { cuesIn, rippleBlockLength, rippleBlockTo, shiftCue, shiftLayer, type RippleResult } from './ripple.ts';
+export { resolveMapContext, type MapContext, type ResolvedContext } from './context.ts';

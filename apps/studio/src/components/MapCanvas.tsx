@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { evaluate, type Scene } from '@geomotion/evaluator';
 import { syncScene, resetSyncCache } from '@geomotion/map';
 import { fitBounds, regionSet } from '@geomotion/entities';
+import { resolveMapContext } from '@geomotion/document';
 import { evalTrack } from '@geomotion/animation';
 import { drawOverlay, scaleFor } from '@geomotion/renderer';
 import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
@@ -255,9 +256,38 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
   }, []);
 
   /* --------------------------------------------------------- style/terrain */
-  const basemap = useStore((s) => s.project.basemap);
-  const terrain = useStore((s) => s.project.terrain);
-  const exaggeration = useStore((s) => s.project.terrainExaggeration);
+
+  /*
+   * Resolved from the story, not read off the project.
+   *
+   * A map context can switch basemap, terrain or projection for the stretch of time a
+   * block covers, so what the map should look like depends on the playhead. Subscribing
+   * to the resolved values rather than the raw project fields means a block boundary
+   * changes the map the same way editing the project setting does — one path, not two.
+   */
+  /*
+   * Selected one field at a time, and each one a primitive.
+   *
+   * Selecting the resolved object itself returns a fresh object on every call, so
+   * zustand's equality check never matches and the component re-renders until React gives
+   * up — "Maximum update depth exceeded", which is what this looked like the first time.
+   * Resolution is a lookup over a handful of blocks, so doing it per field costs nothing
+   * worth a memo.
+   */
+  const basemap = useStore((s) => resolveMapContext(s.project, s.time).basemap);
+  const terrain = useStore((s) => resolveMapContext(s.project, s.time).terrain);
+  const exaggeration = useStore((s) => resolveMapContext(s.project, s.time).terrainExaggeration);
+  /*
+   * `projection` is resolved but deliberately not applied — see docs/features/map-contexts.md.
+   *
+   * MapLibre 5.24 throws from inside its own next frame when the projection changes after
+   * a `setStyle`, which is exactly what a story switching basemap and then asking for the
+   * globe does. Three guards were tried — `isStyleLoaded`, wrapping the read as well as
+   * the write, deferring to `idle` — and the throw is asynchronous in all of them, past
+   * where a caller's try/catch reaches. The field stays in the document so projects can
+   * carry it and nothing has to migrate later; applying it waits on a fix upstream or a
+   * crossfade of our own.
+   */
 
   useEffect(() => {
     const map = mapRef.current;
@@ -273,13 +303,16 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     applyTerrain(map);
   }, [terrain, exaggeration]);
 
+
+
   function applyTerrain(map: MLMap) {
-    const { project } = useStore.getState();
-    const dark = getBasemap(project.basemap).dark;
+    const { project, time: at } = useStore.getState();
+    const resolved = resolveMapContext(project, at);
+    const dark = getBasemap(resolved.basemap).dark;
     try {
-      if (project.terrain) {
+      if (resolved.terrain) {
         if (!map.getSource('gm-dem')) map.addSource('gm-dem', TERRAIN_SOURCE);
-        map.setTerrain({ source: 'gm-dem', exaggeration: project.terrainExaggeration });
+        map.setTerrain({ source: 'gm-dem', exaggeration: resolved.terrainExaggeration });
         // Sky is a style-level setting in MapLibre 5, not a layer.
         map.setSky({
           'sky-color': dark ? '#0b1b2b' : '#8ec9ff',
