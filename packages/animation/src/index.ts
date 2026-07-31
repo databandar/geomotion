@@ -27,3 +27,10 @@ export {
   type Interpolate,
   type TrackSegment,
 } from './track.ts';
+export {
+  compileExpr,
+  EXPR_CONSTANTS,
+  EXPR_FUNCTIONS,
+  type CompiledExpr,
+  type ExprContext,
+} from './expr.ts';

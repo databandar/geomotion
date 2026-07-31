@@ -11,8 +11,10 @@
  * a document can hold.
  */
 import { clamp01, lerp } from '@geomotion/core';
+import { TRACK_KINDS } from '@geomotion/document';
 import type { Keyframe, Track } from '@geomotion/document';
 import { ease } from './easing.ts';
+import { compileExpr } from './expr.ts';
 
 /**
  * How two authored values blend across a segment, given an eased 0..1 position.
@@ -77,9 +79,11 @@ function segmentAt<T>(keys: readonly Keyframe<T>[], time: number): number {
  * Extrapolation invents values nobody authored, and on a track whose first key sits at
  * five seconds it would put something visibly wrong on frame zero.
  *
- * `bound` and `expr` are not evaluated in this milestone. They return the fallback and
- * are reported by `trackKindSupported`, so a caller can refuse the document rather than
- * discover a silently wrong value in a rendered frame.
+ * Every kind is evaluated. `static` and `keyframed` read what was authored, `bound` reads
+ * a fact through `facts`, and `expr` computes from `t` and its declared inputs — which
+ * are themselves resolved through `facts`, so an expression reaches data and never
+ * another track. That restriction is what makes cycles impossible by construction rather
+ * than by a visited-set at evaluation time.
  */
 // Numbers are the overwhelming majority of channels, so they get an overload that does
 // not make every call site restate `lerpNumber`. Anything else must say how it blends,
@@ -104,6 +108,43 @@ export function evalTrack<T>(track: Track<T>, time: number, opts: EvalOptions<T>
     if (typeof value !== 'number' || !Number.isFinite(value)) return fallback as T;
     return (value * (track.scale ?? 1)) as unknown as T;
   }
+  if (track.kind === 'expr') {
+    /*
+     * §04's fourth kind. The source is parsed, not executed — see `expr.ts` for why a
+     * project file must never reach `new Function`.
+     *
+     * Inputs are declared on the track as `name -> "entityId.factPath"` and resolved
+     * through the same lookup `bound` uses, so an expression can only read leaf data.
+     * Letting a name refer to another *track* would be more powerful and would introduce
+     * cycles — `a = b + 1`, `b = a + 1` — which would need detection at every evaluation,
+     * sixty times a second, to avoid a stack overflow in the render loop.
+     *
+     * A source that will not parse, a name that resolves to nothing, and a result that is
+     * not finite all land on the fallback. An expression is authored by typing, so it is
+     * *usually* invalid — it is invalid at every keystroke on the way to being right —
+     * and a half-typed formula must not take the picture down with it.
+     */
+    const compiled = compileExpr(track.source);
+    if (!compiled.ok) return fallback as T;
+
+    const inputs: Record<string, number> = {};
+    if (compiled.refs.length > 0) {
+      for (const name of compiled.refs) {
+        const ref = track.inputs?.[name];
+        if (ref === undefined) continue;
+        // `entityId.factPath`, split at the first dot: an id may not contain one, a
+        // fact path may.
+        const dot = ref.indexOf('.');
+        const value =
+          dot < 0 ? facts?.(ref, '') : facts?.(ref.slice(0, dot), ref.slice(dot + 1));
+        if (typeof value === 'number' && Number.isFinite(value)) inputs[name] = value;
+      }
+    }
+
+    const out = compiled.run({ t: time, inputs });
+    return out === undefined ? (fallback as T) : (out as unknown as T);
+  }
+
   if (track.kind === 'static') return track.value;
 
   if (track.kind === 'keyframed') {
@@ -168,7 +209,14 @@ export function trackSegment<T>(track: Track<T>, time: number): TrackSegment<T> 
   return { index: i, from, to, u: clamp01((time - from.t) / span) };
 }
 
-/** Whether `evalTrack` can actually evaluate this kind. `expr` lands with the DSL. */
+/**
+ * Whether `evalTrack` can evaluate this kind. All four, since `expr` landed.
+ *
+ * Kept rather than deleted: it is the check a caller makes before trusting a value, and
+ * the fifth kind §04 calls an ADR-level change will need it again. Returning a constant
+ * `true` is also the honest report — every kind in the union is handled, and the
+ * exhaustiveness of that is what the type checker now guarantees.
+ */
 export function trackKindSupported<T>(track: Track<T>): boolean {
-  return track.kind !== 'expr';
+  return TRACK_KINDS.includes(track.kind);
 }

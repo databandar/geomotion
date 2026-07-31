@@ -247,3 +247,59 @@ describe('the timeline shows a row per animated property', () => {
     expect(Math.min(...times)).toBe(0);
   });
 });
+
+describe('the fx toggle', () => {
+  const fx = () =>
+    screen.getByRole('button', { name: /Drive this with an expression|Back to a fixed value/ });
+  const field = () => screen.getByRole('textbox', { name: /size expression/i });
+
+  it('turns the property into an expression seeded with the value on screen', async () => {
+    // Seeded, like the pip: switching kinds must not move the picture.
+    withMarker();
+    render(<Inspector />);
+    const before = evalTrack(marker().size, 0);
+
+    await userEvent.click(fx());
+
+    expect(marker().size.kind).toBe('expr');
+    expect(evalTrack(marker().size, 0, { fallback: 0 })).toBe(before);
+  });
+
+  it('shows what the formula comes to at the playhead, and why it does not', async () => {
+    /*
+     * The one track kind whose value cannot be read off the control, so the panel has
+     * to say it — both the working case and the two ways it fails: a syntax error and
+     * a name nothing has bound.
+     */
+    withMarker();
+    render(<Inspector />);
+    await userEvent.click(fx());
+
+    fireEvent.change(field(), { target: { value: '8 + 2 * t' } });
+    expect(screen.getByText('= 8')).toBeInTheDocument();
+
+    fireEvent.change(field(), { target: { value: '8 +' } });
+    expect(screen.getByText(/ended early/)).toBeInTheDocument();
+
+    fireEvent.change(field(), { target: { value: 'pop / 1000' } });
+    expect(screen.getByText(/unbound: pop/)).toBeInTheDocument();
+  });
+
+  it('goes back to a fixed value holding what the formula evaluated to', async () => {
+    withMarker();
+    render(<Inspector />);
+    await userEvent.click(fx());
+    fireEvent.change(field(), { target: { value: '42' } });
+
+    await userEvent.click(fx());
+    expect(marker().size).toEqual({ kind: 'static', value: 42 });
+  });
+
+  it('earns no keyframe row on the timeline — it has no keys', () => {
+    // The row filter is `kind === 'keyframed'`; an expression animates without keys.
+    const layer = withMarker();
+    act(() => useStore.getState().toggleLayerExpr(layer.id, 'size', 8));
+    render(<Timeline />);
+    expect(document.querySelectorAll('.tl-row.track-row')).toHaveLength(0);
+  });
+});

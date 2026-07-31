@@ -107,6 +107,17 @@ interface State {
   toggleLayerKey: (id: string, prop: string, valueNow: number) => void;
   /** Retime one key of a tracked property. */
   moveLayerKey: (id: string, prop: string, keyId: string, t: number) => void;
+  /**
+   * Point a tracked property at an expression, or take it back to a fixed value.
+   *
+   * Separate from `toggleLayerTrack` rather than folded into it: that one is a two-state
+   * switch a single click drives, and making it cycle three ways would mean clicking past
+   * a state you did not want on the way to the one you did. Expressions are also the only
+   * kind that needs something typed, so they need a control that can take text.
+   */
+  setLayerExpr: (id: string, prop: string, source: string) => void;
+  /** Switch to an expression seeded with the value on screen, or back to that value. */
+  toggleLayerExpr: (id: string, prop: string, valueNow: number) => void;
   /** Rewrite a tracked property as a plain 0..1 window between two times. */
   setLayerWindow: (id: string, prop: string, from: number, to: number, easing: EasingName) => void;
   /** Drag a story block, taking what it choreographs and re-anchoring what follows. */
@@ -368,6 +379,34 @@ export const useStore = create<State>((set, get) => ({
       if (!isTrack(track)) return;
       layer![prop] = withKeyMoved(track as Track<number>, keyId, Math.max(0, t));
     }, `${id}:${prop}:${keyId}:move`);
+  },
+
+  setLayerExpr: (id, prop, source) => {
+    get().patch((p) => {
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
+      const track = layer?.[prop];
+      if (!isTrack(track)) return;
+      const prev = track as Track<number>;
+      // `inputs` survives a source edit. They are a separate act to declare, and losing
+      // the bindings every time the formula is retyped would make the feature unusable.
+      const inputs = prev.kind === 'expr' ? prev.inputs : undefined;
+      layer![prop] = { kind: 'expr', source, ...(inputs ? { inputs } : {}) };
+    }, `${id}:${prop}:expr`);
+  },
+
+  toggleLayerExpr: (id, prop, valueNow) => {
+    get().patch((p) => {
+      const layer = editable(p, id) as Record<string, unknown> | undefined;
+      const track = layer?.[prop];
+      if (!isTrack(track)) return;
+      const t = track as Track<number>;
+      // Seeded with what is on screen in both directions, so switching kinds never moves
+      // the picture — the same rule the static/keyframed toggle follows.
+      layer![prop] =
+        t.kind === 'expr'
+          ? staticTrack(valueNow)
+          : { kind: 'expr', source: String(Number(valueNow.toFixed(4))) };
+    });
   },
 
   setLayerWindow: (id, prop, from, to, easing) => {

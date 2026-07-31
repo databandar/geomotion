@@ -257,9 +257,9 @@ const round = (v: number, p: number) => Math.round(v * 10 ** p) / 10 ** p;
  */
 const PIP: Record<string, { color: string; title: string }> = {
   static: { color: 'var(--dim)', title: 'Fixed value — click to animate' },
-  keyframed: { color: '#22d3ee', title: 'Animated — click to freeze at the current value' },
-  bound: { color: '#a78bfa', title: 'Bound to an entity fact' },
-  expr: { color: '#ffbd2e', title: 'Driven by an expression' },
+  keyframed: { color: 'var(--kind-key)', title: 'Animated — click to freeze at the current value' },
+  bound: { color: 'var(--kind-bound)', title: 'Bound to an entity fact' },
+  expr: { color: 'var(--kind-expr)', title: 'Driven by an expression' },
 };
 
 export function TrackPip({
@@ -267,14 +267,18 @@ export function TrackPip({
   hasKey,
   onToggleTrack,
   onToggleKey,
+  onToggleExpr,
 }: {
   kind: string;
   hasKey: boolean;
   onToggleTrack: () => void;
   onToggleKey: () => void;
+  /** Absent on properties that cannot take an expression. */
+  onToggleExpr?: () => void;
 }) {
   const pip = PIP[kind] ?? PIP.static!;
   const animated = kind === 'keyframed';
+  const isExpr = kind === 'expr';
   return (
     <span className="track-pip">
       <button
@@ -293,6 +297,24 @@ export function TrackPip({
           aria-label={hasKey ? 'Remove the keyframe here' : 'Add a keyframe here'}
           onClick={onToggleKey}
         />
+      )}
+      {/*
+        * A separate control from the dot, which stays a two-state toggle. Cycling one
+        * button through four kinds would mean clicking past states you did not want on
+        * the way to the one you did, and an expression is the only kind that needs
+        * something typed — so it needs a control that can open a field.
+        */}
+      {onToggleExpr && (
+        <button
+          type="button"
+          className={'pip-fx' + (isExpr ? ' on' : '')}
+          title={isExpr ? 'Back to a fixed value' : 'Drive this with an expression'}
+          aria-label={isExpr ? 'Back to a fixed value' : 'Drive this with an expression'}
+          aria-pressed={isExpr}
+          onClick={onToggleExpr}
+        >
+          fx
+        </button>
       )}
     </span>
   );

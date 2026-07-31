@@ -479,7 +479,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       const p = map.project(layer.coord);
       // Hit-test what is on screen now, not what the layer rests at — a marker that has
       // grown should be clickable at the size you can see.
-      const size = evalTrack(layer.size, timeRef.current);
+      const size = evalTrack(layer.size, timeRef.current, { fallback: 8 });
       if (Math.hypot(p.x - pt.x, p.y - pt.y) < size + 12) target = { kind: 'marker', layerId: layer.id };
     } else if (layer.type === 'text') {
       const stage = stageRef.current;

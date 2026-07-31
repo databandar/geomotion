@@ -170,16 +170,15 @@ describe('bound tracks', () => {
   });
 });
 
-describe('the kinds that are still not evaluated', () => {
-  it('reports expr as unsupported instead of pretending', () => {
+describe('every kind in the union is evaluated', () => {
+  it('reports all four kinds as supported', () => {
     /*
-     * Declared in the union from the start so every switch over a track is exhaustive —
-     * adding evaluation later is a compile error at each site that must handle it, rather
-     * than a silent fallthrough returning a default. `bound` landed in M9; `expr` waits
-     * for the DSL.
+     * Declared in the union from the start so every switch over a track is exhaustive.
+     * `bound` landed in M9 and `expr` with the DSL; §04 fixes the kinds at four, so a
+     * `true` across the board — not a count — is the contract now.
      */
     expect(trackKindSupported({ kind: 'bound', ref: 'geo:in-wb', path: 'population' })).toBe(true);
-    expect(trackKindSupported({ kind: 'expr', source: 'a + 1' })).toBe(false);
+    expect(trackKindSupported({ kind: 'expr', source: 'a + 1' })).toBe(true);
     expect(trackKindSupported(staticTrack(1))).toBe(true);
     expect(trackKindSupported(keyframedTrack([key(0, 1)]))).toBe(true);
   });

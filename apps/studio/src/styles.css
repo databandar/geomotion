@@ -95,6 +95,8 @@
    * own ground.
    */
   --kind-key: light-dark(#0e7490, #22d3ee);
+  --kind-bound: light-dark(#6d28d9, #a78bfa);
+  --kind-expr: light-dark(#a16207, #ffbd2e);
 
   --glass-chrome: light-dark(rgb(247 249 252 / 0.78), rgb(17 22 33 / 0.72));
   --glass-panel: light-dark(rgb(247 249 252 / 0.72), rgb(17 22 33 / 0.66));
@@ -2508,4 +2510,74 @@ body:has(.app.exporting)::before {
 /* Inert, and visibly so — the banner explains, the wash confirms. */
 .lock-guard:disabled {
   opacity: 0.6;
+}
+
+/* ------------------------------------------------------------ expressions */
+
+/*
+ * `fx` beside the pip. A word rather than a glyph: there is no icon for "expression"
+ * that anyone reads correctly, and two letters at 9px cost the same space as a symbol
+ * that would need a tooltip anyway.
+ */
+.pip-fx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--dim);
+  font-size: 9px;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pip-fx:hover {
+  color: var(--text);
+  border-color: var(--kind-expr);
+}
+
+.pip-fx.on {
+  background: var(--kind-expr);
+  border-color: var(--kind-expr);
+  /* Fixed rather than themed: the chip's ground is the amber in both themes, and the
+     ink has to read on amber, not on the panel behind it. */
+  color: #1a1204;
+}
+
+.expr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.text-in.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.text-in.bad {
+  border-color: var(--danger);
+}
+
+/*
+ * What the formula comes to, or why it does not.
+ *
+ * The one track kind whose value cannot be read off the control itself, so the panel has
+ * to say it. Errors are not red-on-red — the field's border already carries that — so
+ * this line stays legible while you fix the thing it is describing.
+ */
+.expr-note {
+  font-size: 10px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.expr-note.bad {
+  color: var(--danger);
 }

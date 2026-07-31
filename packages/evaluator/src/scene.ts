@@ -124,13 +124,22 @@ export function cameraAt(project: Project, time: number): CameraState {
 
 /** The four channels, evaluated. Split out so a context default can reuse the result. */
 function evaluateTracks(tracks: CameraTracks, time: number, dip = 0): CameraState {
+  /*
+   * Every channel names a fallback.
+   *
+   * `evalTrack` returns it whenever a track cannot produce a number — an empty key list,
+   * a fact that is missing, an expression that does not parse. Before expressions those
+   * were corrupt-file cases; a formula is invalid at almost every keystroke on the way to
+   * being right, so this is now an ordinary state and an unfallen-back `undefined` would
+   * reach the camera as `NaN` and render nothing at all.
+   */
   const center = evalTrack(tracks.center, time, { interpolate: lerpLngLat, fallback: DEFAULT_CAMERA.center });
   return {
     // Copied on the way out: a caller that mutated this would be writing into the cache.
     center: [center[0], center[1]],
-    zoom: Math.max(0, evalTrack(tracks.zoom, time) - dip),
-    bearing: evalTrack(tracks.bearing, time, { interpolate: lerpAngle }),
-    pitch: evalTrack(tracks.pitch, time),
+    zoom: Math.max(0, evalTrack(tracks.zoom, time, { fallback: DEFAULT_CAMERA.zoom }) - dip),
+    bearing: evalTrack(tracks.bearing, time, { interpolate: lerpAngle, fallback: DEFAULT_CAMERA.bearing }),
+    pitch: evalTrack(tracks.pitch, time, { fallback: DEFAULT_CAMERA.pitch }),
   };
 }
 
@@ -453,7 +462,10 @@ export function evaluate(project: Project, time: number): Scene {
       const path = routePath(layer);
       // The draw window is a track now, so the clamping outside it and the easing across
       // it are both `evalTrack`'s job rather than spelled out here.
-      const progress = evalTrack(layer.progress, time);
+      // 0 rather than 1: a route whose draw expression is mid-edit shows nothing, which
+      // reads as "not drawn yet". Falling back to fully drawn would look like a finished
+      // result and hide the broken formula.
+      const progress = evalTrack(layer.progress, time, { facts, fallback: 0 });
       const drawn = alpha > 0 ? sliceAt(path, progress) : [];
       const head = path.coords.length >= 2 && progress > 0 ? pointAt(path, progress) : null;
       const heading = path.coords.length >= 2 ? headingAt(path, progress) : 0;
@@ -549,7 +561,7 @@ export function evaluate(project: Project, time: number): Scene {
         alpha,
         // Drift is absolute time, so scrubbing lands on the same frame every time.
         drift: time,
-        clear: evalTrack(layer.clear, time),
+        clear: evalTrack(layer.clear, time, { facts, fallback: 0 }),
       });
     }
   }

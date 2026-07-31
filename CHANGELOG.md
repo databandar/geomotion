@@ -111,6 +111,14 @@ name the section each change answers to.
 
 ### Motion engine (v2 §04, §06)
 
+- **Expression tracks** — the fourth track kind evaluates. A property can now compute
+  its value: `8 + 2 * sin(t * 3)` breathes, `pop / 1000000` sizes by a fact. Parsed and
+  walked, never `eval`'d — a project file is untrusted input — and total, deterministic
+  and cycle-free by construction: failures fall back rather than throw, there is no
+  clock or random in the grammar, and inputs read entity facts, never other tracks.
+  An `fx` button beside the source pip toggles a property to a formula seeded with the
+  value on screen, and the inspector shows what it comes to at the playhead — or why it
+  does not.
 - **Behaviour stacks**, keyed by the property each modifies. `pop` and `pulse` were
   booleans with their constants inlined in the evaluator; both are now toggleable,
   parameterised entries. Curves preserved exactly.

@@ -181,6 +181,56 @@ describe('what history does to the rest of the editor', () => {
   });
 });
 
+describe('expression tracks', () => {
+  it('switches to an expression seeded with the value on screen, and back', () => {
+    // The same rule the static/keyframed toggle follows: changing kinds never moves
+    // the picture, so toggling is safe to try.
+    s().addLayer('marker');
+    const id = first().id;
+    s().setLayerTrack(id, 'size', 12);
+    s().toggleLayerExpr(id, 'size', 12);
+    expect(first().size).toEqual({ kind: 'expr', source: '12' });
+
+    s().toggleLayerExpr(id, 'size', 12);
+    expect(first().size).toEqual({ kind: 'static', value: 12 });
+  });
+
+  it('folds a typing session into one undo step', () => {
+    // The field commits on every keystroke; without the coalescing key, fixing a typo
+    // would cost one undo per character.
+    s().addLayer('marker');
+    const id = first().id;
+    s().toggleLayerExpr(id, 'size', 8);
+    for (const src of ['8 +', '8 + 2', '8 + 2 *', '8 + 2 * t']) s().setLayerExpr(id, 'size', src);
+    expect(first().size).toEqual({ kind: 'expr', source: '8 + 2 * t' });
+
+    s().undo();
+    expect(first().size).toEqual({ kind: 'expr', source: '8' });
+    s().undo();
+    expect(first().size).not.toMatchObject({ kind: 'expr' });
+  });
+
+  it('keeps the inputs when the formula is retyped', () => {
+    // Declaring an input is a separate act from writing the formula; losing the wiring
+    // on every edit would make the feature unusable.
+    s().addLayer('marker');
+    const id = first().id;
+    s().patch((p) => {
+      (p.layers[0] as MarkerLayer).size = {
+        kind: 'expr',
+        source: 'pop / 1000000',
+        inputs: { pop: 'geo:in-wb.population' },
+      };
+    });
+    s().setLayerExpr(id, 'size', 'pop / 2000000');
+    expect(first().size).toEqual({
+      kind: 'expr',
+      source: 'pop / 2000000',
+      inputs: { pop: 'geo:in-wb.population' },
+    });
+  });
+});
+
 describe('replaceProject', () => {
   it('is undoable, so opening the wrong file is recoverable', () => {
     s().addLayer('marker');
@@ -291,6 +341,8 @@ describe('locked layers', () => {
     s().setLayerTrack(id, 'size', 99);
     s().toggleLayerTrack(id, 'size', 99);
     s().toggleLayerKey(id, 'size', 99);
+    s().setLayerExpr(id, 'size', '99');
+    s().toggleLayerExpr(id, 'size', 99);
     expect(JSON.stringify(first().size)).toBe(before);
   });
 

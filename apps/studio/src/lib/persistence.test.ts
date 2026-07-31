@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Project } from '@geomotion/document';
-import { emptyProject, migrate } from '@geomotion/document';
+import { createLayer, emptyProject, migrate } from '@geomotion/document';
+import type { MarkerLayer } from '@geomotion/document';
 import { demoProject, indiaTourProject } from './fixtures';
 import { loadLocal, saveLocal } from './persistence';
 
@@ -63,6 +64,21 @@ describe('save/load round trip', () => {
       expect(twice).toEqual(once);
     });
   }
+
+  it('an expression track survives the round trip with its inputs intact', () => {
+    /*
+     * `expr` is the one track kind whose payload is free text, so it is the one a
+     * migration could most easily mangle — and the fixtures carry none, because none of
+     * the bundled projects use one yet.
+     */
+    const project = emptyProject();
+    const marker = createLayer('marker', 0) as MarkerLayer;
+    marker.size = { kind: 'expr', source: '8 + 2 * sin(t * 3)', inputs: { pop: 'geo:in-wb.population' } };
+    project.layers.push(marker);
+
+    const reopened = migrate(JSON.parse(JSON.stringify(project)));
+    expect(reopened).toEqual(project);
+  });
 });
 
 describe('localStorage persistence', () => {
