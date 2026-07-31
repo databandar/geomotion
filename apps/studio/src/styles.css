@@ -1,38 +1,30 @@
+/*
+ * Two themes, defined together.
+ *
+ * Every colour the app uses is named here once and given a value per theme, so a
+ * component never learns which theme it is in — it asks for `--panel` and gets the right
+ * one. That is the only structure in which adding light mode is not a second styleshet
+ * quietly drifting from the first.
+ *
+ * Dark is the default because a map editor is looked at for hours against bright
+ * imagery. `prefers-color-scheme` carries the system preference, and an explicit choice
+ * on `<html data-theme>` beats it in both directions.
+ */
 :root {
-  --bg: #0b0e13;
-  --panel: #12161d;
-  --panel-2: #171c25;
-  --line: #232a35;
-  --line-soft: #1b2029;
-  --text: #e6ebf2;
-  --dim: #8b96a8;
-  --accent: #4cc2ff;
-  --accent-dim: #2a6f92;
-  --danger: #ff5f56;
   --radius: 7px;
 
-  /*
-   * Focus.
-   *
-   * The old indicator was `border-color: var(--accent-dim)`, which measures 2.60:1
-   * against the resting border — under the 3:1 WCAG 2.4.11 asks of a focus indicator,
-   * and a border tint is the weakest signal available besides none. This ring is a
-   * real outline at 8.4:1 against the panel, offset outward so it never eats a
-   * control's own edge.
-   *
-   * Applied through `:focus-visible`, so it appears for keyboard and assistive
-   * navigation and stays out of the way of a mouse — which is why the outlines could
-   * be removed in the first place.
-   */
-  --focus: #7cc6f5;
-  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
+  /* Layer-type accents. Identical in both themes: they are identity, not decoration, and
+     a route that changed colour with the theme would stop being recognisable. */
+  --t-route: #4da3ff;
+  --t-marker: #f5a623;
+  --t-text: #a78bfa;
+  --t-shape: #27c93f;
+  --t-camera: #c084fc;
+  --t-regions: #38bdf8;
+  --t-clouds: #94a3b8;
+  --t-image: #fb923c;
 
-  /*
-   * Spacing, on a 4px grid.
-   *
-   * A dense editor lives between 4 and 16; the wider steps are for panel padding and
-   * the gaps between groups of controls.
-   */
+  /* Spacing, on a 4px grid. A dense editor lives between 4 and 16. */
   --sp-1: 4px;
   --sp-2: 6px;
   --sp-3: 8px;
@@ -40,64 +32,130 @@
   --sp-5: 16px;
   --sp-6: 24px;
 
-  /*
-   * Motion.
-   *
-   * 120ms for a control acknowledging the pointer, 180ms for something changing state
-   * or size. Both inside the 150-300ms band where a transition reads as responsive;
-   * hover is deliberately at the fast end because the pointer is already there.
-   *
-   * `--ease-out` is the standard decelerate curve: quick to start, settling at the
-   * end, which is how a control that is catching up to you should feel.
-   */
+  /* 120ms to acknowledge a pointer, 180ms for a state or size change. */
   --dur-fast: 120ms;
   --dur: 180ms;
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
+}
 
-  /*
-   * Depth.
-   *
-   * One shadow for things that float over the canvas (menus, dialogs, the search
-   * results) and one hairline highlight for panel edges. Dark UIs get their depth from
-   * the light edge more than the shadow — a shadow on a near-black ground is nearly
-   * invisible, while a 1px lighter top edge reads immediately as "in front".
-   */
-  --shadow-pop: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
-  --edge-hi: inset 0 1px 0 rgb(255 255 255 / 0.045);
+/* ---------------------------------------------------------------- dark */
 
-  /* Hover and pressed washes, so every surface tints by the same amount. */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0b0f16;
+  --panel: #111621;
+  --panel-2: #161c28;
+  --raised: #1c2432;
+  --line: #232b3a;
+  --line-soft: #1a212d;
+  --text: #e8edf5;
+  --dim: #8b96aa;
+  --accent: #7c5cff;
+  --accent-ink: #ffffff;
+  --accent-dim: #4c3aa8;
+  --danger: #f2555a;
+  --ok: #34d399;
+
+  --focus: #a58cff;
   --wash-hover: rgb(255 255 255 / 0.055);
   --wash-active: rgb(255 255 255 / 0.09);
+  --wash-sel: rgb(124 92 255 / 0.16);
+
+  --glass-chrome: rgb(17 22 33 / 0.72);
+  --glass-panel: rgb(17 22 33 / 0.66);
+  --glass-pop: rgb(28 36 50 / 0.86);
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --shadow-pop: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+
+  /* The light behind the glass — the layer-type accents, so the chrome glows in the
+     composition's own colours rather than a borrowed gradient. */
+  --amb-1: rgb(124 92 255 / 0.26);
+  --amb-2: rgb(77 163 255 / 0.20);
+  --amb-3: rgb(56 189 248 / 0.16);
+}
+
+/* --------------------------------------------------------------- light */
+
+:root[data-theme='light'] {
+  color-scheme: light;
 
   /*
-   * Glass.
-   *
-   * Three tiers, by how far a surface floats from the page: the chrome that frames the
-   * app, the panels inside it, and the things that pop over everything.
-   *
-   * The alphas are not a taste decision. Body text has to stay above 4.5:1 and the
-   * focus ring above 3:1 against whatever ends up behind the glass, so these are the
-   * most transparent values that still clear both — verified by sampling the composited
-   * pixels, not by eye. `saturate` is what stops a blurred dark backdrop going grey.
+   * Not an inversion. A light editor sits beside satellite imagery, so the panels are a
+   * cool near-white with a faint blue cast rather than pure white, which would flare
+   * against the map and make the canvas look grey by comparison.
    */
-  --glass-chrome: rgb(15 19 26 / 0.62);
-  --glass-panel: rgb(18 22 29 / 0.55);
-  --glass-pop: rgb(23 28 37 / 0.82);
+  --bg: #eef1f6;
+  --panel: #f7f9fc;
+  --panel-2: #eef1f6;
+  --raised: #ffffff;
+  --line: #d6dce7;
+  --line-soft: #e4e9f1;
+  --text: #16202e;
+  --dim: #5c6980;
+  --accent: #6d4aff;
+  --accent-ink: #ffffff;
+  --accent-dim: #b6a6ff;
+  --danger: #d5323b;
+  --ok: #0f9d63;
+
+  --focus: #4a29d6;
+  --wash-hover: rgb(22 32 46 / 0.05);
+  --wash-active: rgb(22 32 46 / 0.09);
+  --wash-sel: rgb(109 74 255 / 0.12);
+
+  --glass-chrome: rgb(247 249 252 / 0.78);
+  --glass-panel: rgb(247 249 252 / 0.72);
+  --glass-pop: rgb(255 255 255 / 0.92);
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --shadow-pop: 0 12px 28px -10px rgb(22 32 46 / 0.22), 0 2px 6px rgb(22 32 46 / 0.1);
+
+  --amb-1: rgb(109 74 255 / 0.10);
+  --amb-2: rgb(56 132 255 / 0.09);
+  --amb-3: rgb(56 189 248 / 0.07);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --bg: #eef1f6;
+    --panel: #f7f9fc;
+    --panel-2: #eef1f6;
+    --raised: #ffffff;
+    --line: #d6dce7;
+    --line-soft: #e4e9f1;
+    --text: #16202e;
+    --dim: #5c6980;
+    --accent: #6d4aff;
+    --accent-ink: #ffffff;
+    --accent-dim: #b6a6ff;
+    --danger: #d5323b;
+    --ok: #0f9d63;
+
+    --focus: #4a29d6;
+    --wash-hover: rgb(22 32 46 / 0.05);
+    --wash-active: rgb(22 32 46 / 0.09);
+    --wash-sel: rgb(109 74 255 / 0.12);
+
+    --glass-chrome: rgb(247 249 252 / 0.78);
+    --glass-panel: rgb(247 249 252 / 0.72);
+    --glass-pop: rgb(255 255 255 / 0.92);
+    --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
+    --shadow-pop: 0 12px 28px -10px rgb(22 32 46 / 0.22), 0 2px 6px rgb(22 32 46 / 0.1);
+
+    --amb-1: rgb(109 74 255 / 0.10);
+    --amb-2: rgb(56 132 255 / 0.09);
+    --amb-3: rgb(56 189 248 / 0.07);
+  }
+}
+
+:root {
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
   --glass-blur: blur(20px) saturate(150%);
   --glass-blur-strong: blur(30px) saturate(160%);
-  /* The lit top edge is most of what makes a surface read as glass rather than as
-     a flat tint — a blurred backdrop alone just looks like a lower opacity. */
-  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.07);
-  --t-route: #4cc2ff;
-  --t-marker: #ffbd2e;
-  --t-text: #a78bfa;
-  --t-shape: #27c93f;
-  --t-camera: #f472b6;
-  --t-regions: #22d3ee;
-  --t-clouds: #cbd5e1;
-  --t-image: #fb923c;
-
-  color-scheme: dark;
+  --edge-hi: var(--glass-edge);
 }
 
 * {
@@ -151,10 +209,9 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(38% 44% at 16% 10%, rgb(76 194 255 / 0.30), transparent 68%),
-    radial-gradient(36% 42% at 86% 84%, rgb(244 114 182 / 0.24), transparent 68%),
-    radial-gradient(42% 48% at 68% 18%, rgb(34 211 238 / 0.20), transparent 70%),
-    radial-gradient(34% 40% at 30% 88%, rgb(167 139 250 / 0.18), transparent 70%);
+    radial-gradient(38% 44% at 16% 10%, var(--amb-1), transparent 68%),
+    radial-gradient(36% 42% at 86% 84%, var(--amb-2), transparent 68%),
+    radial-gradient(42% 48% at 68% 18%, var(--amb-3), transparent 70%);
   animation: ambient-drift 46s ease-in-out infinite alternate;
 }
 
@@ -229,8 +286,8 @@ textarea {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 46px;
+  gap: var(--sp-3);
+  height: 52px;
   padding: 0 12px;
   background: var(--glass-chrome);
   backdrop-filter: var(--glass-blur);
@@ -272,14 +329,52 @@ textarea {
   font-size: 14px;
 }
 
-.project-name {
-  color: var(--dim);
-  padding-left: 6px;
-  border-left: 1px solid var(--line);
+/* The project reads as a thing you could open, not a caption on the logo. */
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
   max-width: 240px;
+  padding: 5px var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.save-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.save-state.bad {
+  color: var(--danger);
+}
+
+.save-state.bad .save-dot {
+  background: var(--danger);
+}
+
+/* Takes the middle and centres its contents, so the search sits on the app's axis
+   however wide the groups either side happen to be. */
+.tb-centre {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
 }
 
 .tb-spacer {
@@ -324,13 +419,16 @@ textarea {
 
 .tb-btn.primary {
   background: var(--accent);
-  color: #06131b;
+  color: var(--accent-ink);
   font-weight: 600;
+  padding: 6px 14px;
   box-shadow: var(--edge-hi);
 }
 
-.tb-btn.primary:hover {
-  background: #6bcdff;
+.tb-btn.primary:hover:not(:disabled) {
+  /* Lightened through a wash rather than a second hex, so it tracks the accent in both
+     themes instead of being a dark-mode value that glows in light. */
+  background: color-mix(in srgb, var(--accent) 88%, white);
 }
 
 .tb-btn.danger {
@@ -437,7 +535,9 @@ textarea {
   justify-content: center;
   padding: 14px;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, #131923 0%, #090b0f 100%);
+  /* The letterbox around the composition follows the theme; the composition's own
+     background does not, because that is document state and belongs to the video. */
+  background: radial-gradient(circle at 50% 40%, var(--panel-2) 0%, var(--bg) 100%);
 }
 
 .stage-wrap {
@@ -1967,4 +2067,157 @@ body:has(.app.exporting)::before {
   font-size: 10.5px;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------- rail */
+
+.rail {
+  flex: none;
+  width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-1);
+  background: var(--glass-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-right: 1px solid var(--line);
+  position: relative;
+  z-index: 2;
+}
+
+.rail-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--sp-2) 2px;
+  border-radius: var(--radius);
+  color: var(--dim);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.rail-btn:hover:not(:disabled) {
+  background: var(--wash-hover);
+  color: var(--text);
+}
+
+/*
+ * The active section: ink stays full strength, the accent carries the state.
+ *
+ * Colouring the *label* with `--accent` measured 3.39:1 in dark and 3.97:1 in light —
+ * both under 4.5 for text, because a mid-purple on a purple-tinted wash is two steps of
+ * the same hue. The bar and the icon say "here"; the word stays readable.
+ */
+.rail-btn.on {
+  background: var(--wash-sel);
+  color: var(--text);
+  position: relative;
+}
+
+.rail-btn.on::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+}
+
+.rail-btn.on .icon {
+  color: var(--accent);
+}
+
+.rail-label {
+  font-size: 10px;
+  letter-spacing: 0.1px;
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+/* ------------------------------------------------------- properties head */
+
+/*
+ * The subject of the panel, named.
+ *
+ * A column of fields called Size, Colour and Opacity is the same column for six layer
+ * types; without this the panel never says which one you are editing. The accent stripe
+ * is the layer's own type colour, so it matches its row in the layers list and its bar on
+ * the timeline — one identity in three places.
+ */
+.subject {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: 0 var(--sp-4) var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: inset 3px 0 0 currentColor;
+}
+
+.subject-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.subject-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* The type colour rides on the container; the words stay ink so they keep their
+     contrast in both themes. */
+  color: var(--text);
+}
+
+.subject-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subject-kind {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+/* A dot in the layer's type colour, read before the name. */
+.row-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.zoom-range {
+  width: 84px;
+  accent-color: var(--accent);
+}
+
+/* --------------------------------------------------------- light-mode fixes */
+
+/*
+ * Selected rows and bars are tinted with the accent rather than a fixed blue.
+ *
+ * The old values were dark-mode hexes at low alpha — over a light panel they read as
+ * grey smudges rather than as selection.
+ */
+.tl-row.sel {
+  background: var(--wash-sel);
+}
+
+.layer-item.sel,
+.tl-gutter-row.sel {
+  background: var(--wash-sel);
 }

@@ -81,8 +81,11 @@ export default function LayerPanel() {
                   updateLayer(l.id, { visible: !l.visible });
                 }}
               >
-                <Icon name={l.visible ? 'eye' : 'eye-off'} size={13} />
+                <Icon name={l.visible ? 'eye-open' : 'eye-off'} size={13} />
               </button>
+              {/* A dot in the type's colour before the icon: at a glance down the list
+                  you read *kinds* by colour without decoding seven glyphs. */}
+              <span className={'row-dot t-' + l.type} />
               <span className={'glyph t-' + l.type}>
                 <Icon name={ADD.find((a) => a.type === l.type)?.icon ?? 'shape'} size={13} />
               </span>

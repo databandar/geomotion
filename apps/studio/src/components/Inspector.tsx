@@ -23,15 +23,62 @@ import { EASING_NAMES } from '@geomotion/animation';
 import { useRenderHost } from '../render/host';
 import { BASEMAPS, getBasemap } from '@geomotion/map';
 import { Color, Field, Num, Section, Select, Slider, Text, Toggle, TrackPip } from './ui';
+import Icon from './Icon';
 import { haversine, measure, buildPath } from '@geomotion/geometry';
+
+/** Display names and icons per layer type, for the subject header. */
+const LAYER_ICON = {
+  route: 'route', marker: 'marker', text: 'text', shape: 'shape',
+  regions: 'regions', clouds: 'clouds', image: 'image',
+} as const;
+
+const LAYER_KIND: Record<string, string> = {
+  route: 'Line layer',
+  marker: 'Point layer',
+  text: 'Text layer',
+  shape: 'Shape layer',
+  regions: 'Choropleth layer',
+  clouds: 'Cloud layer',
+  image: 'Image layer',
+};
 
 export default function Inspector() {
   const layer = useSelectedLayer();
   const kf = useSelectedKeyframe();
   const cue = useSelectedCue();
 
+  /** What is being edited, named once at the top so the panel is never anonymous. */
+  const subject = cue
+    ? { icon: 'audio' as const, name: cue.text || 'Audio clip', kind: 'Audio clip' }
+    : kf
+      ? { icon: 'camera' as const, name: 'Camera keyframe', kind: 'Camera' }
+      : layer
+        ? { icon: LAYER_ICON[layer.type], name: layer.name, kind: LAYER_KIND[layer.type] }
+        : null;
+
   return (
     <div className="inspector">
+      <div className="panel-head">
+        <span>Properties</span>
+      </div>
+
+      {/*
+        * A header naming the subject, because a column of fields called Size, Colour and
+        * Opacity is the same column for six different layer types. Showing what you are
+        * editing is the difference between an inspector and a form.
+        */}
+      {subject && (
+        <div className={'subject t-' + (layer?.type ?? (cue ? 'text' : 'camera'))}>
+          <span className="subject-icon">
+            <Icon name={subject.icon} size={15} />
+          </span>
+          <span className="subject-body">
+            <span className="subject-name">{subject.name}</span>
+            <span className="subject-kind">{subject.kind}</span>
+          </span>
+        </div>
+      )}
+
       {cue && <AudioInspector cue={cue} />}
       {kf && <KeyframeInspector />}
       {layer?.type === 'route' && <RouteInspector layer={layer} />}

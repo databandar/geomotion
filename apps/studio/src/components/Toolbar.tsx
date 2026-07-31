@@ -30,6 +30,8 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
   const addAudioCue = useStore((s) => s.addAudioCue);
   const autosaveError = useStore((s) => s.autosaveError);
   const [demoOpen, setDemoOpen] = useState(false);
+  const playing = useStore((s) => s.playing);
+  const setPlaying = useStore((s) => s.setPlaying);
 
   return (
     <header className="toolbar">
@@ -45,19 +47,27 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
         <span className="brand-name">GeoMotion</span>
       </div>
 
-      <span className="project-name" title="Rename in the Composition panel">
+      <span className="project-chip" title="Rename in the Composition panel">
         {name}
       </span>
 
-      {autosaveError && (
+      {/*
+        * Autosave says the ordinary thing, not only the exceptional one.
+        *
+        * It used to appear only when autosave had *failed*, which meant the common state —
+        * your work is safe — was invisible, and the first time you ever saw the indicator
+        * was the moment it told you bad news.
+        */}
+      <span className={'save-state' + (autosaveError ? ' bad' : '')} title={autosaveError ?? 'Saved to this browser'}>
+        <i className="save-dot" />
+        {autosaveError ? 'Not saving' : 'Saved'}
+      </span>
 
-        <span className="tb-warn" title={autosaveError}>
-
-          not autosaving
-
-        </span>
-
-      )}
+      {/* The search sits in the middle, where the eye rests, rather than tucked beside
+          the undo pair — it is the way into anything, not one more action. */}
+      <div className="tb-centre">
+        <PlaceSearch />
+      </div>
 
       <div className="tb-group">
         <button className="tb-btn" disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
@@ -67,10 +77,6 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
           <Icon name="redo" />
         </button>
       </div>
-
-      <PlaceSearch />
-
-      <div className="tb-spacer" />
 
       <button
         className="tb-btn"
@@ -175,6 +181,17 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
         </div>
       </div>
 
+
+      {/*
+        * Preview and Export, the two ways a composition leaves the editor. Preview plays
+        * it here; Export writes a file. They are separated from the file actions above
+        * because they are what you do *last*, and grouping them with Save invites the
+        * wrong one.
+        */}
+      <button className="tb-btn" onClick={() => setPlaying(!playing)} title="Play from the playhead (Space)">
+        <Icon name={playing ? 'pause' : 'preview'} size={13} />
+        Preview
+      </button>
 
       <button className="tb-btn primary" onClick={onExport}>
         Export

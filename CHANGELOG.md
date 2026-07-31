@@ -7,6 +7,28 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The editor itself
+
+- **Light mode.** The colour tokens are now a pair rather than one dark set, and every
+  surface is styled through them. The default follows `prefers-color-scheme`; the toggle
+  in the rail cycles system → light → dark and is remembered. Choosing *system* removes
+  the override rather than freezing today's answer, so the editor still follows the OS
+  when it changes at dusk.
+  - Editor theme is a preference, not document data — it is not undoable and never
+    reaches a saved project (guide §4). A composition's basemap stays whatever the
+    project says; a light editor around a dark map is a correct picture, not a bug.
+- **A section rail.** Layers, Assets, Audio, Camera, Text, Data and Scenes down the left
+  edge. Sections without an implementation are shown disabled with the reason on hover
+  rather than hidden — a gap you can see is information, and a menu that silently grows
+  over releases teaches nobody where anything is.
+- **Toolbar, inspector and timeline restyled** to match: a project chip with its save
+  state, centred place search, the subject of the inspector named in a header chip, and a
+  zoom slider on the timeline.
+- The active rail label uses full-strength ink instead of the accent. Measured from
+  composited pixels — accent-on-wash came out 3.39:1 in dark and 3.97:1 in light, both
+  under 4.5 for text, because a mid-purple on a purple-tinted wash is two steps of one
+  hue. The bar and icon carry the state; the word stays readable.
+
 ### Storytelling (v2 §10)
 
 - **Re-composing keeps your work.** `video.mjs` overwrote the project file outright while

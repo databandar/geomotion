@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import MapCanvas from './components/MapCanvas';
 import Timeline from './components/Timeline';
 import LayerPanel from './components/LayerPanel';
+import Rail from './components/Rail';
 import Storyboard from './components/Storyboard';
 import Inspector from './components/Inspector';
 import Toolbar from './components/Toolbar';
@@ -49,6 +50,8 @@ export default function App() {
       <Toolbar onExport={() => setShowExport(true)} />
 
       <div className="workspace">
+        <Rail />
+
         <aside className="left">
           <LayerPanel />
           {/* Below the layers rather than in a tab: the two answer different questions

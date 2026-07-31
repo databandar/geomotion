@@ -22,6 +22,7 @@ import { clearPathCache } from '@geomotion/evaluator';
 import { clearRegionCache } from '@geomotion/entities';
 import { demoProject } from './lib/fixtures';
 import { loadLocal, saveLocal } from './lib/persistence';
+import { applyTheme, loadTheme, type Theme } from './lib/theme';
 
 export type Selection =
   | { kind: 'layer'; id: string }
@@ -72,6 +73,12 @@ interface State {
   setPxPerSec: (v: number) => void;
   setExportStatus: (s: ExportStatus | null) => void;
   setExporting: (v: boolean) => void;
+  /** Editor preference, not document state (§4): never undoable, never exported. */
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+  /** Which rail section is showing. Editor state: not undoable, not exported. */
+  place: string;
+  setPlace: (p: string) => void;
 
   addLayer: (type: LayerType) => Layer;
   removeLayer: (id: string) => void;
@@ -155,6 +162,8 @@ export const useStore = create<State>((set, get) => ({
   historyRev: 0,
   exportStatus: null,
   exporting: false,
+  theme: loadTheme(),
+  place: 'layers',
   structureRev: 0,
   autosaveError: null,
 
@@ -209,6 +218,13 @@ export const useStore = create<State>((set, get) => ({
   setPxPerSec: (v) => set({ pxPerSec: clamp(v, 12, 400) }),
   setExportStatus: (exportStatus) => set({ exportStatus }),
   setExporting: (exporting) => set({ exporting }),
+
+  setTheme: (theme) => {
+    applyTheme(theme);
+    set({ theme });
+  },
+
+  setPlace: (place) => set({ place }),
 
   addLayer: (type) => {
     const { time, patch, project } = get();

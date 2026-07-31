@@ -79,8 +79,25 @@ export default function Timeline() {
       <div className="tl-toolbar">
         <span className="tl-title">Timeline</span>
         <div className="tl-zoom">
-          <button onClick={() => setPxPerSec(pxPerSec / 1.4)} title="Zoom out"><Icon name="minus" size={12} /></button>
-          <button onClick={() => setPxPerSec(pxPerSec * 1.4)} title="Zoom in"><Icon name="plus" size={12} /></button>
+          {/*
+            * A slider between the two steppers. Doubling and halving is the fast way to a
+            * rough zoom and a poor way to a particular one; a range gives both, and the
+            * value is logarithmic because timeline zoom is multiplicative — linear pixels
+            * per second spends most of the track on the last few useful values.
+            */}
+          <button onClick={() => setPxPerSec(pxPerSec / 1.4)} title="Zoom out"><Icon name="zoom-out" size={12} /></button>
+          <input
+            className="zoom-range"
+            type="range"
+            min={Math.log(4)}
+            max={Math.log(400)}
+            step={0.01}
+            value={Math.log(pxPerSec)}
+            onChange={(e) => setPxPerSec(Math.exp(Number(e.target.value)))}
+            aria-label="Timeline zoom"
+            title="Timeline zoom"
+          />
+          <button onClick={() => setPxPerSec(pxPerSec * 1.4)} title="Zoom in"><Icon name="zoom-in" size={12} /></button>
         </div>
       </div>
 
