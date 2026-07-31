@@ -412,7 +412,20 @@ export function evaluate(project: Project, time: number): Scene {
       const popT = layer.pop ? clamp01(local / 0.55) : 1;
       // Slight overshoot so markers land with a bit of weight.
       const scale = layer.pop ? overshoot(popT) : 1;
-      markers.push({ style: layer, alpha, scale, pulse: layer.pulse ? (local % 1.6) / 1.6 : 0 });
+      /*
+       * Tracks resolve here and nowhere downstream.
+       *
+       * §1.5 makes the evaluator the one place that turns a document plus a time into
+       * plain data, so the renderer keeps receiving a number and never learns what a
+       * track is. That is also what lets the renderer stay testable without a document,
+       * and it is why `style` is now a built object rather than the layer passed through.
+       */
+      markers.push({
+        style: { ...layer, size: evalTrack(layer.size, time) },
+        alpha,
+        scale,
+        pulse: layer.pulse ? (local % 1.6) / 1.6 : 0,
+      });
     } else if (layer.type === 'text') {
       const span = Math.max(0.0001, layer.fade || 0.5);
       const entering = clamp01((time - layer.in) / span);

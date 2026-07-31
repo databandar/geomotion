@@ -1,3 +1,4 @@
+import type { Track } from './track.ts';
 // The canonical declaration lives in @geomotion/core (ENGINEERING_GUIDE §2 puts
 // vector-like primitives there). Imported for use below and re-exported under the
 // name v1 already uses, so the document types read the same.
@@ -77,7 +78,14 @@ export interface MarkerLayer extends LayerBase {
   type: 'marker';
   coord: LngLat;
   color: string;
-  size: number;
+  /**
+   * The first property on the §04 substrate: a track, not a bare number.
+   *
+   * `staticTrack(8)` reads exactly as `8` did; the difference is that it can also hold
+   * keyframes, so a marker can grow. Everything else on this layer follows in later
+   * milestones — see docs/features/property-tracks.md.
+   */
+  size: Track<number>;
   label: string;
   labelSize: number;
   labelColor: string;
@@ -379,7 +387,8 @@ export interface AudioCue {
 }
 
 export interface Project {
-  version: 1;
+  /** Schema version — see ENGINEERING_GUIDE §3.6 and document/migrations. */
+  format: number;
   name: string;
   duration: number;
   fps: number;

@@ -30,10 +30,14 @@ export { applyPatches, isNoop, transact, type Patch, type Transaction } from './
 export type * from './types.ts';
 
 export {
+  TRACK_KINDS,
+  coerceTrack,
   isAnimated,
+  isTrack,
   keyframedTrack,
   restValue,
   staticTrack,
   type Keyframe,
   type Track,
 } from './track.ts';
+export { CURRENT_FORMAT, formatOf, runMigrations } from './migrations/index.ts';

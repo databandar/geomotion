@@ -1,6 +1,7 @@
 # Property tracks
 
-**Status:** M2 landed — the primitive, the per-channel interpolators, and the camera on tracks.
+**Status:** M3 landed — the primitive, the interpolators, the camera, and the first tracked
+property in the document with a format chain behind it.
 
 **Governing sections:** ARCHITECTURE §04 ("every property is a track"), §06 (normative
 evaluation order). ENGINEERING_GUIDE §2 (`animation` owns `evalTrack`), §3.8, §126.
@@ -98,7 +99,43 @@ Channel tracks are cached per keyframe array in a `WeakMap`, which also removes 
 that used to run every frame. Coordinates are copied in and out, so nothing downstream
 can reach through the scene into the cache — or the document — and mutate a keyframe.
 
+## M3 — into the document
+
+`MarkerLayer.size` is a `Track<number>`. A marker can now be keyframed and it grows —
+the first property in the app other than the camera that can move at all.
+
+**The format chain** (§3.6) did not exist and now does: `format` as one integer,
+`migrateNtoN+1` steps in `document/migrations/`, run in order at load, before the
+default-filling. A chain rather than one function that knows every historical shape,
+because each step only has to understand two adjacent formats — small enough to get right
+and to test alone. Format 1 → 2 wraps marker size and removes `version`, which §3.6.4
+requires: two fields meaning the same thing let two readers disagree about which is
+authoritative.
+
+**Frozen fixtures** (§3.6.5) live in `packages/document/fixtures/`, one per format, and
+the suite loads every one to current. The point is not that the newest migration works —
+that is easy to check while writing it — but that format 1 still opens after the tenth
+migration is written, when nobody remembers what it looked like.
+
+**The evaluator is where tracks resolve.** §1.5 makes it the one place that turns a
+document plus a time into plain data, so the renderer still receives a number and never
+learns what a track is. That is also what keeps the renderer testable without a document.
+
+### Two things this turned up
+
+A track is a **discriminated union**, and the "defaults are the schema" type repair from
+M35 cannot handle one: it merged field by field against a *static* default, so a loaded
+keyframed track came back with a nonsense `value: 8` beside its `keys`. Harmless to
+`evalTrack`, which switches on `kind` — but it was written back to disk, so every saved
+project would have carried the junk. `coerceTrack` validates the union as a whole.
+
+`MarkerStyle` was the only render style with no `id`, so nothing could match a rendered
+marker back to its layer. Added, and the map canvas now reads the marker's resolved size
+off the scene rather than resolving the track a second time.
+
 ## Not yet
 
-Document adoption beyond the camera, the inspector's source pip, timeline keyframe rows,
-`bound`, `expr`. Each is a later milestone with its own entry.
+The inspector's source pip and an animate control (M4) — today the slider shows the
+resting value and writing replaces the track with a static one, which discards keyframes.
+That is deliberate and visible rather than hidden behind a helper. Then timeline keyframe
+rows, the remaining bespoke tweens, `bound`, `expr`.

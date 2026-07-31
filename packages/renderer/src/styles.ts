@@ -39,6 +39,9 @@ export interface RouteStyle {
 }
 
 export interface MarkerStyle {
+  /** Every other style carries one; markers were the odd one out, so nothing could
+      match a rendered marker back to the layer that produced it. */
+  id: string;
   coord: [number, number];
   color: string;
   size: number;

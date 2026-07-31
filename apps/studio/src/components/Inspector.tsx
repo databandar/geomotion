@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore, useSelectedCue, useSelectedKeyframe, useSelectedLayer } from '../store';
-import { envelopeOf } from '@geomotion/document';
+import { envelopeOf, restValue, staticTrack } from '@geomotion/document';
 import type {
   AudioCue,
   CloudsLayer,
@@ -490,7 +490,21 @@ function MarkerInspector({ layer }: { layer: MarkerLayer }) {
           <Color value={layer.color} onChange={(color) => set({ color })} />
         </Field>
         <Field label="Size">
-          <Slider value={layer.size} onChange={(size) => set({ size }, 'size')} min={2} max={40} step={0.5} precision={1} />
+          {/*
+            * Reads and writes the resting value. A keyframed size shows its first key
+            * and editing replaces the whole track with a static one — which is the
+            * honest behaviour until M4 adds the source pip and an animate control, and
+            * is why it is written out rather than hidden behind a helper that would
+            * quietly discard keyframes.
+            */}
+          <Slider
+            value={restValue(layer.size) ?? 8}
+            onChange={(size) => set({ size: staticTrack(size) }, 'size')}
+            min={2}
+            max={40}
+            step={0.5}
+            precision={1}
+          />
         </Field>
         <Field label="Halo">
           <Toggle value={layer.halo} onChange={(halo) => set({ halo })} />

@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useStore } from '../store';
 import { evaluate, type Scene } from '@geomotion/evaluator';
 import { syncScene, resetSyncCache } from '@geomotion/map';
+import { evalTrack } from '@geomotion/animation';
 import { drawOverlay, scaleFor } from '@geomotion/renderer';
 import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
 import { waitForIdle, type RenderHost } from '../render/host';
@@ -190,7 +191,13 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, layer.size * frame.scale + 12, 0, Math.PI * 2);
+      /*
+       * The size comes off the scene, not the layer: the evaluator has already resolved
+       * the track for this frame, so the ring tracks an animated marker and there is one
+       * answer rather than two that can disagree. Same shape as the text branch below.
+       */
+      const m = scene.markers.find((x) => x.style.id === layer.id);
+      ctx.arc(p.x, p.y, (m?.style.size ?? 8) * frame.scale + 12, 0, Math.PI * 2);
       ctx.stroke();
     } else if (layer.type === 'text') {
       const t = scene.texts.find((x) => x.style.id === layer.id);
@@ -359,7 +366,10 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       }
     } else if (layer.type === 'marker') {
       const p = map.project(layer.coord);
-      if (Math.hypot(p.x - pt.x, p.y - pt.y) < layer.size + 12) target = { kind: 'marker', layerId: layer.id };
+      // Hit-test what is on screen now, not what the layer rests at — a marker that has
+      // grown should be clickable at the size you can see.
+      const size = evalTrack(layer.size, timeRef.current);
+      if (Math.hypot(p.x - pt.x, p.y - pt.y) < size + 12) target = { kind: 'marker', layerId: layer.id };
     } else if (layer.type === 'text') {
       const stage = stageRef.current;
       if (stage) {

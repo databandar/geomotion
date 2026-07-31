@@ -274,7 +274,7 @@ describe('migrate — a file with fields of the wrong type', () => {
   });
 
   it('replaces a number field holding a string', () => {
-    expect(load({ size: '14' }).size).toBe(markerDefault.size);
+    expect(load({ size: '14' }).size).toEqual(markerDefault.size);
   });
 
   it('replaces a boolean field holding a number', () => {
@@ -283,12 +283,13 @@ describe('migrate — a file with fields of the wrong type', () => {
 
   it('rejects NaN and Infinity, which are typeof number and pass every other check', () => {
     // These propagate through the geometry into coordinates that simply never draw.
-    expect(load({ size: NaN }).size).toBe(markerDefault.size);
-    expect(load({ size: Infinity }).size).toBe(markerDefault.size);
+    expect(load({ size: NaN }).size).toEqual(markerDefault.size);
+    expect(load({ size: Infinity }).size).toEqual(markerDefault.size);
   });
 
   it('keeps a correctly typed value, including a deliberate zero', () => {
-    expect(load({ size: 0 }).size).toBe(0);
+    // A track now, so the deliberate zero has to survive inside it.
+    expect(load({ size: 0 }).size).toEqual({ kind: 'static', value: 0 });
     expect(load({ label: 'Tokyo' }).label).toBe('Tokyo');
     expect(load({ pulse: true }).pulse).toBe(true);
   });
@@ -330,6 +331,6 @@ describe('migrate — a file with fields of the wrong type', () => {
 
   it('still fills in a field that is simply missing', () => {
     expect(load({}).label).toBe(markerDefault.label);
-    expect(load({}).size).toBe(markerDefault.size);
+    expect(load({}).size).toEqual(markerDefault.size);
   });
 });

@@ -1,4 +1,7 @@
 import { createId } from '@geomotion/core';
+import { CURRENT_FORMAT, runMigrations } from './migrations/index.ts';
+import { coerceTrack, isTrack, staticTrack } from './track.ts';
+import type { Track } from './track.ts';
 import type { CameraKeyframe, Layer, LayerType, LngLat, Project, RegionOrder, RegionTour } from './types.ts';
 
 /**
@@ -110,7 +113,7 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         name: 'Marker',
         coord: [0, 0],
         color: nextColor(),
-        size: 8,
+        size: staticTrack(8),
         label: 'Label',
         labelSize: 14,
         labelColor: '#ffffff',
@@ -230,7 +233,7 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
 
 export function emptyProject(): Project {
   return {
-    version: 1,
+    format: CURRENT_FORMAT,
     name: 'Untitled animation',
     duration: 12,
     fps: 30,
@@ -322,7 +325,11 @@ function migrateTour(legacy: LegacyRegions, current: RegionTour): RegionTour {
 }
 
 export function migrate(input: unknown): Project {
-  const p = { ...emptyProject(), ...(input as Project) };
+  // The format chain first: it brings the document to the shape the defaults below
+  // describe. Filling defaults into an old shape would mean the defaults having to know
+  // every historical form, which is exactly what the chain exists to avoid.
+  const upgraded = runMigrations(input);
+  const p = { ...emptyProject(), ...(upgraded as unknown as Project) };
   // Audio survives if there is anything to play or mux. Requiring `url` used to
   // drop the whole block, so a project rendered by the CLI — which has no server
   // to serve a URL from — lost its narration the moment it was opened.
@@ -367,7 +374,11 @@ function coerceToDefaults<T>(loaded: T, defaults: T): T {
     const got = out[key];
     if (want === null || want === undefined) continue;
 
-    if (Array.isArray(want)) {
+    // A track is a discriminated union, so the field-by-field merge below would graft
+    // a static track's `value` onto a keyframed one. It validates as a whole instead.
+    if (isTrack(want)) {
+      out[key] = coerceTrack(got, want as Track<unknown>);
+    } else if (Array.isArray(want)) {
       if (!Array.isArray(got)) out[key] = want;
     } else if (typeof want === 'object') {
       out[key] = coerceToDefaults(got, want);

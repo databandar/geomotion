@@ -82,3 +82,43 @@ export function restValue<T>(track: Track<T>): T | undefined {
   if (track.kind === 'keyframed') return track.keys[0]?.value;
   return undefined;
 }
+
+/** The four kinds §04 fixes. A fifth is an ADR-level change. */
+export const TRACK_KINDS = ['static', 'keyframed', 'bound', 'expr'] as const;
+
+/** Whether a value is shaped like a track — used to route validation, not to trust it. */
+export function isTrack(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const kind = (value as { kind?: unknown }).kind;
+  return typeof kind === 'string' && (TRACK_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * Validate a loaded track, falling back when it is not one.
+ *
+ * A track is a discriminated union, and the "defaults are the schema" repair that runs
+ * over the rest of the document cannot handle one: it merges field by field against a
+ * *static* default, so a loaded keyframed track came back with a nonsense `value` grafted
+ * on beside its `keys`. Harmless to `evalTrack`, which switches on `kind` — but it was
+ * then written back to disk, so every saved project would carry the junk and any later
+ * reader would have to guess which field meant anything.
+ *
+ * Each kind is checked for the one field it cannot work without, and nothing else: the
+ * contents of `keys` are the schema's business, not this function's.
+ */
+export function coerceTrack<T>(loaded: unknown, fallback: Track<T>): Track<T> {
+  if (!isTrack(loaded)) return fallback;
+  const t = loaded as Track<T>;
+  switch (t.kind) {
+    case 'static':
+      return 'value' in t ? t : fallback;
+    case 'keyframed':
+      return Array.isArray(t.keys) ? t : fallback;
+    case 'bound':
+      return typeof t.ref === 'string' && typeof t.path === 'string' ? t : fallback;
+    case 'expr':
+      return typeof t.source === 'string' ? t : fallback;
+    default:
+      return fallback;
+  }
+}
