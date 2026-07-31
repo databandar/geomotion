@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { INDIA_STATES, resolve } from '@geomotion/entities';
 
 /**
  * Reads indicators out of the NFHS pivoted CSV.
@@ -34,15 +35,6 @@ async function readCsv(csvPath) {
     throw new Error(`Could not read the NFHS CSV at ${csvPath}: ${e.code ?? e.message}`);
   }
 }
-
-/** NFHS spellings → the names used by the bundled boundary sets. */
-const ALIASES = {
-  'A & N Islands': ['Andaman and Nicobar Islands'],
-  'Jammu & Kashmir': ['Jammu and Kashmir'],
-  // The survey reports the merged union territory; the official boundary set
-  // still carries the two constituent territories separately.
-  DNHDD: ['Dadra and Nagar Haveli', 'Daman and Diu'],
-};
 
 /**
  * Minimal RFC4180 CSV parse.
@@ -129,6 +121,7 @@ export function extract({ header, body }, indicator, round = 'total') {
   let national = null;
   let nationalPrevious = null;
   const missing = [];
+  const unmatched = [];
 
   for (const row of body) {
     const state = row[0].trim();
@@ -146,13 +139,30 @@ export function extract({ header, body }, indicator, round = 'total') {
       missing.push(state);
       continue;
     }
-    for (const name of ALIASES[state] ?? [state]) {
-      values[name] = num;
-      if (Number.isFinite(prevNum)) previous[name] = prevNum;
+    /*
+     * Names resolve through the entity registry rather than a table kept here.
+     *
+     * That table used to hold "A & N Islands", the ampersands and the merged union
+     * territory, where no other importer could see them — §05 Decision 02 calls that
+     * out as the v1 mistake, because the next dataset re-fights the same battle. The
+     * spellings now live on the entities, so anything joining later already knows them.
+     *
+     * A name nothing answers to is *recorded*, not silently passed through: an unknown
+     * spelling and a genuinely absent region are different problems, and only one of
+     * them is somebody's mistake.
+     */
+    const hits = resolve(INDIA_STATES, state);
+    if (hits.length === 0) {
+      unmatched.push(state);
+      continue;
+    }
+    for (const entity of hits) {
+      values[entity.name] = num;
+      if (Number.isFinite(prevNum)) previous[entity.name] = prevNum;
     }
   }
 
-  return { indicator, round, values, previous, national, nationalPrevious, missing };
+  return { indicator, round, values, previous, national, nationalPrevious, missing, unmatched };
 }
 
 /** Sorted change table, for picking which states are worth a tour stop. */
@@ -172,6 +182,7 @@ export async function writeValuesFile(extracted, outPath, meta = {}) {
     _nationalPrevious: extracted.nationalPrevious,
     _note: meta.note ?? 'Extracted from the NFHS pivoted CSV. Values are as published; verify against the factsheet before publishing.',
     _missing: extracted.missing,
+    _unmatched: extracted.unmatched,
     values: Object.fromEntries(Object.entries(extracted.values).sort(([a], [b]) => a.localeCompare(b))),
     previous: Object.fromEntries(Object.entries(extracted.previous).sort(([a], [b]) => a.localeCompare(b))),
   };

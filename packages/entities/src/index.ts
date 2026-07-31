@@ -14,3 +14,15 @@ export {
   type Region,
   type RegionSet,
 } from './regions.ts';
+
+export {
+  factOf,
+  joinFacts,
+  resolve,
+  sourcesUsed,
+  type Entity,
+  type Fact,
+  type JoinReport,
+  type Registry,
+} from './registry.ts';
+export { INDIA_STATES } from './sets/india.ts';

@@ -38,6 +38,9 @@ importers:
       '@geomotion/document':
         specifier: workspace:*
         version: link:../../packages/document
+      '@geomotion/entities':
+        specifier: workspace:*
+        version: link:../../packages/entities
       puppeteer-core:
         specifier: ^23.0.0
         version: 23.11.1
