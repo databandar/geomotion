@@ -2,7 +2,7 @@ import { Fragment, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import Icon from './Icon';
 import { isRetimable, trackedProps } from '@geomotion/document';
-import type { RouteLayer, Track } from '@geomotion/document';
+import type { Track } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
 
 const GUTTER = 148;
@@ -222,8 +222,6 @@ export default function Timeline() {
                     }}
                   />
                 </div>
-
-                {l.type === 'route' && <DrawWindow layer={l} pxPerSec={pxPerSec} snap={snap} dragSeconds={dragSeconds} />}
                 </div>
                 {animatedProps(l).map((prop) => (
                   <TrackRow
@@ -320,54 +318,6 @@ function TrackRow({
   );
 }
 
-function DrawWindow({
-  layer,
-  pxPerSec,
-  snap,
-  dragSeconds,
-}: {
-  layer: RouteLayer;
-  pxPerSec: number;
-  snap: (t: number) => number;
-  dragSeconds: (e: React.PointerEvent, cb: (dt: number, done: boolean) => void) => void;
-}) {
-  const updateLayer = useStore((s) => s.updateLayer);
-  return (
-    <div
-      className="draw-window"
-      style={{ left: layer.drawStart * pxPerSec, width: Math.max(4, (layer.drawEnd - layer.drawStart) * pxPerSec) }}
-      title="Route draw window — drag to retime the reveal"
-      onPointerDown={(e) => {
-        const s0 = layer.drawStart;
-        const e0 = layer.drawEnd;
-        const len = e0 - s0;
-        dragSeconds(e, (dt) => {
-          const ns = Math.max(0, snap(s0 + dt));
-          updateLayer<RouteLayer>(layer.id, { drawStart: ns, drawEnd: ns + len }, 'draw');
-        });
-      }}
-    >
-      <i
-        className="grip l"
-        onPointerDown={(e) => {
-          const s0 = layer.drawStart;
-          dragSeconds(e, (dt) =>
-            updateLayer<RouteLayer>(layer.id, { drawStart: Math.min(snap(s0 + dt), layer.drawEnd - 0.1) }, 'draw-in'),
-          );
-        }}
-      />
-      <i
-        className="grip r"
-        onPointerDown={(e) => {
-          const e0 = layer.drawEnd;
-          dragSeconds(e, (dt) =>
-            updateLayer<RouteLayer>(layer.id, { drawEnd: Math.max(snap(e0 + dt), layer.drawStart + 0.1) }, 'draw-out'),
-          );
-        }}
-      />
-    </div>
-  );
-}
 
 function buildTicks(duration: number, pxPerSec: number): number[] {
   const targetPx = 90;

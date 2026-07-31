@@ -229,3 +229,22 @@ export function trackedProps(node: object): string[] {
     .filter(([, v]) => isTrack(v))
     .map(([k]) => k);
 }
+
+/**
+ * Read a track back as a simple window, when it is one.
+ *
+ * Exactly two keys ramping 0 → 1 is the shape the old `drawStart` / `drawEnd` fields
+ * described, and it is what almost every reveal actually is. Recognising it lets the
+ * inspector keep offering Start / End / Easing — the controls people already know — over
+ * a model that is no longer limited to them.
+ *
+ * `null` for anything else, and the caller is expected to say so rather than quietly
+ * rewriting: a third key is a deliberate act, and a Start field that flattened it back to
+ * two would silently undo work.
+ */
+export function windowOf(track: Track<number>): { from: number; to: number; easing: EasingName } | null {
+  if (track.kind !== 'keyframed' || track.keys.length !== 2) return null;
+  const [a, b] = track.keys as [Keyframe<number>, Keyframe<number>];
+  if (a.value !== 0 || b.value !== 1) return null;
+  return { from: a.t, to: b.t, easing: a.easing };
+}

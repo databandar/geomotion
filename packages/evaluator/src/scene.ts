@@ -386,15 +386,22 @@ export function evaluate(project: Project, time: number): Scene {
 
     if (layer.type === 'route') {
       const path = routePath(layer);
-      const raw = invLerp(layer.drawStart, layer.drawEnd, time);
-      const progress = time < layer.drawStart ? 0 : time > layer.drawEnd ? 1 : ease(layer.drawEasing, raw);
+      // The draw window is a track now, so the clamping outside it and the easing across
+      // it are both `evalTrack`'s job rather than spelled out here.
+      const progress = evalTrack(layer.progress, time);
       const drawn = alpha > 0 ? sliceAt(path, progress) : [];
       const head = path.coords.length >= 2 && progress > 0 ? pointAt(path, progress) : null;
       const heading = path.coords.length >= 2 ? headingAt(path, progress) : 0;
       routes.push({ style: layer, alpha, progress, drawn, head, heading });
 
-      const following =
-        layer.follow.enabled && layer.visible && time >= layer.drawStart && time <= layer.drawEnd && head;
+      /*
+       * The camera follows while the line is still being drawn. With a window that was
+       * `time` between two fields; with a track it is "the progress track is mid-segment",
+       * which `trackSegment` answers — and which keeps working if someone adds a third
+       * key or a pause, where a first/last comparison would not.
+       */
+      const drawing = trackSegment(layer.progress, time) !== null;
+      const following = layer.follow.enabled && layer.visible && drawing && head;
       if (following) {
         claims.push({
           layer: layer.id,
@@ -457,13 +464,13 @@ export function evaluate(project: Project, time: number): Scene {
         zoom: layer.anim === 'kenBurns' ? 1 + 0.04 * through : 1,
       });
     } else {
-      const span = Math.max(0.01, layer.dissipateEnd - layer.dissipateStart);
+
       clouds.push({
         style: layer,
         alpha,
         // Drift is absolute time, so scrubbing lands on the same frame every time.
         drift: time,
-        clear: layer.dissipate ? ease('easeInOutCubic', clamp01((time - layer.dissipateStart) / span)) : 0,
+        clear: evalTrack(layer.clear, time),
       });
     }
   }

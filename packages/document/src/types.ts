@@ -52,10 +52,14 @@ export interface RouteLayer extends LayerBase {
   opacity: number;
   dashed: boolean;
   glow: boolean;
-  /** progressive draw window, seconds (absolute timeline time) */
-  drawStart: number;
-  drawEnd: number;
-  drawEasing: EasingName;
+  /**
+   * How much of the line is drawn, 0..1.
+   *
+   * Was `drawStart` / `drawEnd` / `drawEasing` — a window with one curve across it, which
+   * is a two-key track written out longhand. As a track it can also pause mid-draw, run
+   * backwards, or ease each segment differently, none of which the window could express.
+   */
+  progress: Track<number>;
   /** trailing dot / vehicle riding the head of the line */
   marker: {
     enabled: boolean;
@@ -264,10 +268,13 @@ export interface CloudsLayer extends LayerBase {
   direction: number;
   color: string;
   opacity: number;
-  /** clouds clear outward from the centre between these times */
-  dissipate: boolean;
-  dissipateStart: number;
-  dissipateEnd: number;
+  /**
+   * How far the cloud has cleared outward from the centre, 0..1.
+   *
+   * Was `dissipate` / `dissipateStart` / `dissipateEnd`: the same window-with-a-curve as
+   * the route's draw, and the same two-key track underneath.
+   */
+  clear: Track<number>;
 }
 
 /** A picture placed in screen space — a photo, a logo, a chart you made elsewhere. */

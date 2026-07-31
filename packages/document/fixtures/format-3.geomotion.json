@@ -1,5 +1,5 @@
 {
-  "format": 2,
+  "format": 3,
   "name": "Format 1 — frozen",
   "duration": 12,
   "fps": 30,
@@ -82,47 +82,6 @@
       "backgroundColor": "#000000aa",
       "letterSpacing": 0,
       "anim": "slideUp"
-    },
-    {
-      "id": "r1",
-      "type": "route",
-      "name": "Flight",
-      "visible": true,
-      "in": 0,
-      "out": 12,
-      "fade": 0.5,
-      "coords": [
-        [
-          139.7,
-          35.68
-        ],
-        [
-          -122.4,
-          37.77
-        ]
-      ],
-      "curve": "geodesic",
-      "color": "#4cc2ff",
-      "width": 4,
-      "opacity": 1,
-      "dashed": false,
-      "glow": true,
-      "drawStart": 1,
-      "drawEnd": 9,
-      "drawEasing": "easeOut",
-      "marker": {
-        "enabled": true,
-        "icon": "plane",
-        "color": "#fff",
-        "size": 7,
-        "rotate": true
-      },
-      "follow": {
-        "enabled": false,
-        "zoom": 9,
-        "pitch": 55,
-        "faceHeading": true
-      }
     }
   ]
 }

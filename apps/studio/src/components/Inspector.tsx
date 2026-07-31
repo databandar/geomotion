@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore, useSelectedCue, useSelectedKeyframe, useSelectedLayer } from '../store';
-import { envelopeOf, hasKeyAt } from '@geomotion/document';
+import { envelopeOf, hasKeyAt, staticTrack, windowOf } from '@geomotion/document';
 import type { Track } from '@geomotion/document';
 import { evalTrack } from '@geomotion/animation';
 import type {
@@ -364,20 +364,16 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
       </Section>
 
       <Section title="Reveal">
-        <Field label="Start">
-          <Num value={layer.drawStart} onChange={(drawStart) => set({ drawStart })} step={0.1} min={0} max={duration} suffix="s" />
-        </Field>
-        <Field label="End">
-          <Num value={layer.drawEnd} onChange={(drawEnd) => set({ drawEnd })} step={0.1} min={0} max={duration} suffix="s" />
-        </Field>
-        <Field label="Easing">
-          <Select value={layer.drawEasing} onChange={(drawEasing) => set({ drawEasing })} options={EASING_NAMES} />
-        </Field>
-        {path.length > 0 && layer.drawEnd > layer.drawStart && (
-          <p className="hint">
-            ≈ {(km / (layer.drawEnd - layer.drawStart)).toFixed(0)} km/s of travel over {(layer.drawEnd - layer.drawStart).toFixed(1)}s
-          </p>
-        )}
+        <TrackWindow label="Reveal" layerId={layer.id} prop="progress" track={layer.progress} max={duration} />
+        {(() => {
+          const w = windowOf(layer.progress);
+          if (!w || path.length === 0 || w.to <= w.from) return null;
+          return (
+            <p className="hint">
+              ≈ {(km / (w.to - w.from)).toFixed(0)} km/s of travel over {(w.to - w.from).toFixed(1)}s
+            </p>
+          );
+        })()}
       </Section>
 
       <Section title="Travelling marker">
@@ -459,6 +455,75 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
  * field so that adding a track to a property is a two-line change at the call site, which
  * is what has to be true before the eighteen bespoke tween fields can be folded in.
  */
+/**
+ * Start / End / Easing over a track that happens to be a plain two-key ramp.
+ *
+ * The controls people already know, kept — but the model underneath is now general, so
+ * the same property can also be given a pause, a reversal, or a different curve per
+ * segment by working on the timeline. §06's progressive disclosure, applied to a track:
+ * the simple skin stays the front door.
+ *
+ * Once the track stops being a simple window the fields step aside rather than flatten
+ * it. A Start box that quietly threw away a third keyframe would undo deliberate work
+ * and give no sign it had.
+ */
+function TrackWindow({
+  label,
+  layerId,
+  prop,
+  track,
+  max,
+}: {
+  label: string;
+  layerId: string;
+  prop: string;
+  track: Track<number>;
+  max: number;
+}) {
+  const setWindow = useStore((s) => s.setLayerWindow);
+  const w = windowOf(track);
+
+  if (!w) {
+    return (
+      <p className="hint">
+        {label} is keyframed beyond a simple window — edit its keys on the timeline.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <Field label="Start">
+        <Num
+          value={w.from}
+          onChange={(from) => setWindow(layerId, prop, from, w.to, w.easing)}
+          step={0.1}
+          min={0}
+          max={max}
+          suffix="s"
+        />
+      </Field>
+      <Field label="End">
+        <Num
+          value={w.to}
+          onChange={(to) => setWindow(layerId, prop, w.from, to, w.easing)}
+          step={0.1}
+          min={0}
+          max={max}
+          suffix="s"
+        />
+      </Field>
+      <Field label="Easing">
+        <Select
+          value={w.easing}
+          onChange={(easing) => setWindow(layerId, prop, w.from, w.to, easing)}
+          options={EASING_NAMES}
+        />
+      </Field>
+    </>
+  );
+}
+
 function TrackedNumber({
   label,
   layerId,
@@ -1089,6 +1154,8 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
 
 function CloudsInspector({ layer }: { layer: CloudsLayer }) {
   const update = useStore((s) => s.updateLayer);
+  const setWindow = useStore((s) => s.setLayerWindow);
+  const duration = useStore((s) => s.project.duration);
   const set = (p: Partial<CloudsLayer>, key?: string) => update<CloudsLayer>(layer.id, p, key);
 
   return (
@@ -1121,17 +1188,22 @@ function CloudsInspector({ layer }: { layer: CloudsLayer }) {
       <Section title="Clearing">
         <p className="hint">The cloud parts from the centre outward to reveal the map.</p>
         <Field label="Enabled">
-          <Toggle value={layer.dissipate} onChange={(dissipate) => set({ dissipate })} />
+          {/*
+            * "Enabled" is now derived rather than stored: a cloud that never clears is a
+            * flat-zero track. Turning it on restores a window over the layer's span,
+            * which is what the boolean used to imply and what the defaults gave.
+            */}
+          <Toggle
+            value={layer.clear.kind !== 'static'}
+            onChange={(on) =>
+              on
+                ? setWindow(layer.id, 'clear', layer.in + 1.6, layer.in + 4.6, 'easeInOutCubic')
+                : set({ clear: staticTrack(0) })
+            }
+          />
         </Field>
-        {layer.dissipate && (
-          <>
-            <Field label="Starts">
-              <Num value={layer.dissipateStart} onChange={(dissipateStart) => set({ dissipateStart })} step={0.1} min={0} suffix="s" />
-            </Field>
-            <Field label="Clear by">
-              <Num value={layer.dissipateEnd} onChange={(dissipateEnd) => set({ dissipateEnd })} step={0.1} min={0} suffix="s" />
-            </Field>
-          </>
+        {layer.clear.kind !== 'static' && (
+          <TrackWindow label="Clearing" layerId={layer.id} prop="clear" track={layer.clear} max={duration} />
         )}
       </Section>
     </>

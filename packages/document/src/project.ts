@@ -1,8 +1,20 @@
 import { createId } from '@geomotion/core';
 import { CURRENT_FORMAT, runMigrations } from './migrations/index.ts';
-import { coerceTrack, isTrack, staticTrack } from './track.ts';
+import { coerceTrack, isTrack, keyframedTrack, staticTrack } from './track.ts';
+
+/**
+ * A 0..1 ramp between two times — the shape every "window with a curve" collapses to.
+ *
+ * The easing sits on the opening key because that is the segment it governs, which is
+ * the convention the camera has always used.
+ */
+export const windowTrack = (from: number, to: number, easing: EasingName) =>
+  keyframedTrack<number>([
+    { id: createId(), t: from, value: 0, easing },
+    { id: createId(), t: Math.max(from, to), value: 1, easing },
+  ]);
 import type { Track } from './track.ts';
-import type { CameraKeyframe, Layer, LayerType, LngLat, Project, RegionOrder, RegionTour } from './types.ts';
+import type { CameraKeyframe, EasingName, Layer, LayerType, LngLat, Project, RegionOrder, RegionTour } from './types.ts';
 
 /**
  * Construction and migration for document nodes.
@@ -99,9 +111,7 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         opacity: 1,
         dashed: false,
         glow: true,
-        drawStart: base.in,
-        drawEnd: base.in + 4,
-        drawEasing: 'easeInOutCubic',
+        progress: windowTrack(base.in, base.in + 4, 'easeInOutCubic'),
         marker: { enabled: true, icon: 'dot', color: '#ffffff', size: 6, rotate: true },
         follow: { enabled: false, zoom: 9, pitch: 55, faceHeading: true },
         ...(opts as object),
@@ -204,9 +214,7 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
         direction: 75,
         color: '#eef3f8',
         opacity: 1,
-        dissipate: true,
-        dissipateStart: base.in + 1.6,
-        dissipateEnd: base.in + 4.6,
+        clear: windowTrack(base.in + 1.6, base.in + 4.6, 'easeInOutCubic'),
         ...(opts as object),
       } as Layer;
     case 'image':

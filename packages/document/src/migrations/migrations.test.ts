@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { migrate } from '../project.ts';
 import { CURRENT_FORMAT, formatOf, runMigrations } from './index.ts';
 import { migrate1to2 } from './1-to-2.ts';
+import { migrate2to3 } from './2-to-3.ts';
 
 /**
  * ENGINEERING_GUIDE §3.6.5: every format version keeps a frozen fixture forever, and
@@ -39,6 +40,21 @@ describe('the frozen fixtures', () => {
     // The old name must be gone, not merely ignored — two fields meaning the same thing
     // let two readers disagree about which is authoritative (§3.6.4).
     expect(out).not.toHaveProperty('version');
+  });
+
+  it.each(frozen)('%s keeps its reveal timing through the collapse to tracks', (file) => {
+    // Only format 2 froze a route; format 1 predates the fixture carrying one.
+    const doc = JSON.parse(fs.readFileSync(path.join(FIXTURES, file), 'utf8'));
+    const route = migrate(doc).layers.find((l) => l.type === 'route');
+    if (!route) return;
+    // Authored as drawStart 1 / drawEnd 9; the window must survive as the same ramp.
+    expect(route.progress).toMatchObject({
+      kind: 'keyframed',
+      keys: [
+        { t: 1, value: 0 },
+        { t: 9, value: 1 },
+      ],
+    });
   });
 
   it.each(frozen)('%s keeps the content it was frozen with', (file) => {
@@ -133,5 +149,57 @@ describe('migrate1to2', () => {
 
   it('survives a document with no layers array at all', () => {
     expect(migrate1to2({ version: 1 }).layers).toEqual([]);
+  });
+});
+
+describe('migrate2to3', () => {
+  const layers = (l: unknown[]) => ({ format: 2, layers: l });
+
+  it('turns a draw window into a two-key ramp', () => {
+    const out = migrate2to3(layers([{ type: 'route', drawStart: 2, drawEnd: 6, drawEasing: 'easeOut' }]));
+    expect((out.layers as { progress: unknown }[])[0]?.progress).toMatchObject({
+      kind: 'keyframed',
+      keys: [
+        { t: 2, value: 0, easing: 'easeOut' },
+        { t: 6, value: 1, easing: 'easeOut' },
+      ],
+    });
+  });
+
+  it('removes the fields it replaced', () => {
+    // §3.6.4: a deprecated field is removed by a migration, not left beside its
+    // replacement where two readers can disagree about which is authoritative.
+    const out = migrate2to3(layers([{ type: 'route', drawStart: 0, drawEnd: 4, drawEasing: 'linear' }]));
+    const route = (out.layers as Record<string, unknown>[])[0]!;
+    expect(route).not.toHaveProperty('drawStart');
+    expect(route).not.toHaveProperty('drawEnd');
+    expect(route).not.toHaveProperty('drawEasing');
+  });
+
+  it('keeps a cloud that never cleared static, rather than starting it', () => {
+    /*
+     * `dissipate: false` meant the cloud never parted. Dropping the flag and keeping the
+     * window would set every previously-static cloud dissipating the moment it opened.
+     */
+    const out = migrate2to3(layers([{ type: 'clouds', dissipate: false, dissipateStart: 1, dissipateEnd: 4 }]));
+    expect((out.layers as { clear: unknown }[])[0]?.clear).toEqual({ kind: 'static', value: 0 });
+  });
+
+  it('converts a cloud that did clear', () => {
+    const out = migrate2to3(layers([{ type: 'clouds', dissipate: true, dissipateStart: 1, dissipateEnd: 4 }]));
+    expect((out.layers as { clear: { keys: { t: number }[] } }[])[0]?.clear.keys.map((k) => k.t)).toEqual([1, 4]);
+  });
+
+  it('leaves a layer that already has the new field alone', () => {
+    const track = { kind: 'keyframed', keys: [] };
+    const out = migrate2to3(layers([{ type: 'route', progress: track, drawStart: 9 }]));
+    expect((out.layers as { progress: unknown }[])[0]?.progress).toBe(track);
+  });
+
+  it('survives a window with nonsense times', () => {
+    // Hand-edited files reach this; the type repair downstream cannot fix a shape.
+    const out = migrate2to3(layers([{ type: 'route', drawStart: 'soon', drawEnd: null }]));
+    const keys = (out.layers as { progress: { keys: { t: number }[] } }[])[0]!.progress.keys;
+    expect(keys.every((k) => Number.isFinite(k.t))).toBe(true);
   });
 });

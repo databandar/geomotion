@@ -8,11 +8,12 @@ import {
   staticTrack,
   toKeyframed,
   transact,
+  windowTrack,
   withKeyMoved,
   withValueAt,
   withoutKeyAt,
 } from '@geomotion/document';
-import type { Track } from '@geomotion/document';
+import type { EasingName, Track } from '@geomotion/document';
 import type { AudioCue, CameraKeyframe, Layer, LayerType, Project } from '@geomotion/document';
 import { clamp, createId } from '@geomotion/core';
 import { clearPathCache } from '@geomotion/evaluator';
@@ -88,6 +89,8 @@ interface State {
   toggleLayerKey: (id: string, prop: string, valueNow: number) => void;
   /** Retime one key of a tracked property. */
   moveLayerKey: (id: string, prop: string, keyId: string, t: number) => void;
+  /** Rewrite a tracked property as a plain 0..1 window between two times. */
+  setLayerWindow: (id: string, prop: string, from: number, to: number, easing: EasingName) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
 
   addAudioCue: (cue: Omit<AudioCue, 'id'>) => void;
@@ -205,7 +208,11 @@ export const useStore = create<State>((set, get) => ({
     const { time, patch, project } = get();
     const layer = createLayer(type, Math.min(time, Math.max(0, project.duration - 1)));
     layer.out = Math.min(project.duration, layer.in + 6);
-    if (layer.type === 'route') layer.drawEnd = Math.min(project.duration, layer.drawStart + 4);
+    // A new route reveals over four seconds, or up to the end of the composition if it
+    // is shorter — the same rule as before, said in tracks.
+    if (layer.type === 'route') {
+      layer.progress = windowTrack(layer.in, Math.min(project.duration, layer.in + 4), 'easeInOutCubic');
+    }
     patch((p) => {
       p.layers.push(layer);
     });
@@ -288,6 +295,14 @@ export const useStore = create<State>((set, get) => ({
       if (!isTrack(track)) return;
       layer![prop] = withKeyMoved(track as Track<number>, keyId, Math.max(0, t));
     }, `${id}:${prop}:${keyId}:move`);
+  },
+
+  setLayerWindow: (id, prop, from, to, easing) => {
+    get().patch((p) => {
+      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      if (!layer || !isTrack(layer[prop])) return;
+      layer[prop] = windowTrack(Math.max(0, from), Math.max(0, to), easing);
+    }, `${id}:${prop}:window`);
   },
 
   moveLayer: (id, dir) => {

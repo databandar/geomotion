@@ -1,7 +1,6 @@
 # Property tracks
 
-**Status:** M5 landed — the substrate, the format chain, and a property you can animate
-from the inspector and retime on the timeline.
+**Status:** M6 landed — the substrate, and the first bespoke tweens deleted.
 
 **Governing sections:** ARCHITECTURE §04 ("every property is a track"), §06 (normative
 evaluation order). ENGINEERING_GUIDE §2 (`animation` owns `evalTrack`), §3.8, §126.
@@ -195,6 +194,56 @@ and could not see where the others were.
   could disagree with the gutter and push every row below out of alignment. Verified in a
   browser — worst gutter-to-row offset 0px.
 
+## M6 — the first tweens deleted
+
+`drawStart` / `drawEnd` / `drawEasing` and `dissipate` / `dissipateStart` /
+`dissipateEnd` are gone. Both were the same thing written twice: a value ramping 0 → 1
+between two times under one curve — a two-key track spelled out longhand.
+
+**Not all eighteen are tracks, and that matters.** Looking at how each is actually
+evaluated:
+
+| field | what it is |
+| --- | --- |
+| `drawStart`/`drawEnd`/`drawEasing` | an authored ramp — **a track** |
+| `dissipate*` | the same ramp — **a track** |
+| `pop` | `overshoot(local / 0.55)` — a rule over a value |
+| `pulse` | `(local % 1.6) / 1.6` — a continuous oscillator |
+| `anim` | typewriter / wipe / slideUp entrances |
+| `fade` | ramps derived from `in` and `out` |
+| `tour.*` | the region tour |
+| camera `dip` | a modifier over a segment (M2) |
+
+Only the first two are values authored over time. The rest are *rules applied to a
+value* — behaviours in §06's sense, where the pipeline is
+`value(t) = behaviors(expr(base(t)))`. Forcing them into tracks would swap one wrong
+shape for another. They wait for the behaviour stack, which now has six named consumers
+rather than the one hypothetical it had for fifteen milestones.
+
+**The window survives as a skin.** `TrackWindow` still offers Start / End / Easing,
+reading them back off a two-key track — §06's progressive disclosure applied to a
+property. Once a track stops being a simple window the fields step aside and say so,
+rather than flattening a third keyframe someone deliberately added.
+
+**What this buys.** A route can now pause mid-draw, run backwards, or ease each segment
+differently — verified: a route holding at half through two seconds and finishing later,
+which the old window could not express at any setting.
+
+Equivalence with the old formula was checked differentially over 18,000 samples across
+random windows and every easing curve.
+
+### The goldens earned their keep
+
+`demo@6` changed — 10 of 576 cells. The formula was equivalent; the *fixture* was not.
+It set `drawStart: 3, drawEnd: 9.5` through an `as Partial<Layer>` cast, so when the
+fields disappeared the cast swallowed them and the route silently fell back to the
+default window. Nothing else would have caught that: it typechecked, every unit test
+passed, and the only symptom was a route drawing at the wrong time.
+
+`DrawWindow` on the timeline is gone with it. The keyframe row replaces it and does
+more — either end drags alone, and a third key is possible — but it is a change to a
+familiar affordance, not only an addition.
+
 ## Not yet
 
-The remaining bespoke tweens, `bound`, `expr`.
+The behaviours above, `bound`, `expr`.

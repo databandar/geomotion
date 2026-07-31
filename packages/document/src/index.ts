@@ -36,6 +36,7 @@ export {
   hasKeyAt,
   toKeyframed,
   trackedProps,
+  windowOf,
   withKeyMoved,
   withValueAt,
   withoutKeyAt,
@@ -47,4 +48,5 @@ export {
   type Keyframe,
   type Track,
 } from './track.ts';
+export { windowTrack } from './project.ts';
 export { CURRENT_FORMAT, formatOf, runMigrations } from './migrations/index.ts';

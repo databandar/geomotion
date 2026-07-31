@@ -1,4 +1,4 @@
-import { createLayer, defaultTour, emptyProject, keyframe } from '@geomotion/document';
+import { createLayer, defaultTour, emptyProject, keyframe, windowTrack } from '@geomotion/document';
 import type { Layer, LngLat, Project, RegionsLayer } from '@geomotion/document';
 import indiaStates from '../data/india-states-official.json';
 import anemia from '../data/india-anemia-sample.json';
@@ -23,8 +23,7 @@ export function demoProject(): Project {
     color: '#4cc2ff',
     width: 3.5,
     out: 15,
-    drawStart: 3,
-    drawEnd: 9.5,
+    progress: windowTrack(3, 9.5, 'easeInOutCubic'),
     marker: { enabled: true, icon: 'plane', color: '#ffffff', size: 9, rotate: true },
   } as Partial<Layer>) as Extract<Layer, { type: 'route' }>;
   route.coords = [SF, TOKYO];
@@ -106,8 +105,7 @@ export function indiaTourProject(): Project {
     direction: 65,
     out: start + intro * 0.6,
     fade: 0.8,
-    dissipateStart: 1.8,
-    dissipateEnd: 5.4,
+    clear: windowTrack(1.8, 5.4, 'easeInOutCubic'),
   } as Partial<Layer>);
 
   // The country outline traces itself on before the states are broken out.
