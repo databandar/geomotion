@@ -10,3 +10,10 @@
  */
 
 export { EASING_NAMES, EASINGS, ease } from './easing.ts';
+export {
+  evalTrack,
+  holdValue,
+  lerpNumber,
+  trackKindSupported,
+  type Interpolate,
+} from './track.ts';

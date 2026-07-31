@@ -216,3 +216,54 @@ describe('resolveCamera', () => {
     expect(resolveCamera([{ layer: 'a', kind: 'tour', camera: only }])).toEqual(only);
   });
 });
+
+describe('cameraAt — the channels that resolve through evalTrack', () => {
+  /*
+   * `zoom` and `pitch` are read through the property-track evaluator (M1). The tests
+   * above exercise the camera at its keyframes and outside its range, where `cameraAt`
+   * returns early and the track is never consulted — so without these, breaking
+   * `evalTrack` outright left the whole evaluator suite green.
+   */
+  const ramp = (): Project => ({
+    ...emptyProject(),
+    duration: 10,
+    camera: [
+      { ...keyframe(0, [0, 0], 4), pitch: 0, easing: 'linear' },
+      { ...keyframe(4, [0, 0], 8), pitch: 60, easing: 'linear' },
+    ],
+  });
+
+  it('interpolates zoom across a segment, not just at its ends', () => {
+    expect(cameraAt(ramp(), 2).zoom).toBeCloseTo(6, 6);
+    expect(cameraAt(ramp(), 1).zoom).toBeCloseTo(5, 6);
+    expect(cameraAt(ramp(), 3).zoom).toBeCloseTo(7, 6);
+  });
+
+  it('interpolates pitch across a segment', () => {
+    expect(cameraAt(ramp(), 2).pitch).toBeCloseTo(30, 6);
+  });
+
+  it('reads the authored value exactly at each key', () => {
+    expect(cameraAt(ramp(), 0).zoom).toBe(4);
+    expect(cameraAt(ramp(), 4).zoom).toBe(8);
+  });
+
+  it('holds the ends rather than extrapolating past them', () => {
+    expect(cameraAt(ramp(), -3).zoom).toBe(4);
+    expect(cameraAt(ramp(), 99).zoom).toBe(8);
+  });
+
+  it('picks the right segment when there are several', () => {
+    const p: Project = {
+      ...emptyProject(),
+      duration: 10,
+      camera: [
+        { ...keyframe(0, [0, 0], 2), easing: 'linear' },
+        { ...keyframe(2, [0, 0], 6), easing: 'linear' },
+        { ...keyframe(6, [0, 0], 4), easing: 'linear' },
+      ],
+    };
+    expect(cameraAt(p, 1).zoom).toBeCloseTo(4, 6);
+    expect(cameraAt(p, 4).zoom).toBeCloseTo(5, 6);
+  });
+});

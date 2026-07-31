@@ -28,3 +28,12 @@ export {
 export { History } from './history.ts';
 export { applyPatches, isNoop, transact, type Patch, type Transaction } from './transact.ts';
 export type * from './types.ts';
+
+export {
+  isAnimated,
+  keyframedTrack,
+  restValue,
+  staticTrack,
+  type Keyframe,
+  type Track,
+} from './track.ts';

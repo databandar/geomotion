@@ -10,9 +10,9 @@ import type {
   ShapeRender,
   TextRender,
 } from '@geomotion/renderer';
-import type { LngLat, Project, RegionsLayer, RouteLayer } from '@geomotion/document';
+import type { CameraKeyframe, LngLat, Project, RegionsLayer, RouteLayer, Track } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle } from '@geomotion/core';
-import { ease } from '@geomotion/animation';
+import { ease, evalTrack } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionAtStop, regionSet, type RegionSet } from '@geomotion/entities';
@@ -32,6 +32,24 @@ const DEFAULT_CAMERA: CameraState = {
 export type { CameraState, Scene } from '@geomotion/renderer';
 
 /* ------------------------------------------------------------------ camera */
+
+/**
+ * The camera's scalar channels as property tracks.
+ *
+ * Camera keyframes predate `Track` and are stored as whole-camera rows rather than
+ * per-channel tracks — the shape §04 eventually wants. Rather than migrate the document
+ * before the primitive has been used in anger, the two channels that are already plain
+ * scalars are read through `evalTrack`, so the substrate is exercised by real playback
+ * and by the golden frames.
+ *
+ * `center` and `bearing` stay below: they need the wrapping and angle interpolators, and
+ * `dip` is a per-segment modifier that is not a track at all. Both move in the next
+ * milestone, with the document change that makes them per-channel for real.
+ */
+const channelTrack = (kfs: readonly CameraKeyframe[], of: (k: CameraKeyframe) => number): Track<number> => ({
+  kind: 'keyframed',
+  keys: kfs.map((k) => ({ id: k.id, t: k.t, value: of(k), easing: k.easing })),
+});
 
 export function cameraAt(project: Project, time: number): CameraState {
   const kfs = [...project.camera].sort((a, b) => a.t - b.t);
@@ -62,9 +80,11 @@ export function cameraAt(project: Project, time: number): CameraState {
 
   return {
     center: [lerp(lngA, lngB, e), lerp(a.center[1], b.center[1], e)],
-    zoom: Math.max(0, lerp(a.zoom, b.zoom, e) - dip),
+    // `dip` is applied outside the track: it modifies the segment rather than the
+    // authored values, so it is not something a keyframe holds.
+    zoom: Math.max(0, evalTrack(channelTrack(kfs, (k) => k.zoom), time) - dip),
     bearing: lerpAngle(a.bearing, b.bearing, e),
-    pitch: lerp(a.pitch, b.pitch, e),
+    pitch: evalTrack(channelTrack(kfs, (k) => k.pitch), time),
   };
 }
 
