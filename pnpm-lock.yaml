@@ -54,6 +54,9 @@ importers:
       '@geomotion/animation':
         specifier: workspace:*
         version: link:../../packages/animation
+      '@geomotion/commands':
+        specifier: workspace:*
+        version: link:../../packages/commands
       '@geomotion/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -130,6 +133,19 @@ importers:
       '@geomotion/document':
         specifier: workspace:*
         version: link:../document
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.2)(jsdom@30.0.1)
+
+  packages/commands:
+    dependencies:
+      '@geomotion/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       typescript:
         specifier: ^5.9.0

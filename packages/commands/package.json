@@ -1,0 +1,21 @@
+{
+  "name": "@geomotion/commands",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The command registry: every user action with an id, a title and a shortcut (ENGINEERING_GUIDE §11, ARCHITECTURE §13).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geomotion/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
+  }
+}

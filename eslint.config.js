@@ -26,6 +26,7 @@ const elements = [
   { type: 'evaluator', pattern: 'packages/evaluator/**', mode: 'full' },
   { type: 'renderer', pattern: 'packages/renderer/**', mode: 'full' },
   { type: 'map', pattern: 'packages/map/**', mode: 'full' },
+  { type: 'commands', pattern: 'packages/commands/**', mode: 'full' },
   { type: 'testing', pattern: 'packages/testing/**', mode: 'full' },
   { type: 'app', pattern: 'apps/**', mode: 'full' },
 ];
@@ -38,6 +39,9 @@ const elements = [
  */
 const allowed = [
   { from: 'geometry', allow: ['core', 'geometry'] },
+  // The registry is a mechanism, not a feature: a command's `run` is a closure its
+  // registrar supplies, so this needs nothing but `core`.
+  { from: 'commands', allow: ['core', 'commands'] },
   { from: 'document', allow: ['core', 'document'] },
   { from: 'animation', allow: ['core', 'document', 'animation'] },
   { from: 'entities', allow: ['core', 'geometry', 'document', 'entities'] },
@@ -58,13 +62,35 @@ const allowed = [
   { from: 'map', allow: ['core', 'geometry', 'renderer', 'map'] },
   {
     from: 'app',
-    allow: ['core', 'geometry', 'document', 'entities', 'animation', 'evaluator', 'renderer', 'map', 'app'],
+    allow: [
+      'core',
+      'geometry',
+      'document',
+      'entities',
+      'animation',
+      'evaluator',
+      'renderer',
+      'map',
+      'commands',
+      'app',
+    ],
   },
   // Dev-only, so it may reach for anything. Nothing may reach for it: shipped
   // code importing a test harness is how a harness ends up in a bundle.
   {
     from: 'testing',
-    allow: ['core', 'geometry', 'document', 'entities', 'animation', 'evaluator', 'renderer', 'map', 'testing'],
+    allow: [
+      'core',
+      'geometry',
+      'document',
+      'entities',
+      'animation',
+      'evaluator',
+      'renderer',
+      'map',
+      'commands',
+      'testing',
+    ],
   },
 ];
 
@@ -78,6 +104,7 @@ const packageName = {
   evaluator: '@geomotion/evaluator',
   renderer: '@geomotion/renderer',
   map: '@geomotion/map',
+  commands: '@geomotion/commands',
   testing: '@geomotion/testing',
 };
 

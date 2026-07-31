@@ -7,6 +7,29 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The editor — M2.5, commands and ⌘K (§02, §11, §13)
+
+- **⌘K reaches everything.** A command palette over every action the editor has: type a few
+  letters, `↑`/`↓`, `Enter`. Results are ranked rather than filtered — "gr" finds *Group
+  selection* before *Toggle text background* — and match category and keywords too, so
+  "choropleth" finds *Add regions*.
+  - A command that cannot run right now is **greyed, not hidden**: one that vanishes when it
+    does not apply teaches nobody that it exists.
+- **Shortcuts are data.** The keymap is a lookup in the same registry the palette draws, so a
+  binding exists only because some command claims it, and the palette shows the shortcut the
+  keyboard actually obeys. `⌘D`, `⌘L`, `⌘G`, `⌘↑`/`⌘↓`, `F`, `V`/`R`/`M` are new; the old
+  hand-written `switch` is gone.
+  - **Two commands claiming one shortcut now fails CI** (§11), whichever way each was
+    spelled — `Shift+Mod+G` and `mod+shift+g` normalise to one binding before comparison.
+  - §02's reserved keys are listed in the package and tested against the features the design
+    doc reserved them for, so nothing can quietly take one.
+- **A new package, `@geomotion/commands`**: the registry, chord normalisation, key
+  resolution, palette ranking and collision detection. No DOM, no React, no store — a
+  command's `run` is a closure its registrar supplies, which is what will let a plugin (§15)
+  or a copilot (§12) register through the same door without the registry learning anything
+  new.
+- No document change; golden frames unchanged.
+
 ### The document model — M2.4, the node-type registry (§3.4, §11, §15)
 
 - **One description per node type.** What a fresh node holds and how each of its properties

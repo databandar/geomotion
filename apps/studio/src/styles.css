@@ -2581,3 +2581,102 @@ body:has(.app.exporting)::before {
 .expr-note.bad {
   color: var(--danger);
 }
+
+/* ------------------------------------------------------------------ palette */
+
+/*
+ * ⌘K. Anchored near the top rather than centred: the list grows downward, and a centred
+ * box jumps under the cursor as results come and go.
+ */
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 8, 12, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  z-index: 200;
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+}
+
+.palette {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  background: var(--glass-pop);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), var(--glass-edge);
+  overflow: hidden;
+}
+
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--dim);
+}
+
+.palette-input input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+
+.palette-list {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  /* No transition: the row under the cursor changes on every arrow press, and a fade
+     makes a held arrow key look like it is lagging. */
+}
+
+.palette-row.at {
+  background: var(--accent-wash);
+}
+
+.palette-row.off {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.palette-title {
+  flex: 1;
+  font-size: 13px;
+}
+
+.palette-cat {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.palette-row kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--dim);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  min-width: 20px;
+  text-align: center;
+}

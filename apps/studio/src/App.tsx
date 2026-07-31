@@ -13,9 +13,13 @@ import Narration from './components/Narration';
 import { useStore } from './store';
 import { RenderHostProvider, type RenderHost } from './render/host';
 import { installHeadlessApi } from './lib/headless';
+import { chordOf } from '@geomotion/commands';
+import { commands, registerEditorCommands } from './lib/commands';
+import Palette from './components/Palette';
 
 export default function App() {
   const [showExport, setShowExport] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   /**
    * The render surface, published by MapCanvas once the map exists. App owns it
    * because the toolbar, inspector and export dialog are siblings of the canvas,
@@ -25,7 +29,7 @@ export default function App() {
   /** The element that goes fullscreen — the stage card, so its controls come with it. */
   const viewportRef = useRef<HTMLDivElement>(null);
   usePlayback();
-  useShortcuts(host);
+  useShortcuts(host, () => setShowPalette(true));
 
   // The automation surface the video pipeline drives. Installed here rather than
   // at module load because it needs the host; the pipeline waits for
@@ -90,6 +94,7 @@ export default function App() {
       <Timeline />
 
       {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
+      {showPalette && <Palette onClose={() => setShowPalette(false)} />}
     </div>
     </RenderHostProvider>
   );
@@ -126,80 +131,60 @@ function usePlayback() {
   }, [playing]);
 }
 
-function useShortcuts(host: RenderHost | null) {
+function useShortcuts(host: RenderHost | null, openPalette: () => void) {
   /**
-   * Read through a ref, not the closure. The listener is attached once, so
-   * capturing `host` directly would pin it to its value on first render — null,
-   * before the map exists — and K would forever add a keyframe with default
-   * camera values instead of the current view.
+   * Read through a ref, not the closure. The listener is attached once, so capturing `host`
+   * directly would pin it to its value on first render — null, before the map exists — and
+   * the camera commands would forever use default values instead of the current view.
    */
   const hostRef = useRef(host);
   hostRef.current = host;
+  /*
+   * The opener goes through a ref for the same reason: the listener is attached once, so a
+   * captured callback would pin whichever closure existed on first render. Reading through a
+   * ref makes the staleness question moot rather than answering it in a suppression comment
+   * — the pattern this file already uses for `host`.
+   */
+  const openRef = useRef(openPalette);
+  openRef.current = openPalette;
+
+  // Registered once, against a getter for the host, so the commands see the live map.
+  useEffect(() => registerEditorCommands(() => hostRef.current), []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-      const s = useStore.getState();
-      const meta = e.metaKey || e.ctrlKey;
 
-      if (meta && e.key.toLowerCase() === 'z') {
+      const press = { key: e.key, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
+
+      // The palette is the one binding the palette itself cannot own, since opening it is a
+      // piece of editor state rather than a document action (§4).
+      if (chordOf(press) === 'mod+k') {
         e.preventDefault();
-        if (e.shiftKey) s.redo();
-        else s.undo();
+        openRef.current();
         return;
       }
 
-      // ⌘G groups the selection, ⇧⌘G ungroups the selected group — the pair every editor
-      // uses. They move to the command registry when it exists (ARCHITECTURE §11).
-      if (meta && e.key.toLowerCase() === 'g') {
+      /*
+       * Everything else is a command. The keymap is a lookup rather than a switch, which is
+       * what makes §11's promises checkable: a shortcut exists only if some command claims
+       * it, two commands claiming one fails CI, and the palette shows the same binding the
+       * keyboard obeys because both read this list.
+       *
+       * A keyframe row deletes rather than a layer when one is selected — a selection-shaped
+       * decision the delete command cannot make, so it is made here and kept small.
+       */
+      const command = commands.forKey(press);
+      if (!command) return;
+      if (command.id === 'layer.delete' && useStore.getState().selection?.kind === 'keyframe') {
         e.preventDefault();
-        if (s.selection?.kind !== 'layer') return;
-        if (e.shiftKey) s.ungroup(s.selection.id);
-        else s.groupSelection();
+        const id = useStore.getState().selection?.id;
+        if (id) useStore.getState().removeKeyframe(id);
         return;
       }
-
-      switch (e.key) {
-        case ' ':
-          e.preventDefault();
-          s.setPlaying(!s.playing);
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          s.scrub(s.time - (e.shiftKey ? 1 : 1 / s.project.fps));
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          s.scrub(s.time + (e.shiftKey ? 1 : 1 / s.project.fps));
-          break;
-        case 'Home':
-          s.scrub(0);
-          break;
-        case 'End':
-          s.scrub(s.project.duration);
-          break;
-        case 'k':
-        case 'K': {
-          const map = hostRef.current?.map;
-          if (!map) return s.addKeyframe();
-          const c = map.getCenter();
-          s.addKeyframe({
-            center: [c.lng, c.lat],
-            zoom: map.getZoom(),
-            bearing: map.getBearing(),
-            pitch: map.getPitch(),
-          });
-          break;
-        }
-        case 'Escape':
-          s.setTool('select');
-          break;
-        case 'Backspace':
-        case 'Delete':
-          if (s.selection?.kind === 'layer') s.removeLayer(s.selection.id);
-          else if (s.selection?.kind === 'keyframe') s.removeKeyframe(s.selection.id);
-          break;
-      }
+      e.preventDefault();
+      command.run();
     };
 
     window.addEventListener('keydown', onKey);

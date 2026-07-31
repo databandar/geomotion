@@ -84,7 +84,7 @@ For each package: purpose → public API → may depend on → **must never depe
 | `audio` | Clip graph, live + `OfflineAudioContext` render, peaks cache | `mixdown(clips, dur)`, `peaksFor(asset)` | `core` | renderer, React |
 | `export` | Deterministic frame stepping, WebCodecs, mux workers, queue | `exportComposition(job)` | `core`, `evaluator`, `renderer`, `audio` | React |
 | `ui` | Reusable widgets, tokens, drag/scrub/snap hooks, schema-driven inspector rows | `<Inspector>`, `<Scrubber>`, `useDrag` | `core`, React | document (goes through commands), renderer |
-| `commands` | Command registry (id, title, shortcut, run), keymap, palette source | `registerCommand`, `runCommand` | `core`, `document` | React (UI binds separately) |
+| `commands` | Command registry (id, title, shortcut, run), keymap, palette source | `createRegistry`, `chordOf`, `formatShortcut` | `core` | React, DOM, document (a command's `run` is a closure its registrar supplies) |
 | `plugin-sdk` | Stable typed plugin surface + worker host | `definePlugin`, host runtime | `core`, `document` (patch types) | renderer internals |
 | `ai` | Patch-proposal lifecycle, prompt assembly client, validators | `propose`, `PatchProposal` | `core`, `document`, `entities`, `commands` | direct network with keys (server does that) |
 | `testing` | doc builders, golden-frame harness, determinism asserts | `docWith(…)`, `expectGolden` | anything (dev-only) | shipped code may not import it |
