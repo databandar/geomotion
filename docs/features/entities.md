@@ -1,6 +1,6 @@
 # Entities and facts
 
-**Status:** M7 landed — the registry, facts with provenance, and the single join.
+**Status:** M8 landed — the registry, and every import routed through it.
 
 **Governing sections:** ARCHITECTURE §05 (smart objects, "the keystone"), Decision 02.
 
@@ -54,8 +54,33 @@ registry — with no table — resolves **every one**, and reports the single ge
 name: `geo:IN-MN`. Manipur is not in the NFHS-6 export at all, checked in the source
 data rather than assumed.
 
+## M8 — one join, everywhere
+
+There were three private joins, each having learned different things:
+
+1. the survey reader's alias table (deleted in M7);
+2. the editor's paste box, comparing lowercased region names;
+3. the regions layer's own name-keyed `values`.
+
+The second was the visible one. Pasting `Jammu & Kashmir` into the editor was rejected as
+unknown while the very same spelling imported cleanly on the command line — of four
+survey-spelled names, three were refused. Both now go through `matchNames`, so a spelling
+learned anywhere is known everywhere.
+
+`matchNames` tries the name as written first and the registry only if that fails, so a
+boundary set outside the ones shipped here still gets plain name matching rather than
+nothing.
+
+**The fold turned out to carry more than expected.** `Jammu & Kashmir` reaches
+`Jammu and Kashmir` with no alias involved, because `&` folds to `and` — a test asserting
+otherwise was wrong, and was corrected rather than the code. The registry is only needed
+for names sharing no letters with their target, like `DNHDD`.
+
+The import also now counts **what landed**, not what was typed: a merged name is one line
+and two regions, a typo is one line and none, and the line count describes neither.
+
 ## Not yet
 
-`bound` tracks, so a label or a callout can read `{entity.rank}` directly — that needs
-this registry and M1's track union, and is the next milestone. The regions layer still
-carries its own `values` map; moving it onto entity facts is the import path's job.
+`bound` tracks, so a label or callout can read `{entity.rank}` directly — that needs this
+registry and M1's track union. The regions layer still carries its own `values` map;
+moving it onto entity facts proper is a later step.

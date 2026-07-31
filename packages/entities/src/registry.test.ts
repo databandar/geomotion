@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { factOf, joinFacts, resolve, sourcesUsed, type Registry } from './registry.ts';
+import { factOf, joinFacts, matchNames, resolve, sourcesUsed, type Registry } from './registry.ts';
 
 /**
  * The join is the one place a dataset meets the map (§05 Decision 02), so it is also the
@@ -144,5 +144,54 @@ describe('sourcesUsed', () => {
       source: 'NFHS-6 (IIPS)',
     });
     expect(sourcesUsed(a.registry, ['internet'])).toEqual(['NFHS-6 (IIPS)']);
+  });
+});
+
+describe('matchNames', () => {
+  const onMap = ['Jammu and Kashmir', 'Dadra and Nagar Haveli', 'Daman and Diu', 'Kerala'];
+
+  it('matches a name the map already uses', () => {
+    expect(matchNames(onMap, 'Kerala', india())).toEqual(['Kerala']);
+  });
+
+  it('bridges a publisher spelling onto the name on the map', () => {
+    /*
+     * The editor's paste box used a lowercase `Set` of region names, so this exact
+     * spelling was rejected as unknown while importing cleanly on the command line —
+     * two joins that had each learned different things.
+     */
+    expect(matchNames(onMap, 'Jammu & Kashmir', india())).toEqual(['Jammu and Kashmir']);
+  });
+
+  it('bridges a name that folding alone cannot reach', () => {
+    // `DNHDD` shares no letters with either territory; only the registry connects them.
+    // This is the case the alias table exists for, as opposed to punctuation.
+    expect(matchNames(onMap, 'DNHDD')).toEqual([]);
+    expect(matchNames(onMap, 'DNHDD', india())).toHaveLength(2);
+  });
+
+  it('lands a merged name on every region it covers', () => {
+    expect(matchNames(onMap, 'DNHDD', india())).toEqual(['Dadra and Nagar Haveli', 'Daman and Diu']);
+  });
+
+  it('matches nothing when the region is not on this map', () => {
+    // The registry knows the entity; the boundary file does not carry it. That is a
+    // genuine gap, not a spelling problem.
+    expect(matchNames(onMap, 'A & N Islands', india())).toEqual([]);
+  });
+
+  it('still works with no registry at all', () => {
+    /*
+     * Boundary sets outside the ones shipped here get plain name matching rather than
+     * nothing. The fold carries more than expected on its own — an ampersand spelling
+     * reaches its "and" name with no alias involved, which is why the registry is only
+     * needed for names that share no letters with their target.
+     */
+    expect(matchNames(onMap, 'kerala')).toEqual(['Kerala']);
+    expect(matchNames(onMap, 'Jammu & Kashmir')).toEqual(['Jammu and Kashmir']);
+  });
+
+  it('finds nothing for an empty name', () => {
+    expect(matchNames(onMap, '   ', india())).toEqual([]);
   });
 });

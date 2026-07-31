@@ -18,6 +18,7 @@ export {
 export {
   factOf,
   joinFacts,
+  matchNames,
   resolve,
   sourcesUsed,
   type Entity,

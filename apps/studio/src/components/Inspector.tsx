@@ -14,7 +14,7 @@ import type {
   ShapeLayer,
   TextLayer,
 } from '@geomotion/document';
-import { regionSet } from '@geomotion/entities';
+import { INDIA_STATES, matchNames, regionSet } from '@geomotion/entities';
 import { tourDuration } from '@geomotion/evaluator';
 import { RAMPS, getRamp, rampColor } from '@geomotion/core';
 import indiaStatesOfficial from '../data/india-states-official.json';
@@ -817,13 +817,36 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
       return;
     }
 
-    // Report names that will not land on a region, so typos are visible.
-    const known = new Set(set.regions.map((r) => r.name.toLowerCase()));
-    const unmatched = keys.filter((k) => !known.has(k.toLowerCase()));
-    apply({ values: replace ? parsed : { ...layer.values, ...parsed } });
+    /*
+     * One join, through the entity registry (§05 Decision 02).
+     *
+     * This used to be a lowercase `Set` of region names — a third private join beside
+     * the survey reader's alias table and the layer's own name-keyed values. They had
+     * each learned different things, so `Jammu & Kashmir` imported cleanly on the
+     * command line and was rejected as unknown here. Routing both through `matchNames`
+     * means a spelling learned anywhere is known everywhere.
+     */
+    const names = set.regions.map((r) => r.name);
+    const landed: Record<string, number> = {};
+    const unmatched: string[] = [];
+    for (const [name, value] of Object.entries(parsed)) {
+      const hits = matchNames(names, name, INDIA_STATES);
+      if (hits.length === 0) {
+        unmatched.push(name);
+        continue;
+      }
+      // A merged name lands on every region it covers, or one of them stays blank with
+      // nothing on screen to say why.
+      for (const hit of hits) landed[hit] = value;
+    }
+
+    apply({ values: replace ? landed : { ...layer.values, ...landed } });
+    const n = Object.keys(landed).length;
     setPasteMsg(
-      `Imported ${keys.length} value${keys.length === 1 ? '' : 's'}` +
-        (unmatched.length ? ` · ${unmatched.length} unmatched: ${unmatched.slice(0, 3).join(', ')}${unmatched.length > 3 ? '…' : ''}` : ''),
+      `Imported ${n} value${n === 1 ? '' : 's'}` +
+        (unmatched.length
+          ? ` · ${unmatched.length} unmatched: ${unmatched.slice(0, 3).join(', ')}${unmatched.length > 3 ? '…' : ''}`
+          : ''),
     );
   };
 

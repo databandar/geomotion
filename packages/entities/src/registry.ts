@@ -160,3 +160,29 @@ export function sourcesUsed(registry: Registry, facts: readonly string[]): strin
   }
   return seen;
 }
+
+/**
+ * Which of `targets` a pasted name refers to, using the registry to bridge spellings.
+ *
+ * The map holds whatever names its boundary file uses; a dataset writes whatever its
+ * publisher uses. Comparing the two directly is the join this project kept
+ * reimplementing — the survey reader had one table, the paste box had a lowercase
+ * `Set`, and neither knew what the other had learned. So pasting `Jammu & Kashmir` into
+ * the editor was rejected as unknown while the very same spelling imported cleanly on
+ * the command line.
+ *
+ * Tried in order: the name as written, then the entity it resolves to. A registry that
+ * knows nothing about these targets simply contributes nothing, which is what makes this
+ * safe for boundary sets outside the ones shipped here.
+ */
+export function matchNames(targets: readonly string[], name: string, aliases?: Registry): string[] {
+  const key = fold(name);
+  if (!key) return [];
+
+  const direct = targets.filter((t) => fold(t) === key);
+  if (direct.length || !aliases) return direct;
+
+  // Every canonical name the alias registry offers, mapped back onto what is on the map.
+  const canonical = resolve(aliases, name).map((e) => fold(e.name));
+  return canonical.length ? targets.filter((t) => canonical.includes(fold(t))) : [];
+}
