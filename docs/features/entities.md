@@ -1,6 +1,6 @@
 # Entities and facts
 
-**Status:** M8 landed — the registry, and every import routed through it.
+**Status:** M9 landed — the registry, every import routed through it, and bound tracks.
 
 **Governing sections:** ARCHITECTURE §05 (smart objects, "the keystone"), Decision 02.
 
@@ -79,8 +79,35 @@ for names sharing no letters with their target, like `DNHDD`.
 The import also now counts **what landed**, not what was typed: a merged name is one line
 and two regions, a typo is one line and none, and the line count describes neither.
 
+## M9 — bindings out
+
+The third track kind. `{ kind: 'bound', ref, path, scale }` resolves a fact, so a
+property reads data by reference instead of being typed in: a marker sized by a region's
+value, at `scale` to map one unit onto the other.
+
+**`animation` never learns what an entity is.** `evalTrack` takes a `FactLookup` —
+`(ref, path) => value` — rather than a registry. §2 permits the dependency; not taking it
+means the evaluator can bind against anything fact-shaped, and a document-level registry
+later changes nothing here.
+
+**A missing fact falls back; it does not resolve to zero.** Zero is a real value in every
+one of these datasets, so a region with no figure would otherwise render as the bottom of
+the scale — indistinguishable from a genuine low, which is the exact failure the "no
+data" colour exists to prevent.
+
+**Facts come from the regions already on screen.** Every region offers `value` and
+`rank`, and `rank` is derived rather than stored, which §3.8 requires. Regions are read
+as the evaluator's loop fills them, so a marker binds to a regions layer *beneath* it —
+the same "later layers see earlier ones" rule the rest of the loop follows.
+
+`evalTrack`'s signature moved to an options object on the way. Five positional parameters
+is nobody's idea of an API, and `bound` needed a fourth.
+
+Verified in a browser: two markers over two regions, one bound to a value of 94 and the
+other to 20, render large and tiny respectively.
+
 ## Not yet
 
-`bound` tracks, so a label or callout can read `{entity.rank}` directly — that needs this
-registry and M1's track union. The regions layer still carries its own `values` map;
-moving it onto entity facts proper is a later step.
+`expr`, which waits on the DSL. The regions layer still carries its own `values` map;
+moving it onto entity facts proper is a later step, and nothing above changes when it
+happens.

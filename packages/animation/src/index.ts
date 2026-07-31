@@ -16,6 +16,8 @@ export {
   lerpNumber,
   trackKindSupported,
   trackSegment,
+  type EvalOptions,
+  type FactLookup,
   type Interpolate,
   type TrackSegment,
 } from './track.ts';

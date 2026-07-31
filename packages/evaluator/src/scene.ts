@@ -12,7 +12,7 @@ import type {
 } from '@geomotion/renderer';
 import type { CameraKeyframe, LngLat, Project, RegionsLayer, RouteLayer, Track } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
-import { ease, evalTrack, trackSegment } from '@geomotion/animation';
+import { ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionAtStop, regionSet, type RegionSet } from '@geomotion/entities';
@@ -100,12 +100,12 @@ export function cameraAt(project: Project, time: number): CameraState {
   const seg = trackSegment(tracks.zoom, time);
   const dip = seg ? (tracks.keys[seg.index]?.dip ?? 0) * Math.sin(Math.PI * seg.u) : 0;
 
-  const center = evalTrack(tracks.center, time, lerpLngLat, DEFAULT_CAMERA.center);
+  const center = evalTrack(tracks.center, time, { interpolate: lerpLngLat, fallback: DEFAULT_CAMERA.center });
   return {
     // Copied on the way out: a caller that mutated this would be writing into the cache.
     center: [center[0], center[1]],
     zoom: Math.max(0, evalTrack(tracks.zoom, time) - dip),
-    bearing: evalTrack(tracks.bearing, time, lerpAngle),
+    bearing: evalTrack(tracks.bearing, time, { interpolate: lerpAngle }),
     pitch: evalTrack(tracks.pitch, time),
   };
 }
@@ -360,6 +360,33 @@ export function resolveCamera(claims: readonly CameraClaim[]): CameraState | nul
   return claims.length ? claims[claims.length - 1]!.camera : null;
 }
 
+/**
+ * The facts a document can bind to right now.
+ *
+ * Built from the regions already on screen: every region offers `value` — the figure it
+ * was given — and `rank`, which is derived rather than stored (§3.8 keeps derived data
+ * out of the document). A region answers to its entity id and to its name, because a
+ * boundary file that carries neither an id nor a matching name is common and binding by
+ * the name you can see is better than binding to nothing.
+ *
+ * This is deliberately not a document-level registry yet. Bindings are useful the moment
+ * there is anything to bind *to*, and the regions layer already computes exactly the two
+ * facts people ask for. A registry stored in the document is a later step; nothing here
+ * changes when it arrives, because a `FactLookup` is a function.
+ */
+function factsFor(regions: readonly RegionsRender[]): FactLookup {
+  return (ref, path) => {
+    for (const r of regions) {
+      const region = r.set.regions.find((x) => x.name === ref || String(x.id) === ref);
+      if (!region) continue;
+      if (path === 'value') return region.value;
+      if (path === 'rank') return region.rank;
+      return undefined;
+    }
+    return undefined;
+  };
+}
+
 export function evaluate(project: Project, time: number): Scene {
   const routes: RouteRender[] = [];
   const markers: MarkerRender[] = [];
@@ -380,6 +407,13 @@ export function evaluate(project: Project, time: number): Scene {
    * quietly overwrites the same variable.
    */
   const claims: CameraClaim[] = [];
+
+  /*
+   * Reads the regions array as it fills, so a marker can bind to a regions layer beneath
+   * it — the same "later layers see earlier ones" rule the rest of the loop follows.
+   * A marker above nothing binds to nothing and falls back, which is honest.
+   */
+  const facts = factsFor(regions);
 
   for (const layer of project.layers) {
     const alpha = layerAlpha(layer, time);
@@ -428,7 +462,7 @@ export function evaluate(project: Project, time: number): Scene {
        * and it is why `style` is now a built object rather than the layer passed through.
        */
       markers.push({
-        style: { ...layer, size: evalTrack(layer.size, time) },
+        style: { ...layer, size: evalTrack(layer.size, time, { facts, fallback: 8 }) },
         alpha,
         scale,
         pulse: layer.pulse ? (local % 1.6) / 1.6 : 0,

@@ -25,6 +25,24 @@ import { ease } from './easing.ts';
  */
 export type Interpolate<T> = (a: T, b: T, e: number) => T;
 
+/**
+ * Read one fact off one entity — the resolution a `bound` track needs.
+ *
+ * A function rather than the registry itself, so `animation` never learns what an entity
+ * *is*. §2 lets it reach `entities` for fact resolution; taking the lookup as a parameter
+ * means it does not have to, and the evaluator can bind against anything fact-shaped —
+ * a region's computed rank today, a document-level registry later — without this file
+ * changing.
+ */
+export type FactLookup = (ref: string, path: string) => number | string | null | undefined;
+
+/** The rare arguments, named. Five positional parameters is nobody's idea of an API. */
+export interface EvalOptions<T> {
+  interpolate?: Interpolate<T>;
+  fallback?: T;
+  facts?: FactLookup;
+}
+
 /** The default channel: a plain number. */
 export const lerpNumber: Interpolate<number> = (a, b, e) => lerp(a, b, e);
 
@@ -66,20 +84,26 @@ function segmentAt<T>(keys: readonly Keyframe<T>[], time: number): number {
 // Numbers are the overwhelming majority of channels, so they get an overload that does
 // not make every call site restate `lerpNumber`. Anything else must say how it blends,
 // which is the decision §06 wants made per channel rather than guessed centrally.
-export function evalTrack(track: Track<number>, time: number): number;
-export function evalTrack<T>(
-  track: Track<T>,
-  time: number,
-  interpolate: Interpolate<T>,
-  fallback?: T,
-): T;
-export function evalTrack<T>(
-  track: Track<T>,
-  time: number,
-  interpolate?: Interpolate<T>,
-  fallback?: T,
-): T {
+export function evalTrack(track: Track<number>, time: number, opts?: EvalOptions<number>): number;
+export function evalTrack<T>(track: Track<T>, time: number, opts: EvalOptions<T>): T;
+export function evalTrack<T>(track: Track<T>, time: number, opts: EvalOptions<T> = {}): T {
+  const { interpolate, fallback, facts } = opts;
   const blend = interpolate ?? (lerpNumber as unknown as Interpolate<T>);
+
+  if (track.kind === 'bound') {
+    /*
+     * §05's bindings out: a property reads a fact off an entity by its stable id, so a
+     * marker can be sized by a region's value or a label can print its rank.
+     *
+     * A missing fact falls back rather than resolving to zero. Zero is a real value in
+     * every one of these datasets, and a region that simply has no figure would
+     * otherwise render as the bottom of the scale — indistinguishable from a genuine
+     * low, which is the failure the "no data" colour exists to prevent.
+     */
+    const value = facts?.(track.ref, track.path);
+    if (typeof value !== 'number' || !Number.isFinite(value)) return fallback as T;
+    return (value * (track.scale ?? 1)) as unknown as T;
+  }
   if (track.kind === 'static') return track.value;
 
   if (track.kind === 'keyframed') {
@@ -144,7 +168,7 @@ export function trackSegment<T>(track: Track<T>, time: number): TrackSegment<T> 
   return { index: i, from, to, u: clamp01((time - from.t) / span) };
 }
 
-/** Whether `evalTrack` can actually evaluate this kind yet. See the feature doc. */
+/** Whether `evalTrack` can actually evaluate this kind. `expr` lands with the DSL. */
 export function trackKindSupported<T>(track: Track<T>): boolean {
-  return track.kind === 'static' || track.kind === 'keyframed';
+  return track.kind !== 'expr';
 }
