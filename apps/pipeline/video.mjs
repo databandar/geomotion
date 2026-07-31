@@ -13,7 +13,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { collectLines, compose, buildSrt, prepareScript, validateScript } from './lib/compose.mjs';
+import { collectLines, compose, buildSrt, mergeComposed, prepareScript, validateScript } from './lib/compose.mjs';
 import { lineAudio, buildVoiceTrack } from './lib/tts.mjs';
 import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
@@ -186,7 +186,28 @@ if (!flag('no-audio')) {
 }
 
 // Written after the voice track so it carries the narration with it.
-await fs.writeFile(path.join(outDir, `${slug}.geomotion.json`), JSON.stringify(project, null, 2));
+/*
+ * Fold into whatever is already there, unless asked not to.
+ *
+ * Merging is the default because overwriting is the surprising outcome: the line printed
+ * at the end of this script invites hand editing, and a re-run that silently discarded it
+ * was the tool contradicting itself. `--fresh` is the escape hatch for genuinely starting
+ * over.
+ */
+const projectPath = path.join(outDir, `${slug}.geomotion.json`);
+let toWrite = project;
+if (!flag('fresh')) {
+  const existing = await fs.readFile(projectPath, 'utf8').then(JSON.parse, () => null);
+  if (existing) {
+    toWrite = mergeComposed(existing, project);
+    const kept = toWrite.layers.length - project.layers.length;
+    const keptBlocks = toWrite.story.length - project.story.length;
+    if (kept || keptBlocks) {
+      console.log(`    \x1b[32m✓\x1b[0m kept ${kept} hand-added layer(s) and ${keptBlocks} hand-made block(s)`);
+    }
+  }
+}
+await fs.writeFile(projectPath, JSON.stringify(toWrite, null, 2));
 
 /* -------------------------------------------------------------- 4. build */
 

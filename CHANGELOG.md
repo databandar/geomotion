@@ -9,6 +9,11 @@ name the section each change answers to.
 
 ### Storytelling (v2 §10)
 
+- **Re-composing keeps your work.** `video.mjs` overwrote the project file outright while
+  printing "open this in the editor to tweak by hand" about it — so changing one line of
+  the script destroyed every hand edit. It now merges: the composer owns what it made,
+  and anything you added is yours. `--fresh` starts over deliberately.
+
 - **Ripple.** Dragging a story block moves the layers it choreographs and the narration
   it owns, and re-anchors every block after it. Re-lengthening a block pushes or pulls
   what follows. §00's frozen voice bed is now impossible in both directions: the picture

@@ -512,6 +512,51 @@ function storyBlockOf(beat, layers) {
   };
 }
 
+/**
+ * Fold a freshly composed project into one that already exists on disk.
+ *
+ * `video.mjs` used to overwrite the project outright, while printing "open this in the
+ * editor to tweak by hand" about the very file its next run would destroy. Changing one
+ * line of the script meant losing every hand edit made since — the "generated then
+ * flattened" the design document rules out, arriving one re-run later.
+ *
+ * The contract is deliberately simple enough to state in a sentence: **the composer owns
+ * what it made; anything you added is yours.**
+ *
+ * - A story block carrying `kind` was made by a beat, so it is regenerated.
+ * - A block without `kind` was made by hand, so it is kept, and so are the layers only it
+ *   refers to.
+ * - Any layer no composer block mentions is yours — a reference map, a watermark, a
+ *   second title — and survives.
+ *
+ * A three-way merge that also preserved edits *to* composer layers was considered and
+ * rejected for now: without a record of what the composer originally emitted there is no
+ * way to tell an edit from a regeneration, and guessing would silently keep stale content
+ * when the script changed. A stated, predictable rule beats a clever one that is
+ * sometimes wrong.
+ */
+export function mergeComposed(existing, fresh) {
+  if (!existing || typeof existing !== 'object' || !Array.isArray(existing.layers)) return fresh;
+
+  const oldStory = Array.isArray(existing.story) ? existing.story : [];
+  const mine = oldStory.filter((b) => !b.kind);
+  const composerOwned = new Set(oldStory.filter((b) => b.kind).flatMap((b) => b.nodes));
+
+  // A layer belonging to a hand-made block is yours even if a composer block also names
+  // it — the tie goes to the person.
+  for (const b of mine) for (const id of b.nodes) composerOwned.delete(id);
+
+  const keptLayers = existing.layers.filter((l) => !composerOwned.has(l.id));
+
+  return {
+    ...fresh,
+    // Yours first, so a hand-added layer keeps drawing under the composed ones rather
+    // than jumping to the front on every re-run.
+    layers: [...keptLayers, ...fresh.layers],
+    story: [...mine, ...fresh.story],
+  };
+}
+
 export function buildSrt(beats) {
   const cues = [];
   for (const beat of beats) {

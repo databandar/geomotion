@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BEAT_KINDS, collectLines, compose, prepareScript, validateScript } from './compose.mjs';
+import { BEAT_KINDS, collectLines, compose, mergeComposed, prepareScript, validateScript } from './compose.mjs';
 
 /**
  * Behavioural spec for script composition — the first tests this app has had
@@ -225,5 +225,80 @@ describe('validateScript', () => {
 
   it('numbers beats from one, as a person reading the file would', () => {
     expect(() => validateScript(beats({ kind: 'clouds' }, { say: 'x' }))).toThrow(/beat 2/);
+  });
+});
+
+describe('mergeComposed', () => {
+  const composed = () => ({
+    layers: [{ id: 'gen1' }, { id: 'gen2' }],
+    story: [{ id: 'b1', kind: 'overview', nodes: ['gen1', 'gen2'], t: 0, d: 5 }],
+    camera: [{ id: 'k' }],
+  });
+
+  it('keeps a layer no composer block claims', () => {
+    /*
+     * The contract: the composer owns what it made, anything you added is yours. Before
+     * this, changing one line of the script destroyed every hand edit — while the tool
+     * printed "open this in the editor to tweak by hand" about the file it would
+     * overwrite.
+     */
+    const existing = {
+      layers: [{ id: 'gen1' }, { id: 'mine' }],
+      story: [{ id: 'b1', kind: 'overview', nodes: ['gen1'], t: 0, d: 5 }],
+    };
+    const out = mergeComposed(existing, composed());
+    expect(out.layers.map((l) => l.id)).toEqual(['mine', 'gen1', 'gen2']);
+  });
+
+  it('puts kept layers underneath, so they do not jump forward on every run', () => {
+    const existing = { layers: [{ id: 'mine' }], story: [] };
+    expect(mergeComposed(existing, composed()).layers[0]?.id).toBe('mine');
+  });
+
+  it('keeps a block made by hand and regenerates the composer\'s', () => {
+    // `kind` is what distinguishes them: absent means a person made it.
+    const existing = {
+      layers: [{ id: 'gen1' }, { id: 'hand' }],
+      story: [
+        { id: 'b1', kind: 'overview', nodes: ['gen1'], t: 0, d: 5 },
+        { id: 'mine', nodes: ['hand'], t: 5, d: 3 },
+      ],
+    };
+    const out = mergeComposed(existing, composed());
+    expect(out.story.map((b) => b.id)).toEqual(['mine', 'b1']);
+    expect(out.layers.map((l) => l.id)).toContain('hand');
+  });
+
+  it('gives a layer both kinds of block claim to the person', () => {
+    // The tie goes to the human: losing hand work is worse than a duplicate.
+    const existing = {
+      layers: [{ id: 'shared' }],
+      story: [
+        { id: 'b1', kind: 'overview', nodes: ['shared'], t: 0, d: 5 },
+        { id: 'mine', nodes: ['shared'], t: 0, d: 5 },
+      ],
+    };
+    expect(mergeComposed(existing, composed()).layers.map((l) => l.id)).toContain('shared');
+  });
+
+  it('drops a composer layer so it is not duplicated on every run', () => {
+    // Without this the file grows by the whole composition each time it is composed.
+    const existing = {
+      layers: [{ id: 'gen1' }, { id: 'gen2' }],
+      story: [{ id: 'b1', kind: 'overview', nodes: ['gen1', 'gen2'], t: 0, d: 5 }],
+    };
+    const out = mergeComposed(existing, composed());
+    expect(out.layers.filter((l) => l.id === 'gen1')).toHaveLength(1);
+  });
+
+  it('takes the fresh composition when there is nothing to merge into', () => {
+    expect(mergeComposed(null, composed()).layers).toHaveLength(2);
+    expect(mergeComposed({}, composed()).layers).toHaveLength(2);
+  });
+
+  it('survives a project written before story blocks existed', () => {
+    // Every project composed before this milestone has layers and no story at all.
+    const out = mergeComposed({ layers: [{ id: 'old' }] }, composed());
+    expect(out.layers.map((l) => l.id)).toEqual(['old', 'gen1', 'gen2']);
   });
 });
