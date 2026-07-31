@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { migrate } from '@geomotion/document';
+import { layerAt, layersOf, migrate } from '@geomotion/document';
 import { demoProject, indiaTourProject } from './fixtures';
 import type { RenderHost } from '../render/host';
 import { evaluate } from '@geomotion/evaluator';
@@ -113,7 +113,7 @@ export function installHeadlessApi(host: RenderHost) {
         fps: p.fps,
         width: p.width,
         height: p.height,
-        layers: p.layers.length,
+        layers: layersOf(p).length,
         basemap: p.basemap,
       };
     },
@@ -127,7 +127,7 @@ export function installHeadlessApi(host: RenderHost) {
         regions: scene.regions.map((r) => ({
           // The layer name is document metadata, not something the renderer is
           // given — so it comes from the project, matched by id.
-          name: state.project.layers.find((l) => l.id === r.style.id)?.name ?? r.style.id,
+          name: layerAt(state.project, r.style.id)?.name ?? r.style.id,
           alpha: r.alpha,
           phase: r.phase,
           activeIndex: r.activeIndex,

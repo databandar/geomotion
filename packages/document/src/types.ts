@@ -57,6 +57,10 @@ export interface CameraNode {
   id: string;
   type: 'camera';
   name: string;
+  /** §04's flat store: `null` is a root of the project. See nodes.ts. */
+  parentId: string | null;
+  /** Fractional index among siblings — ascending. See order.ts. */
+  order: string;
   tracks: {
     center: Track<LngLat>;
     zoom: Track<number>;
@@ -69,6 +73,21 @@ export interface CameraNode {
 export interface LayerBase {
   id: string;
   name: string;
+  /**
+   * The node this layer hangs from — `null` for a root of the project (§04's flat store).
+   *
+   * Nothing can be a parent yet: groups, scenes and nested map contexts are the node types
+   * that will fill this in. It is written from the start because reparenting must be one
+   * patch to one field, not a format change later. See nodes.ts.
+   */
+  parentId: string | null;
+  /**
+   * Fractional index among siblings, ascending — and ascending is draw order.
+   *
+   * A string rather than a number because between any two strings there is always another
+   * string. See order.ts for why that matters more than it sounds.
+   */
+  order: string;
   visible: boolean;
   /** seconds — layer is on screen between in/out */
   in: number;
@@ -460,14 +479,15 @@ export interface Project {
   terrainExaggeration: number;
   background: string;
   /**
-   * Cameras observing the composition (§04).
+   * Every node in the composition, keyed by id — §04's Decision 01, "logical tree, flat
+   * storage".
    *
-   * The first is live; the switcher track that chooses between several is a later
-   * milestone, and most projects have exactly one. An empty list renders from the
-   * evaluator's default camera rather than failing — a camera is an observer, and a
-   * composition with none is a composition with an unauthored view, not a broken file.
+   * Layers and cameras live here side by side, because §04 is explicit that cameras are
+   * *siblings* of content: observers in the same graph, not a parallel list. The ordered
+   * views the rest of the app reads — `layersOf`, `camerasOf`, `childrenOf` — are derived
+   * from `parentId` and `order`, never stored. See nodes.ts.
    */
-  cameras: CameraNode[];
+  nodes: Record<string, CameraNode | Layer>;
   /**
    * What the map looks like during a stretch of time, keyed by id.
    *
@@ -482,7 +502,6 @@ export interface Project {
    * afterwards — which is the point. See story.ts.
    */
   story: StoryBlock[];
-  layers: Layer[];
   audio?: ProjectAudio;
 }
 

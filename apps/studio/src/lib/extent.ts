@@ -8,7 +8,7 @@
  * Editor-only, so it lives in the app rather than in `geometry`: it is a framing
  * convenience, not part of what a render means, and nothing in the pipeline uses it.
  */
-import { shotsOf } from '@geomotion/document';
+import { camerasOf, layersOf, shotsOf } from '@geomotion/document';
 import type { Layer, Project, LngLat } from '@geomotion/document';
 
 /** `[west, south, east, north]`, or nothing if the project has no geography. */
@@ -82,8 +82,8 @@ function geojsonCoords(text: string): LngLat[] {
  */
 export function projectExtent(project: Project): Bounds | undefined {
   const points: LngLat[] = [
-    ...project.layers.flatMap(coordsOf),
-    ...project.cameras.flatMap((c) => shotsOf(c).map((k) => k.center)),
+    ...layersOf(project).flatMap(coordsOf),
+    ...camerasOf(project).flatMap((c) => shotsOf(c).map((k) => k.center)),
   ].filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
 
   if (points.length === 0) return undefined;

@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { evaluate, type Scene } from '@geomotion/evaluator';
 import { syncScene, resetSyncCache } from '@geomotion/map';
 import { fitBounds, regionSet } from '@geomotion/entities';
-import { resolveMapContext } from '@geomotion/document';
+import { layerAt, resolveMapContext } from '@geomotion/document';
 import { evalTrack } from '@geomotion/animation';
 import { drawOverlay, scaleFor } from '@geomotion/renderer';
 import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
@@ -190,7 +190,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
   ) => {
     const { selection, project } = useStore.getState();
     if (selection?.kind !== 'layer') return;
-    const layer = project.layers.find((l) => l.id === selection.id);
+    const layer = layerAt(project, selection.id);
     if (!layer || !layer.visible) return;
     const { ctx } = frame;
 
@@ -410,7 +410,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
 
     const { project } = useStore.getState();
     const layerId = hit.layer.id.slice('gm-regions-'.length, -'-fill'.length);
-    const layer = project.layers.find((l) => l.id === layerId);
+    const layer = layerAt(project, layerId);
     if (!layer || layer.type !== 'regions') return;
 
     const set = regionSet(layer, getBasemap(project.basemap).dark);
@@ -442,7 +442,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     const state = useStore.getState();
     const { tool, selection } = state;
     if (tool === 'select' || selection?.kind !== 'layer') return;
-    const layer = state.project.layers.find((l) => l.id === selection.id);
+    const layer = layerAt(state.project, selection.id);
     if (!layer) return;
     const c: LngLat = [e.lngLat.lng, e.lngLat.lat];
 
@@ -461,7 +461,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     if (state.exporting) return;
     const sel = state.selection;
     if (sel?.kind !== 'layer') return;
-    const layer = state.project.layers.find((l) => l.id === sel.id);
+    const layer = layerAt(state.project, sel.id);
     if (!layer || !layer.visible) return;
 
     const pt = e.point;
@@ -508,7 +508,7 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       const t = dragRef.current;
       if (!t) return;
       const s = useStore.getState();
-      const current = s.project.layers.find((l) => l.id === t.layerId);
+      const current = layerAt(s.project, t.layerId);
       if (!current) return;
 
       if (t.kind === 'vertex' && current.type === 'route') {

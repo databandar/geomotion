@@ -513,6 +513,27 @@ function storyBlockOf(beat, layers) {
 }
 
 /**
+ * The layers of a project on disk, whatever shape it is in, or `null` if it has none.
+ *
+ * Two shapes reach this. The composer writes the oldest one — an array, which the format
+ * chain upgrades when the editor opens it — while a project that has been *through* the
+ * editor and saved comes back as a flat node store keyed by id (document format 7).
+ *
+ * Reading only the array was silent data loss of the worst kind: a re-run would see no
+ * layers, decide there was nothing to keep, and overwrite every hand edit while printing
+ * that it had merged. Sorting by `order` keeps the kept layers in the order the editor
+ * showed them.
+ */
+function looseLayers(doc) {
+  if (!doc || typeof doc !== 'object') return null;
+  if (Array.isArray(doc.layers)) return doc.layers;
+  if (!doc.nodes || typeof doc.nodes !== 'object') return null;
+  return Object.values(doc.nodes)
+    .filter((n) => n && typeof n === 'object' && n.type !== 'camera')
+    .sort((a, b) => (String(a.order) < String(b.order) ? -1 : String(a.order) > String(b.order) ? 1 : 0));
+}
+
+/**
  * Fold a freshly composed project into one that already exists on disk.
  *
  * `video.mjs` used to overwrite the project outright, while printing "open this in the
@@ -536,7 +557,8 @@ function storyBlockOf(beat, layers) {
  * sometimes wrong.
  */
 export function mergeComposed(existing, fresh) {
-  if (!existing || typeof existing !== 'object' || !Array.isArray(existing.layers)) return fresh;
+  const existingLayers = looseLayers(existing);
+  if (!existingLayers) return fresh;
 
   const oldStory = Array.isArray(existing.story) ? existing.story : [];
   const mine = oldStory.filter((b) => !b.kind);
@@ -546,7 +568,7 @@ export function mergeComposed(existing, fresh) {
   // it — the tie goes to the person.
   for (const b of mine) for (const id of b.nodes) composerOwned.delete(id);
 
-  const keptLayers = existing.layers.filter((l) => !composerOwned.has(l.id));
+  const keptLayers = existingLayers.filter((l) => !composerOwned.has(l.id));
 
   return {
     ...fresh,

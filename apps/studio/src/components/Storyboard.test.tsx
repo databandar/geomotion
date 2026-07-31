@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createLayer, emptyProject, type StoryBlock } from '@geomotion/document';
+import { createLayer, emptyProject, projectWith, type StoryBlock } from '@geomotion/document';
 import Storyboard from './Storyboard';
 import { useStore } from '../store';
 
@@ -15,7 +15,7 @@ const block = (id: string, t: number, d: number, say?: string, extra: Partial<St
 });
 
 function withStory(story: StoryBlock[], layers = [createLayer('marker', 0)]) {
-  useStore.setState({ project: { ...emptyProject(), duration: 60, story, layers }, time: 0 });
+  useStore.setState({ project: projectWith(layers, { duration: 60, story }), time: 0 });
 }
 
 beforeEach(() => useStore.setState({ project: emptyProject(), time: 0 }));

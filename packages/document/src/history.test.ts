@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from './types.ts';
-import { createLayer, emptyProject } from './project.ts';
+import { createLayer, projectWith } from './project.ts';
+import { addNode, layersOf, removeNode } from './nodes.ts';
 import { History } from './history.ts';
 import { transact } from './transact.ts';
 
@@ -13,7 +14,7 @@ import { transact } from './transact.ts';
  * the kind of bug that only shows up after a real drag.
  */
 
-const doc = (): Project => ({ ...emptyProject(), layers: [createLayer('text', 0)] });
+const doc = (): Project => projectWith([createLayer('text', 0)]);
 
 /** A clock the test drives, so the coalescing window needs no waiting. */
 function fakeClock(start = 1_000) {
@@ -170,9 +171,9 @@ describe('History', () => {
 
     const steps: ((d: Project) => void)[] = [
       (d) => void (d.name = 'Tour'),
-      (d) => void d.layers.push(createLayer('regions', 0)),
+      (d) => addNode(d, createLayer('regions', 0)),
       (d) => void (d.duration = 60),
-      (d) => void d.layers.splice(0, 1),
+      (d) => removeNode(d, layersOf(d)[0]!.id),
       (d) => void (d.fps = 60),
     ];
     for (const recipe of steps) {

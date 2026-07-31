@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Layer, RegionsLayer } from './types.ts';
 import { createLayer, defaultTour, migrate } from './project.ts';
 import { keyframe, shotsOf } from './camera.ts';
+import { camerasOf, layersOf, liveCamera } from './nodes.ts';
 
 /**
  * Behavioural spec for document construction and migration.
@@ -19,8 +20,8 @@ describe('migrate', () => {
     expect(p.fps).toBeGreaterThan(0);
     expect(p.duration).toBeGreaterThan(0);
     expect(p.width).toBeGreaterThan(0);
-    expect(p.layers).toHaveLength(1);
-    const layer = p.layers[0]!;
+    expect(layersOf(p)).toHaveLength(1);
+    const layer = layersOf(p)[0]!;
     expect(layer.type).toBe('text');
     expect(layer.id).toBe('x');
     expect(typeof layer.in).toBe('number');
@@ -30,8 +31,9 @@ describe('migrate', () => {
   it('never throws on junk input, returning a usable project', () => {
     for (const junk of [null, undefined, 0, 'nonsense', [], {}, { layers: null }, { camera: null }]) {
       const p = migrate(junk);
-      expect(Array.isArray(p.layers)).toBe(true);
-      expect(Array.isArray(p.cameras)).toBe(true);
+      expect(p.nodes).toBeTypeOf('object');
+      expect(Array.isArray(layersOf(p))).toBe(true);
+      expect(Array.isArray(camerasOf(p))).toBe(true);
       expect(p.fps).toBeGreaterThan(0);
     }
   });
@@ -78,7 +80,7 @@ describe('migrate', () => {
 
   it('fills camera keyframe defaults without discarding the authored values', () => {
     const p = migrate({ camera: [{ t: 3, center: [10, 20], zoom: 7 }] });
-    const k = shotsOf(p.cameras[0]!)[0]!;
+    const k = shotsOf(liveCamera(p)!)[0]!;
     expect(k.t).toBe(3);
     expect(k.center).toEqual([10, 20]);
     expect(k.zoom).toBe(7);
@@ -90,7 +92,7 @@ describe('migrate', () => {
     // Nested objects are the easy place to lose defaults, since a shallow spread
     // over the layer would leave them undefined.
     const p = migrate({ layers: [{ type: 'route', id: 'r', points: [] }] });
-    const route = p.layers[0] as Extract<Layer, { type: 'route' }>;
+    const route = layersOf(p)[0] as Extract<Layer, { type: 'route' }>;
     expect(route.marker).toBeTypeOf('object');
     expect(route.follow).toBeTypeOf('object');
     expect(typeof route.marker.size).toBe('number');
@@ -131,7 +133,7 @@ describe('migrate', () => {
       labelAt: 30,
     });
 
-    const tourOf = (input: unknown) => (migrate({ layers: [input] }).layers[0] as RegionsLayer).tour;
+    const tourOf = (input: unknown) => (layersOf(migrate({ layers: [input] }))[0] as RegionsLayer).tour;
 
     it('lifts every flat field into the nested behaviour', () => {
       // A migration that silently resets someone's pacing to the defaults is data
@@ -260,8 +262,7 @@ describe('keyframe', () => {
 
 describe('migrate — a file with fields of the wrong type', () => {
   const load = (layer: Record<string, unknown>) =>
-    migrate({ version: 3, layers: [{ type: 'marker', in: 0, ...layer }], camera: [] } as never)
-      .layers[0] as unknown as Record<string, unknown>;
+    layersOf(migrate({ version: 3, layers: [{ type: 'marker', in: 0, ...layer }], camera: [] } as never))[0] as unknown as Record<string, unknown>;
   /** The marker defaults, as a bag, so a test can name a field without narrowing. */
   const markerDefault = createLayer('marker', 0) as unknown as Record<string, unknown>;
 
@@ -297,27 +298,27 @@ describe('migrate — a file with fields of the wrong type', () => {
   });
 
   it('replaces an array field holding something else', () => {
-    const route = migrate({
+    const route = layersOf(migrate({
       version: 3, layers: [{ type: 'route', in: 0, coords: 'not an array' }], camera: [],
-    } as never).layers[0] as unknown as Record<string, unknown>;
+    } as never))[0] as unknown as Record<string, unknown>;
     expect(Array.isArray(route.coords)).toBe(true);
   });
 
   it('leaves the contents of an array alone', () => {
     // `coords` and `values` are user data; validating their elements belongs where
     // they are read, not here — and a coordinate list is too hot a path to walk twice.
-    const route = migrate({
+    const route = layersOf(migrate({
       version: 3, layers: [{ type: 'route', in: 0, coords: [[1, 2], [3, 4]] }], camera: [],
-    } as never).layers[0] as { coords: unknown };
+    } as never))[0] as { coords: unknown };
     expect(route.coords).toEqual([[1, 2], [3, 4]]);
   });
 
   it('repairs a nested object without discarding its good fields', () => {
-    const route = migrate({
+    const route = layersOf(migrate({
       version: 3,
       layers: [{ type: 'route', in: 0, marker: { enabled: 'yes', size: 20 } }],
       camera: [],
-    } as never).layers[0] as { marker: Record<string, unknown> };
+    } as never))[0] as { marker: Record<string, unknown> };
     expect(route.marker.enabled).toBe(true); // the default, not the string
     expect(route.marker.size).toBe(20); // kept
   });
@@ -325,8 +326,7 @@ describe('migrate — a file with fields of the wrong type', () => {
   it('keeps a null-defaulted field, which has no type to check against', () => {
     // `flipRamp` is `boolean | null`, where null means "follow the basemap".
     const regions = (v: unknown) =>
-      (migrate({ version: 3, layers: [{ type: 'regions', in: 0, flipRamp: v }], camera: [] } as never)
-        .layers[0] as unknown as Record<string, unknown>).flipRamp;
+      (layersOf(migrate({ version: 3, layers: [{ type: 'regions', in: 0, flipRamp: v }], camera: [] } as never))[0] as unknown as Record<string, unknown>).flipRamp;
     expect(regions(true)).toBe(true);
     expect(regions(null)).toBe(null);
   });

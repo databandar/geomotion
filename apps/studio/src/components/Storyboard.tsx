@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { blockAt, storyInOrder } from '@geomotion/document';
+import { blockAt, layersOf, storyInOrder } from '@geomotion/document';
 
 /**
  * The storyboard — v2 §10, §13's Story workspace.
@@ -18,7 +18,7 @@ export default function Storyboard() {
   const story = useStore((s) => s.project.story);
   const time = useStore((s) => s.time);
   const scrub = useStore((s) => s.scrub);
-  const layers = useStore((s) => s.project.layers);
+  const layers = useStore((s) => layersOf(s.project));
 
   if (story.length === 0) {
     return (

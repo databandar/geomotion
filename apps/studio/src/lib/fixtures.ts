@@ -1,5 +1,5 @@
 import { createId } from '@geomotion/core';
-import { cameraFromShots, createLayer, defaultTour, emptyProject, keyframe, windowTrack } from '@geomotion/document';
+import { cameraFromShots, createLayer, defaultTour, keyframe, projectWith, windowTrack } from '@geomotion/document';
 import type { Layer, LngLat, Project, RegionsLayer } from '@geomotion/document';
 import indiaStates from '../data/india-states-official.json';
 import anemia from '../data/india-anemia-sample.json';
@@ -77,19 +77,20 @@ export function demoProject(): Project {
     out: 9.2,
   } as Partial<Layer>);
 
-  return {
-    ...emptyProject(),
+  const camera = cameraFromShots([
+    keyframe(0, SF, 9.5, { pitch: 50, bearing: -18 }),
+    keyframe(3, SF, 3.4, { pitch: 0, bearing: 0 }),
+    keyframe(6.5, [-172, 44], 2.1, { dip: 0.3 }),
+    keyframe(9.8, TOKYO, 3.6),
+    keyframe(13, TOKYO, 9.5, { pitch: 50, bearing: 22 }),
+  ]);
+
+  // The camera first, then the layers bottom-to-top — the order they are listed is the
+  // order they draw in, which is what `projectWith` assigns keys for.
+  return projectWith([camera, route, sf, tokyo, title, stat], {
     name: 'Trans-Pacific',
     duration: 15,
-    cameras: [cameraFromShots([
-      keyframe(0, SF, 9.5, { pitch: 50, bearing: -18 }),
-      keyframe(3, SF, 3.4, { pitch: 0, bearing: 0 }),
-      keyframe(6.5, [-172, 44], 2.1, { dip: 0.3 }),
-      keyframe(9.8, TOKYO, 3.6),
-      keyframe(13, TOKYO, 9.5, { pitch: 50, bearing: 22 }),
-    ])],
-    layers: [route, sf, tokyo, title, stat],
-  };
+  });
 }
 
 /* -------------------------------------------------- region tour template */
@@ -202,13 +203,12 @@ export function indiaTourProject(): Project {
     fade: 0.4,
   } as Partial<Layer>);
 
-  return {
-    ...emptyProject(),
+  // Straight down on India; the tour takes the camera from here.
+  const camera = cameraFromShots([keyframe(0, [82.8, 22.6], 3.5, { pitch: 0 })]);
+
+  return projectWith([camera, regions, outline, clouds, title, subtitle, caption], {
     name: 'Anaemia in India',
     duration,
     basemap: 'satellite-labels',
-    // Straight down on India; the tour takes the camera from here.
-    cameras: [cameraFromShots([keyframe(0, [82.8, 22.6], 3.5, { pitch: 0 })])],
-    layers: [regions, outline, clouds, title, subtitle, caption],
-  };
+  });
 }

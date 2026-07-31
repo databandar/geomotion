@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import Icon from './Icon';
-import { isRetimable, shotsOf, storyInOrder, trackedProps } from '@geomotion/document';
+import { isRetimable, layersOf, liveCamera, shotsOf, storyInOrder, trackedProps } from '@geomotion/document';
 import type { Track } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
 
@@ -123,7 +123,7 @@ export default function Timeline() {
               )}
             </div>
           )}
-          {project.layers.map((l) => (
+          {layersOf(project).map((l) => (
             <Fragment key={l.id}>
               <div
                 className={'tl-gutter-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}
@@ -163,7 +163,7 @@ export default function Timeline() {
             </div>
 
             <div className="tl-row camera-row" onPointerDown={startScrub}>
-              {project.cameras[0] ? shotsOf(project.cameras[0]).map((k) => (
+              {liveCamera(project) ? shotsOf(liveCamera(project)!).map((k) => (
                 <div
                   key={k.id}
                   className={'kf' + (selection?.kind === 'keyframe' && selection.id === k.id ? ' sel' : '')}
@@ -235,7 +235,7 @@ export default function Timeline() {
               </div>
             )}
 
-            {project.layers.map((l) => (
+            {layersOf(project).map((l) => (
               <Fragment key={l.id}>
                 <div
                   className={'tl-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { CameraKeyframe, Project, RegionsLayer, RegionTour } from '@geomotion/document';
-import { cameraFromShots, createLayer, defaultTour, emptyProject, keyframe, shotsOf } from '@geomotion/document';
+import {
+  cameraFromShots,
+  createLayer,
+  defaultTour,
+  keyframe,
+  liveCamera,
+  projectWith,
+  shotsOf,
+} from '@geomotion/document';
 import type { CameraState } from './scene.ts';
 import { cameraAt, layerAlpha, resolveCamera, tourPhases } from './scene.ts';
 
@@ -55,15 +63,11 @@ describe('layerAlpha — visibility and fade ramps', () => {
 });
 
 describe('cameraAt — keyframe interpolation', () => {
-  const project: Project = {
-    ...emptyProject(),
-    duration: 10,
-    cameras: [cameraFromShots([
+  const project: Project = projectWith([cameraFromShots([
       keyframe(0, [0, 0], 2, { bearing: 0, pitch: 0 }),
       keyframe(5, [10, 10], 6, { bearing: 90, pitch: 40 }),
       keyframe(10, [20, 0], 4, { bearing: 180, pitch: 0 }),
-    ])],
-  };
+    ])], { duration: 10 });
 
   it('returns keyframe values exactly at keyframe times', () => {
     expect(cameraAt(project, 0).zoom).toBeCloseTo(2, 9);
@@ -86,51 +90,40 @@ describe('cameraAt — keyframe interpolation', () => {
   });
 
   it('falls back to a default camera when there are no keyframes', () => {
-    const cam = cameraAt({ ...project, cameras: [] }, 3);
+    // No camera at all: an observer-less composition renders from the default view.
+    const cam = cameraAt({ ...project, nodes: {} }, 3);
     expect(Number.isFinite(cam.zoom)).toBe(true);
     expect(Number.isFinite(cam.center[0])).toBe(true);
   });
 
   it('holds a single keyframe for the whole composition', () => {
-    const one = { ...project, cameras: [cameraFromShots([keyframe(4, [7, 7], 5)])] };
+    const one = projectWith([cameraFromShots([keyframe(4, [7, 7], 5)])], { duration: 10 });
     expect(cameraAt(one, 0).zoom).toBe(5);
     expect(cameraAt(one, 99).center).toEqual([7, 7]);
   });
 
   it('tolerates unsorted keyframes', () => {
-    const k = shotsOf(project.cameras[0]!);
+    const k = shotsOf(liveCamera(project)!);
     const [k0, k1, k2] = k;
-    const shuffled = {
-      ...project,
-      cameras: [cameraFromShots([k2!, k0!, k1!])],
-    };
+    const shuffled = projectWith([cameraFromShots([k2!, k0!, k1!])], { duration: 10 });
     expect(cameraAt(shuffled, 5).zoom).toBeCloseTo(cameraAt(project, 5).zoom, 9);
   });
 
   it('takes the short way around the compass between bearings', () => {
-    const wrap: Project = {
-      ...emptyProject(),
-      cameras: [cameraFromShots([keyframe(0, [0, 0], 2, { bearing: 350 }), keyframe(1, [0, 0], 2, { bearing: 10 })])],
-    };
+    const wrap: Project = projectWith([cameraFromShots([keyframe(0, [0, 0], 2, { bearing: 350 }), keyframe(1, [0, 0], 2, { bearing: 10 })])]);
     // Going forwards through 360, not backwards through 180.
     expect(cameraAt(wrap, 0.5).bearing).toBeCloseTo(360, 6);
   });
 
   it('dip pulls the zoom back mid-segment and vanishes at the endpoints', () => {
-    const arc: Project = {
-      ...emptyProject(),
-      cameras: [cameraFromShots([keyframe(0, [0, 0], 8, { dip: 3 }), keyframe(2, [10, 0], 8)])],
-    };
+    const arc: Project = projectWith([cameraFromShots([keyframe(0, [0, 0], 8, { dip: 3 }), keyframe(2, [10, 0], 8)])]);
     expect(cameraAt(arc, 0).zoom).toBeCloseTo(8, 6);
     expect(cameraAt(arc, 2).zoom).toBeCloseTo(8, 6);
     expect(cameraAt(arc, 1).zoom).toBeCloseTo(5, 6); // 8 - 3 at the midpoint
   });
 
   it('never returns a negative zoom even with an aggressive dip', () => {
-    const deep: Project = {
-      ...emptyProject(),
-      cameras: [cameraFromShots([keyframe(0, [0, 0], 1, { dip: 40 }), keyframe(2, [1, 0], 1)])],
-    };
+    const deep: Project = projectWith([cameraFromShots([keyframe(0, [0, 0], 1, { dip: 40 }), keyframe(2, [1, 0], 1)])]);
     for (let t = 0; t <= 2; t += 0.1) expect(cameraAt(deep, t).zoom).toBeGreaterThanOrEqual(0);
   });
 });
@@ -228,14 +221,10 @@ describe('cameraAt — the channels that resolve through evalTrack', () => {
    * returns early and the track is never consulted — so without these, breaking
    * `evalTrack` outright left the whole evaluator suite green.
    */
-  const ramp = (): Project => ({
-    ...emptyProject(),
-    duration: 10,
-    cameras: [cameraFromShots([
+  const ramp = (): Project => (projectWith([cameraFromShots([
       { ...keyframe(0, [0, 0], 4), pitch: 0, easing: 'linear' },
       { ...keyframe(4, [0, 0], 8), pitch: 60, easing: 'linear' },
-    ])],
-  });
+    ])], { duration: 10 }));
 
   it('interpolates zoom across a segment, not just at its ends', () => {
     expect(cameraAt(ramp(), 2).zoom).toBeCloseTo(6, 6);
@@ -258,15 +247,11 @@ describe('cameraAt — the channels that resolve through evalTrack', () => {
   });
 
   it('picks the right segment when there are several', () => {
-    const p: Project = {
-      ...emptyProject(),
-      duration: 10,
-      cameras: [cameraFromShots([
+    const p: Project = projectWith([cameraFromShots([
         { ...keyframe(0, [0, 0], 2), easing: 'linear' },
         { ...keyframe(2, [0, 0], 6), easing: 'linear' },
         { ...keyframe(6, [0, 0], 4), easing: 'linear' },
-      ])],
-    };
+      ])], { duration: 10 });
     expect(cameraAt(p, 1).zoom).toBeCloseTo(4, 6);
     expect(cameraAt(p, 4).zoom).toBeCloseTo(5, 6);
   });
@@ -282,14 +267,10 @@ describe('cameraAt — the per-channel interpolators', () => {
    */
   const at = (a: Partial<CameraKeyframe>, b: Partial<CameraKeyframe>, t: number) =>
     cameraAt(
-      {
-        ...emptyProject(),
-        duration: 10,
-        cameras: [cameraFromShots([
+      projectWith([cameraFromShots([
           { ...keyframe(0, [0, 0], 4), easing: 'linear', ...a },
           { ...keyframe(4, [0, 0], 4), easing: 'linear', ...b },
-        ])],
-      },
+        ])], { duration: 10 }),
       t,
     );
 
@@ -332,13 +313,11 @@ describe('cameraAt — the per-channel interpolators', () => {
      * aliased the cache would let one frame's mutation change every later frame — and
      * the document with it.
      */
-    const project: Project = {
-      ...emptyProject(),
-      cameras: [cameraFromShots([{ ...keyframe(0, [10, 20], 4), easing: 'linear' }])],
-    };
+    const project: Project = projectWith([cameraFromShots([{ ...keyframe(0, [10, 20], 4), easing: 'linear' }])]);
     const got = cameraAt(project, 0);
     got.center[0] = 999;
     expect(cameraAt(project, 0).center[0]).toBe(10);
-    expect(project.cameras[0]!.tracks.center.kind === 'keyframed' ? project.cameras[0]!.tracks.center.keys[0]!.value[0] : null).toBe(10);
+    const center = liveCamera(project)!.tracks.center;
+    expect(center.kind === 'keyframed' ? center.keys[0]!.value[0] : null).toBe(10);
   });
 });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createLayer, emptyProject, type MarkerLayer } from '@geomotion/document';
+import { createLayer, emptyProject, layersOf, type MarkerLayer, projectWith } from '@geomotion/document';
 import { evalTrack } from '@geomotion/animation';
 import Inspector from './Inspector';
 import Timeline from './Timeline';
@@ -16,14 +16,14 @@ import { useStore } from '../store';
 function withMarker(): MarkerLayer {
   const layer = createLayer('marker', 0) as MarkerLayer;
   useStore.setState({
-    project: { ...emptyProject(), duration: 60, layers: [layer] },
+    project: projectWith([layer], { duration: 60 }),
     selection: { kind: 'layer', id: layer.id },
     time: 0,
   });
   return layer;
 }
 
-const marker = () => useStore.getState().project.layers[0] as MarkerLayer;
+const marker = () => layersOf(useStore.getState().project)[0] as MarkerLayer;
 const pip = () => screen.getByRole('button', { name: /Fixed value|Animated/ });
 const diamond = () => screen.queryByRole('button', { name: /keyframe here/ });
 /**

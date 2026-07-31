@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
-import { shotsOf } from '@geomotion/document';
+import { layersOf, liveCamera, shotsOf } from '@geomotion/document';
 import type { LayerType } from '@geomotion/document';
 import Icon, { type IconName } from './Icon';
 import { Menu } from './ui';
@@ -17,9 +17,9 @@ const ADD: { type: LayerType; label: string; icon: IconName }[] = [
 
 export default function LayerPanel() {
   const host = useRenderHost();
-  const layers = useStore((s) => s.project.layers);
+  const layers = useStore((s) => layersOf(s.project));
   const selection = useStore((s) => s.selection);
-  const camera = useStore((s) => s.project.cameras[0]);
+  const camera = useStore((s) => liveCamera(s.project));
   const select = useStore((s) => s.select);
   const addLayer = useStore((s) => s.addLayer);
   const removeLayer = useStore((s) => s.removeLayer);

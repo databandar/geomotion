@@ -13,6 +13,7 @@
  * handed, like every other editing helper in this package.
  */
 import { createId } from '@geomotion/core';
+import { FIRST_ORDER } from './order.ts';
 import type { CameraKeyframe, CameraNode, EasingName, LngLat } from './types.ts';
 import type { Keyframe, Track } from './track.ts';
 
@@ -87,6 +88,10 @@ export function cameraFromShots(
     id: init.id ?? createId(),
     type: 'camera',
     name: init.name ?? 'Camera',
+    // A root until something can be a parent, and last in its list until `addNode` places
+    // it. A constructor cannot know its siblings, so it must not guess an order key.
+    parentId: null,
+    order: FIRST_ORDER,
     tracks: {
       // Copied, so the node shares no array with the row it was built from.
       center: channel((k) => [k.center[0], k.center[1]] as LngLat),

@@ -1,8 +1,15 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import {
   History,
+  addNode,
   createCamera,
   createLayer,
+  layerAt,
+  layersOf,
+  liveCamera,
+  moveNodeBy,
+  removeNode,
   hasKeyAt,
   patchShot,
   removeShot,
@@ -179,6 +186,21 @@ function assignChanged<T extends object>(target: T, patch: Partial<T>): void {
 }
 
 /**
+ * Put a ripple's rewritten layers back into the store.
+ *
+ * `rippleBlockTo` and `rippleBlockLength` take and return plain lists — they are pure
+ * functions over the layers a block owns, and knowing about the store would tie the timing
+ * rules to the storage shape. Only the layers that actually moved are written, which is
+ * what keeps a ripple's patch set proportional to the beats it touched rather than to the
+ * size of the composition.
+ */
+function writeBack(p: Project, layers: readonly Layer[]): void {
+  for (const layer of layers) {
+    if (p.nodes[layer.id] !== layer) p.nodes[layer.id] = layer;
+  }
+}
+
+/**
  * The layer to edit, or nothing if it is locked.
  *
  * One gate rather than a check per control. A lock enforced in the UI is a lock the
@@ -190,7 +212,7 @@ function assignChanged<T extends object>(target: T, patch: Partial<T>): void {
  * cannot be locked.
  */
 function editable(p: Project, id: string): Layer | undefined {
-  const layer = p.layers.find((l) => l.id === id);
+  const layer = layerAt(p, id);
   return layer?.locked === true ? undefined : layer;
 }
 
@@ -202,11 +224,13 @@ function editable(p: Project, id: string): Layer | undefined {
  * the user places is what brings it into being.
  */
 function ensureCamera(p: Project) {
-  const existing = p.cameras[0];
+  const existing = liveCamera(p);
   if (existing) return existing;
   const cam = createCamera();
-  p.cameras.push(cam);
-  return cam;
+  addNode(p, cam);
+  // Read back out of the store: `addNode` places a copy carrying the order key it was
+  // given, and edits have to land on the node the document holds.
+  return p.nodes[cam.id] as typeof cam;
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -298,25 +322,25 @@ export const useStore = create<State>((set, get) => ({
       layer.progress = windowTrack(layer.in, Math.min(project.duration, layer.in + 4), 'easeInOutCubic');
     }
     patch((p) => {
-      p.layers.push(layer);
+      addNode(p, layer);
     });
     set({ selection: { kind: 'layer', id: layer.id }, tool: type === 'route' ? 'route' : type === 'marker' ? 'marker' : 'select' });
     return layer;
   },
 
   removeLayer: (id) => {
-    if (get().project.layers.find((l) => l.id === id)?.locked === true) return;
+    if (layerAt(get().project, id)?.locked === true) return;
     clearPathCache(id);
     clearRegionCache(id);
     get().patch((p) => {
-      p.layers = p.layers.filter((l) => l.id !== id);
+      removeNode(p, id);
     });
     const sel = get().selection;
     if (sel?.kind === 'layer' && sel.id === id) set({ selection: null });
   },
 
   duplicateLayer: (id) => {
-    const src = get().project.layers.find((l) => l.id === id);
+    const src = layerAt(get().project, id);
     if (!src) return;
     // A duplicate must be independent of its source, so this one copy stays deep.
     // structuredClone rather than a JSON round-trip: it is faster and does not
@@ -344,8 +368,7 @@ export const useStore = create<State>((set, get) => ({
      */
     delete copy.locked;
     get().patch((p) => {
-      const i = p.layers.findIndex((l) => l.id === id);
-      p.layers.splice(i + 1, 0, copy);
+      addNode(p, copy, { after: id });
     });
     set({ selection: { kind: 'layer', id: copy.id } });
   },
@@ -440,18 +463,18 @@ export const useStore = create<State>((set, get) => ({
 
   moveStoryBlock: (id, t) => {
     get().patch((p) => {
-      const out = rippleBlockTo(p.story, p.layers, p.audio?.cues ?? [], id, t);
+      const out = rippleBlockTo(p.story, layersOf(p), p.audio?.cues ?? [], id, t);
       p.story = out.story;
-      p.layers = out.layers;
+      writeBack(p, out.layers);
       if (p.audio) p.audio.cues = out.cues;
     }, `${id}:block:move`);
   },
 
   resizeStoryBlock: (id, d) => {
     get().patch((p) => {
-      const out = rippleBlockLength(p.story, p.layers, p.audio?.cues ?? [], id, d);
+      const out = rippleBlockLength(p.story, layersOf(p), p.audio?.cues ?? [], id, d);
       p.story = out.story;
-      p.layers = out.layers;
+      writeBack(p, out.layers);
       if (p.audio) p.audio.cues = out.cues;
     }, `${id}:block:len`);
   },
@@ -463,7 +486,7 @@ export const useStore = create<State>((set, get) => ({
    */
   setLayerLocked: (id, locked) => {
     get().patch((p) => {
-      const layer = p.layers.find((l) => l.id === id);
+      const layer = layerAt(p, id);
       if (!layer) return;
       if (locked) layer.locked = true;
       else delete layer.locked;
@@ -473,14 +496,7 @@ export const useStore = create<State>((set, get) => ({
   moveLayer: (id, dir) => {
     get().patch((p) => {
       if (!editable(p, id)) return;
-      const i = p.layers.findIndex((l) => l.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= p.layers.length) return;
-      const from = p.layers[i];
-      const to = p.layers[j];
-      if (!from || !to) return;
-      p.layers[i] = to;
-      p.layers[j] = from;
+      moveNodeBy(p, id, dir);
     });
   },
 
@@ -534,7 +550,7 @@ export const useStore = create<State>((set, get) => ({
     });
     // The upsert may have replaced the shot already at the playhead, keeping its id —
     // so look up by time, not by the id that was just built.
-    const cam = get().project.cameras[0];
+    const cam = liveCamera(get().project);
     const found = cam ? shotsOf(cam).find((k) => Math.abs(k.t - time) < 0.02) : undefined;
     if (found) set({ selection: { kind: 'keyframe', id: found.id } });
   },
@@ -547,7 +563,7 @@ export const useStore = create<State>((set, get) => ({
 
   removeKeyframe: (id) => {
     get().patch((p) => {
-      const cam = p.cameras[0];
+      const cam = liveCamera(p);
       if (cam) removeShot(cam, id);
     });
     const sel = get().selection;
@@ -595,7 +611,7 @@ if (import.meta.env.DEV) {
 
 /** Selected layer, or undefined. */
 export function useSelectedLayer(): Layer | undefined {
-  return useStore((s) => (s.selection?.kind === 'layer' ? s.project.layers.find((l) => l.id === s.selection!.id) : undefined));
+  return useStore((s) => (s.selection?.kind === 'layer' ? layerAt(s.project, s.selection.id) : undefined));
 }
 
 /** Selected audio clip, or undefined. */
@@ -605,11 +621,22 @@ export function useSelectedCue(): AudioCue | undefined {
   );
 }
 
+/**
+ * The selected shot row.
+ *
+ * Two narrow selectors and a `useMemo` rather than one selector that builds the row:
+ * `shotsOf` derives its rows fresh from the camera's per-channel tracks, so returning one
+ * straight out of a selector hands React a new object on every render. Measured in a real
+ * browser before this: selecting a camera keyframe logged "The result of getSnapshot should
+ * be cached", then "Maximum update depth exceeded", and the editor stopped repainting.
+ *
+ * The camera node and the selected id are both stable — the node changes identity exactly
+ * when the camera is edited — so the memo is keyed on precisely what the row derives from.
+ */
 export function useSelectedKeyframe(): CameraKeyframe | undefined {
-  return useStore((s) => {
-    const cam = s.project.cameras[0];
-    return s.selection?.kind === 'keyframe' && cam ? shotAt(cam, s.selection.id) : undefined;
-  });
+  const camera = useStore((s) => liveCamera(s.project));
+  const id = useStore((s) => (s.selection?.kind === 'keyframe' ? s.selection.id : null));
+  return useMemo(() => (camera && id ? shotAt(camera, id) : undefined), [camera, id]);
 }
 
 /**

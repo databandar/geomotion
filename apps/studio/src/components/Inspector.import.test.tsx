@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createLayer, emptyProject, type RegionsLayer } from '@geomotion/document';
+import { createLayer, emptyProject, layersOf, projectWith, type RegionsLayer } from '@geomotion/document';
 import Inspector from './Inspector';
 import { useStore } from '../store';
 
@@ -36,13 +36,13 @@ function withRegions() {
     values: {},
   });
   useStore.setState({
-    project: { ...emptyProject(), duration: 60, layers: [layer] },
+    project: projectWith([layer], { duration: 60 }),
     selection: { kind: 'layer', id: layer.id },
   });
   return layer;
 }
 
-const current = () => useStore.getState().project.layers[0] as RegionsLayer;
+const current = () => layersOf(useStore.getState().project)[0] as RegionsLayer;
 const box = () => screen.getByPlaceholderText(/Kerala/);
 const merge = () => screen.getByRole('button', { name: /^Merge$/ });
 

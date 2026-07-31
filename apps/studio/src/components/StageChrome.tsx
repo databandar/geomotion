@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fitBounds } from '@geomotion/entities';
-import { shotsOf } from '@geomotion/document';
+import { liveCamera, shotsOf } from '@geomotion/document';
 import type { CameraKeyframe } from '@geomotion/document';
 import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
@@ -18,7 +18,7 @@ import Icon from './Icon';
 export default function StageChrome({ stage }: { stage: React.RefObject<HTMLElement | null> }) {
   const host = useRenderHost();
   const project = useStore((s) => s.project);
-  const camera = useStore((s) => s.project.cameras[0]);
+  const camera = useStore((s) => liveCamera(s.project));
   const time = useStore((s) => s.time);
   const select = useStore((s) => s.select);
   const full = useFullscreen(stage);

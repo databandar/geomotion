@@ -11,7 +11,7 @@ import type {
   TextRender,
 } from '@geomotion/renderer';
 import type { CameraNode, LngLat, Project, RegionsLayer, RouteLayer } from '@geomotion/document';
-import { resolveMapContext } from '@geomotion/document';
+import { layersOf, liveCamera, resolveMapContext } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
 import { applyBehaviours, ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
@@ -42,7 +42,7 @@ export type { CameraState, Scene } from '@geomotion/renderer';
  * every edit; the document now holds the tracks itself.
  */
 export function cameraAt(project: Project, time: number): CameraState {
-  const tracks = project.cameras[0]?.tracks;
+  const tracks = liveCamera(project)?.tracks;
 
   /*
    * A map context can supply where the camera sits during its blocks — but only as a
@@ -410,7 +410,7 @@ export function evaluate(project: Project, time: number): Scene {
    */
   const hidden = resolveMapContext(project, time).hidden;
 
-  for (const layer of project.layers) {
+  for (const layer of layersOf(project)) {
     const alpha = hidden.has(layer.id) ? 0 : layerAlpha(layer, time);
 
     if (layer.type === 'route') {

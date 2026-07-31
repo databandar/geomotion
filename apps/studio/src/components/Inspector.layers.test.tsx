@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createLayer, emptyProject, type Layer, type LayerType } from '@geomotion/document';
+import { createLayer, emptyProject, type Layer, layersOf, type LayerType, projectWith } from '@geomotion/document';
 import Inspector from './Inspector';
 import { useStore } from '../store';
 
@@ -20,13 +20,13 @@ import { useStore } from '../store';
 function withLayer(type: LayerType, patch: Partial<Layer> = {}) {
   const layer = Object.assign(createLayer(type, 0), patch) as Layer;
   useStore.setState({
-    project: { ...emptyProject(), duration: 60, layers: [layer] },
+    project: projectWith([layer], { duration: 60 }),
     selection: { kind: 'layer', id: layer.id },
   });
   return layer;
 }
 
-const current = <T extends Layer>() => useStore.getState().project.layers[0] as T;
+const current = <T extends Layer>() => layersOf(useStore.getState().project)[0] as T;
 
 /** The control inside a named field; see the note in Inspector.test.tsx. */
 function control(label: string, within?: string): HTMLElement {

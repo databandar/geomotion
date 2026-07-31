@@ -5,13 +5,15 @@
  * only; it must never reach for React, the renderer, or the DOM. Browser
  * persistence therefore lives in the app, not here.
  *
- * The flat node store with fractional ordering and a schema registry that §3
- * specifies is not built yet — this is v1's shape (a project holding arrays of
- * layers and camera nodes) with the transaction and history layer §1.3/§1.4 require
- * put underneath it. The write path is now the thing that changes, not the shape.
+ * The store is §04 Decision 01's shape: one flat `nodes` record keyed by id, each node
+ * carrying `parentId` and a fractional-index `order`, with every ordered list — layers in
+ * draw order, cameras, children — derived (see nodes.ts, order.ts). What is not built yet
+ * is the *schema registry* §3.4 asks for: node types still declare themselves as members of
+ * a union with hand-written defaults rather than registering zod schemas and property
+ * metadata.
  */
 
-export { createLayer, defaultTour, emptyProject, migrate } from './project.ts';
+export { createLayer, defaultTour, emptyProject, migrate, projectWith } from './project.ts';
 export {
   cameraFromShots,
   createCamera,
@@ -35,6 +37,26 @@ export {
   type RemixClip,
   type ScheduledCue,
 } from './audio.ts';
+export {
+  addNode,
+  camerasOf,
+  childrenOf,
+  descendantsOf,
+  isCameraNode,
+  isLayerNode,
+  layerAt,
+  layersOf,
+  liveCamera,
+  moveNodeBy,
+  nodeAt,
+  nodesOf,
+  removeNode,
+  setNodeParent,
+  type DocNode,
+  type NodeId,
+  type NodeStore,
+} from './nodes.ts';
+export { FIRST_ORDER, compareOrder, orderBetween, orderKeys } from './order.ts';
 export { History } from './history.ts';
 export { applyPatches, isNoop, transact, type Patch, type Transaction } from './transact.ts';
 export type * from './types.ts';

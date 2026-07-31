@@ -4,9 +4,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { migrate } from '../project.ts';
 import { shotsOf } from '../camera.ts';
+import { layersOf, liveCamera } from '../nodes.ts';
 import { CURRENT_FORMAT, formatOf, runMigrations } from './index.ts';
 import { migrate1to2 } from './1-to-2.ts';
 import { migrate2to3 } from './2-to-3.ts';
+import { migrate6to7 } from './6-to-7.ts';
 
 /**
  * ENGINEERING_GUIDE §3.6.5: every format version keeps a frozen fixture forever, and
@@ -37,7 +39,7 @@ describe('the frozen fixtures', () => {
     const out = migrate(doc);
 
     expect(out.format).toBe(CURRENT_FORMAT);
-    expect(out.layers.length).toBeGreaterThan(0);
+    expect(layersOf(out).length).toBeGreaterThan(0);
     // The old name must be gone, not merely ignored — two fields meaning the same thing
     // let two readers disagree about which is authoritative (§3.6.4).
     expect(out).not.toHaveProperty('version');
@@ -46,7 +48,7 @@ describe('the frozen fixtures', () => {
   it.each(frozen)('%s keeps its reveal timing through the collapse to tracks', (file) => {
     // Only format 2 froze a route; format 1 predates the fixture carrying one.
     const doc = JSON.parse(fs.readFileSync(path.join(FIXTURES, file), 'utf8'));
-    const route = migrate(doc).layers.find((l) => l.type === 'route');
+    const route = layersOf(migrate(doc)).find((l) => l.type === 'route');
     if (!route) return;
     // Authored as drawStart 1 / drawEnd 9; the window must survive as the same ramp.
     expect(route.progress).toMatchObject({
@@ -61,7 +63,7 @@ describe('the frozen fixtures', () => {
   it.each(frozen)('%s keeps the content it was frozen with', (file) => {
     const doc = JSON.parse(fs.readFileSync(path.join(FIXTURES, file), 'utf8'));
     const out = migrate(doc);
-    const marker = out.layers.find((l) => l.type === 'marker');
+    const marker = layersOf(out).find((l) => l.type === 'marker');
 
     expect(marker?.name).toBe('Tokyo');
     // 14 was authored as a bare number in format 1; it must still be 14 afterwards.
@@ -69,7 +71,7 @@ describe('the frozen fixtures', () => {
 
     // The two-shot camera freezes as per-channel tracks under the first node; the arc
     // keeps riding the zoom key.
-    const camera = out.cameras[0]!;
+    const camera = liveCamera(out)!;
     expect(shotsOf(camera)).toHaveLength(2);
     expect(camera.tracks.zoom.kind).toBe('keyframed');
     if (camera.tracks.zoom.kind === 'keyframed') expect(camera.tracks.zoom.keys[1]?.dip).toBe(1.5);
@@ -126,6 +128,70 @@ describe('runMigrations', () => {
     const copy = structuredClone(input);
     runMigrations(input);
     expect(input).toEqual(copy);
+  });
+});
+
+describe('migrate6to7', () => {
+  const doc = (layers: unknown[], cameras: unknown[] = []) => ({ format: 6, layers, cameras });
+
+  it('keeps the layers in the order they were drawn in', () => {
+    // Relative order *is* draw order, and this is the one thing the conversion must not
+    // disturb: a project that comes back with its regions on top of its title is broken in
+    // a way no error message accompanies.
+    const out = migrate6to7(doc([{ id: 'a' }, { id: 'b' }, { id: 'c' }]));
+    const nodes = Object.values(out.nodes as Record<string, { id: string; order: string }>);
+    const drawn = nodes.sort((x, y) => (x.order < y.order ? -1 : 1)).map((n) => n.id);
+    expect(drawn).toEqual(['a', 'b', 'c']);
+  });
+
+  it('puts cameras in the same store as the layers', () => {
+    const out = migrate6to7(doc([{ id: 'a' }], [{ id: 'cam', type: 'camera' }]));
+    expect(Object.keys(out.nodes as object).sort()).toEqual(['a', 'cam']);
+  });
+
+  it('gives every node a parent field, null at the root', () => {
+    const out = migrate6to7(doc([{ id: 'a' }]));
+    expect((out.nodes as Record<string, { parentId: unknown }>).a?.parentId).toBeNull();
+  });
+
+  it('removes the arrays it replaced', () => {
+    const out = migrate6to7(doc([{ id: 'a' }], [{ id: 'cam' }]));
+    expect(out).not.toHaveProperty('layers');
+    expect(out).not.toHaveProperty('cameras');
+  });
+
+  it('re-keys a duplicate id rather than losing a layer to it', () => {
+    // A record keeps the last writer. Two layers sharing an id would mean one of them
+    // silently gone on load — the file still opens, so the loss looks like something the
+    // user did.
+    const out = migrate6to7(doc([{ id: 'same', name: 'first' }, { id: 'same', name: 'second' }]));
+    const nodes = Object.values(out.nodes as Record<string, { name: string }>);
+    expect(nodes.map((n) => n.name).sort()).toEqual(['first', 'second']);
+  });
+
+  it('gives a layer with no id one', () => {
+    const out = migrate6to7(doc([{ name: 'anonymous' }]));
+    const [id] = Object.keys(out.nodes as object);
+    expect(id).toBeTruthy();
+    expect((out.nodes as Record<string, { id: string }>)[id as string]?.id).toBe(id);
+  });
+
+  it('moves a pre-M9 region ordering aside instead of overwriting it', () => {
+    // The one field name the new shape collides with: a flat `order` on a region layer is
+    // the *region* ordering, and this step writes a fractional index into that name.
+    const out = migrate6to7(doc([{ id: 'r', type: 'regions', order: 'alpha' }]));
+    expect((out.nodes as Record<string, { tourOrder: string }>).r?.tourOrder).toBe('alpha');
+  });
+
+  it('leaves an already-nested tour alone — its ordering is inside it', () => {
+    const out = migrate6to7(doc([{ id: 'r', type: 'regions', tour: { order: 'alpha' } }]));
+    expect((out.nodes as Record<string, object>).r).not.toHaveProperty('tourOrder');
+  });
+
+  it('survives a document with neither array', () => {
+    // It runs against files this project did not write; a load that fails is a project
+    // someone cannot open.
+    expect(migrate6to7({ format: 6 }).nodes).toEqual({});
   });
 });
 

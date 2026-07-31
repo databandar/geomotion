@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createLayer, defaultTour, emptyProject, type RegionsLayer } from '@geomotion/document';
+import { createLayer, defaultTour, emptyProject, layersOf, projectWith, type RegionsLayer } from '@geomotion/document';
 import Inspector from './Inspector';
 import { useStore } from '../store';
 
@@ -26,14 +26,14 @@ function withRegionsLayer(patch: Partial<RegionsLayer> = {}) {
     ...patch,
   });
   useStore.setState({
-    project: { ...emptyProject(), duration: 60, layers: [layer] },
+    project: projectWith([layer], { duration: 60 }),
     selection: { kind: 'layer', id: layer.id },
   });
   return layer;
 }
 
 /** The regions layer as it now stands in the store. */
-const current = () => useStore.getState().project.layers[0] as RegionsLayer;
+const current = () => layersOf(useStore.getState().project)[0] as RegionsLayer;
 
 /**
  * Type a new value into a number field.

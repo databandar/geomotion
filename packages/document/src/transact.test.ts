@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Project, RegionsLayer, TextLayer } from './types.ts';
-import { createLayer, emptyProject } from './project.ts';
+import type { Layer, Project, RegionsLayer, TextLayer } from './types.ts';
+import { createLayer, emptyProject, projectWith as buildProject } from './project.ts';
+import { addNode, camerasOf, layersOf } from './nodes.ts';
 import { applyPatches, isNoop, transact } from './transact.ts';
 
 /**
@@ -13,9 +14,12 @@ import { applyPatches, isNoop, transact } from './transact.ts';
  * reason this exists, and it is invisible unless asserted by identity.
  */
 
-function projectWith(...layers: Project['layers']): Project {
-  return { ...emptyProject(), layers };
+function projectWith(...layers: Layer[]): Project {
+  return buildProject(layers);
 }
+
+/** The nth layer in draw order, as the array index used to mean. */
+const layerAt = (p: Project, i: number) => layersOf(p)[i];
 
 /** A layer carrying a big payload, standing in for inlined GeoJSON. */
 function heavyRegions(id: string): RegionsLayer {
@@ -29,7 +33,7 @@ describe('transact', () => {
     const before = JSON.stringify(doc);
     transact(doc, (d) => {
       d.duration = 999;
-      d.layers.push(createLayer('marker', 1));
+      addNode(d, createLayer('marker', 1));
     });
     expect(JSON.stringify(doc)).toBe(before);
   });
@@ -52,20 +56,20 @@ describe('transact', () => {
     const doc = projectWith(heavy, text);
 
     const { next } = transact(doc, (d) => {
-      (d.layers[1] as TextLayer).text = 'edited';
+      (layersOf(d)[1] as TextLayer).text = 'edited';
     });
 
     expect(next).not.toBe(doc);
-    expect(next.layers[1]).not.toBe(doc.layers[1]); // the edited one is new
-    expect(next.layers[0]).toBe(doc.layers[0]); // the heavy one is the same object
-    expect(next.cameras).toBe(doc.cameras); // and so is everything else
+    expect(layerAt(next, 1)).not.toBe(layerAt(doc, 1)); // the edited one is new
+    expect(layerAt(next, 0)).toBe(layerAt(doc, 0)); // the heavy one is the same object
+    expect(camerasOf(next)[0]).toBe(camerasOf(doc)[0]); // and so is everything else
   });
 
   it('produces a patch pair that round-trips exactly', () => {
     const doc = projectWith(createLayer('text', 0));
     const tx = transact(doc, (d) => {
       d.duration = 77;
-      d.layers.push(createLayer('shape', 2));
+      addNode(d, createLayer('shape', 2));
     });
 
     expect(applyPatches(doc, tx.forward)).toEqual(tx.next);
@@ -80,8 +84,9 @@ describe('transact', () => {
     for (let i = 0; i < 25; i++) {
       const tx = transact(doc, (d) => {
         d.duration = i;
-        if (i % 3 === 0) d.layers.push(createLayer('marker', i));
-        if (i % 7 === 0 && d.layers.length > 1) d.layers.pop();
+        if (i % 3 === 0) addNode(d, createLayer('marker', i));
+        const layers = layersOf(d);
+        if (i % 7 === 0 && layers.length > 1) delete d.nodes[layers[layers.length - 1]!.id];
       });
       undos.push(tx.backward);
       doc = tx.next;
@@ -120,15 +125,17 @@ describe('transact', () => {
     expect(() => {
       (next as { duration: number }).duration = 99;
     }).toThrow();
-    expect(() => next.layers.push(createLayer('marker', 0))).toThrow();
+    expect(() => {
+      next.nodes.injected = createLayer('marker', 0);
+    }).toThrow();
   });
 
   it('tolerates a concise arrow body that returns a value incidentally', () => {
-    // `(d) => d.layers.push(x)` returns the new array length. That is the most
-    // natural way to write a one-line edit, so it must not be an error.
+    // `(d) => d.story.push(x)` returns the new array length. That is the most natural way
+    // to write a one-line edit, so it must not be an error.
     const doc = projectWith();
-    const tx = transact(doc, (d) => d.layers.push(createLayer('marker', 0)) as unknown as void);
-    expect(tx.next.layers).toHaveLength(1);
+    const tx = transact(doc, (d) => d.story.push({ id: 'b', t: 0, d: 1, nodes: [] }) as unknown as void);
+    expect(tx.next.story).toHaveLength(1);
     expect(applyPatches(tx.next, tx.backward)).toEqual(doc);
   });
 
@@ -146,11 +153,11 @@ describe('transact', () => {
     const regions = createLayer('regions', 0) as RegionsLayer;
     const doc = projectWith(regions);
     const tx = transact(doc, (d) => {
-      const l = d.layers[0] as RegionsLayer;
+      const l = layersOf(d)[0] as RegionsLayer;
       l.values = { Kerala: 1 };
       l.tour.customOrder.push('Kerala');
     });
-    expect((tx.next.layers[0] as RegionsLayer).values).toEqual({ Kerala: 1 });
+    expect((layerAt(tx.next, 0) as RegionsLayer).values).toEqual({ Kerala: 1 });
     expect(applyPatches(tx.next, tx.backward)).toEqual(doc);
   });
 });

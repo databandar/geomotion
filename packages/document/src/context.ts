@@ -1,6 +1,7 @@
 import type { LngLat } from '@geomotion/core';
 import type { Project } from './types.ts';
 import { blockAt } from './story.ts';
+import { camerasOf } from './nodes.ts';
 
 /**
  * Map contexts — a lightweight stand-in for v2 §04's scene-owned map context.
@@ -113,7 +114,7 @@ export function resolveMapContext(project: Project, time: number): ResolvedConte
  * channel every shot has a key in.
  */
 function hasKeyInBlock(project: Project, t: number, d: number): boolean {
-  return project.cameras.some((cam) => {
+  return camerasOf(project).some((cam) => {
     const center = cam.tracks.center;
     return center.kind === 'keyframed' && center.keys.some((k) => k.t >= t && k.t < t + d);
   });

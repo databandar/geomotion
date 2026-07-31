@@ -296,6 +296,38 @@ describe('mergeComposed', () => {
     expect(mergeComposed({}, composed()).layers).toHaveLength(2);
   });
 
+  it('reads a project that has been through the editor and saved', () => {
+    /*
+     * The editor writes a flat node store (document format 7), not a `layers` array. A
+     * merge that only understood the array would find no layers, conclude there was
+     * nothing to keep, and overwrite every hand edit while printing that it had merged —
+     * silent loss of exactly the work this function exists to protect.
+     */
+    const existing = {
+      format: 7,
+      nodes: {
+        cam: { id: 'cam', type: 'camera', parentId: null, order: 'V' },
+        gen1: { id: 'gen1', type: 'text', parentId: null, order: 'k' },
+        mine: { id: 'mine', type: 'marker', parentId: null, order: 's' },
+      },
+      story: [{ id: 'b1', kind: 'overview', nodes: ['gen1'], t: 0, d: 5 }],
+    };
+    const out = mergeComposed(existing, composed());
+    expect(out.layers.map((l) => l.id)).toEqual(['mine', 'gen1', 'gen2']);
+  });
+
+  it('keeps saved layers in the order the editor drew them', () => {
+    const existing = {
+      format: 7,
+      nodes: {
+        b: { id: 'b', type: 'text', parentId: null, order: 's' },
+        a: { id: 'a', type: 'text', parentId: null, order: 'k' },
+      },
+      story: [],
+    };
+    expect(mergeComposed(existing, composed()).layers.map((l) => l.id)).toEqual(['a', 'b', 'gen1', 'gen2']);
+  });
+
   it('survives a project written before story blocks existed', () => {
     // Every project composed before this milestone has layers and no story at all.
     const out = mergeComposed({ layers: [{ id: 'old' }] }, composed());

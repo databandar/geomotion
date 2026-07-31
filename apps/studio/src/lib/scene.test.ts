@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Layer, Project, RegionsLayer, TextLayer } from '@geomotion/document';
-import { createLayer, emptyProject } from '@geomotion/document';
+import { createLayer, layersOf, projectWith } from '@geomotion/document';
 import { clearRegionCache } from '@geomotion/entities';
 import { cameraAt, clearPathCache, evaluate, tourPhases } from '@geomotion/evaluator';
 import { demoProject, indiaTourProject } from './fixtures';
@@ -89,7 +89,7 @@ describe('evaluate — region tour phases', () => {
   }
 
   const project = indiaTourProject();
-  const regionsLayer = project.layers.find((l): l is RegionsLayer => l.type === 'regions')!;
+  const regionsLayer = layersOf(project).find((l): l is RegionsLayer => l.type === 'regions')!;
 
   // The stop count is data-dependent (it is the joined, ordered region list), so
   // derive it from an evaluation rather than hardcoding a number that drifts
@@ -173,7 +173,7 @@ describe('evaluate — text and clouds', () => {
 
   it('reveals a typewriter layer progressively and never past the full string', () => {
     const text = createLayer('text', 0, { anim: 'typewriter', fade: 0.5, out: 10 } as Partial<Layer>) as TextLayer;
-    const project: Project = { ...emptyProject(), duration: 10, layers: [text] };
+    const project: Project = projectWith([text], { duration: 10 });
     const early = textAt(project, 0.2).reveal;
     const later = textAt(project, 1.4).reveal;
     expect(early).toBeLessThan(later);
@@ -187,7 +187,7 @@ describe('evaluate — text and clouds', () => {
       dissipateStart: 1,
       dissipateEnd: 4,
     } as Partial<Layer>);
-    const project: Project = { ...emptyProject(), duration: 10, layers: [clouds] };
+    const project: Project = projectWith([clouds], { duration: 10 });
     expect(cloudsAt(project, 0.5).clear).toBe(0);
     expect(cloudsAt(project, 5).clear).toBe(1);
     let prev = -1;
@@ -200,7 +200,7 @@ describe('evaluate — text and clouds', () => {
 
   it('drifts clouds from absolute time so a scrub lands on the same frame', () => {
     const clouds = createLayer('clouds', 0, { out: 10 } as Partial<Layer>);
-    const project: Project = { ...emptyProject(), duration: 10, layers: [clouds] };
+    const project: Project = projectWith([clouds], { duration: 10 });
     expect(cloudsAt(project, 3.5).drift).toBe(3.5);
     expect(cloudsAt(project, 3.5).drift).toBe(cloudsAt(project, 3.5).drift);
   });

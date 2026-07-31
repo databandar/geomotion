@@ -7,6 +7,34 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The document model — M2.2, the flat node store (§04 Decision 01)
+
+- **The scene becomes one flat store.** `project.layers` and `project.cameras` are gone;
+  a project holds `nodes: Record<NodeId, Node>`, and every node carries `parentId` and a
+  fractional-index `order`. Layers and cameras sit in it side by side, which is what §04
+  means by "cameras are siblings of content: observers, not containers".
+  - Every ordered list is **derived**, never stored: `layersOf` (draw order, exactly what
+    the array used to hold), `camerasOf`, `liveCamera`, `childrenOf`, `nodeAt`. Views are
+    memoised per document version, which they have to be — a selector that rebuilds its
+    array on every render is an infinite loop under zustand's snapshot check.
+  - Writes go through `addNode` / `removeNode` / `moveNodeBy` / `setNodeParent`, the only
+    code that computes an order key. Deleting takes the subtree with it (§3.2).
+  - **A reorder is now one patch to one field** instead of two patches to two array slots.
+    That is the whole point: it is what turns multiplayer into a per-property merge rather
+    than a tree merge, and it is what makes groups, scenes and nested compositions storable
+    at all — they are "a node with a parent", and an array had nowhere to put one.
+  - `order` is a string, not a number, because between any two strings there is always
+    another. A thousand drops onto the same boundary never need a renumbering pass.
+- **Format 6 → 7 migration**, with a frozen `format-7.geomotion.json` fixture. Relative
+  layer order is preserved, so the picture is unchanged; a node with a missing or colliding
+  id gets a fresh one rather than being silently dropped by the record.
+- **Nothing moved on screen.** All ten golden frames are bit-identical, and the editor was
+  driven in a real browser through add, rename, reorder, duplicate, undo and a camera
+  keyframe with no page errors.
+- **Fixed on the way:** selecting a camera keyframe put React into an infinite update loop
+  (`Maximum update depth exceeded`) — a defect older than this change, confirmed against
+  the previous commit. The selector derived a fresh shot row on every render.
+
 ### The document model — M2.1, the camera is a node (§04, §09)
 
 - **The camera becomes a node.** A project now holds `cameras: CameraNode[]` — the

@@ -1,5 +1,7 @@
 import { createId } from '@geomotion/core';
 import { createCamera } from './camera.ts';
+import { FIRST_ORDER, orderBetween } from './order.ts';
+import { addNode, type DocNode } from './nodes.ts';
 import { CURRENT_FORMAT, runMigrations } from './migrations/index.ts';
 import { coerceTrack, isTrack, keyframedTrack, staticTrack } from './track.ts';
 
@@ -79,6 +81,10 @@ export function defaultTour(): RegionTour {
 export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = {}): Layer {
   const base = {
     id: createId(),
+    // A root, and last in its list until `addNode` places it among its siblings — a
+    // constructor cannot know its siblings, so it must not guess an order key (nodes.ts).
+    parentId: null,
+    order: FIRST_ORDER,
     visible: true,
     in: Math.max(0, at),
     out: Math.max(0, at) + 6,
@@ -229,6 +235,7 @@ export function createLayer(type: LayerType, at: number, opts: Partial<Layer> = 
 }
 
 export function emptyProject(): Project {
+  const camera = createCamera();
   return {
     format: CURRENT_FORMAT,
     name: 'Untitled animation',
@@ -240,11 +247,30 @@ export function emptyProject(): Project {
     terrain: false,
     terrainExaggeration: 1.4,
     background: '#0d1117',
-    cameras: [createCamera()],
-    layers: [],
+    nodes: { [camera.id]: camera },
     contexts: [],
     story: [],
   };
+}
+
+/**
+ * A project holding `nodes`, in the order given.
+ *
+ * Building a store by hand means knowing how order keys are handed out, and that knowledge
+ * belongs in one place (nodes.ts). Every construction path — the bundled example projects,
+ * an importer, a test — wants the same thing: "these nodes, in this order, in a project".
+ *
+ * The camera `emptyProject` starts with stands unless `nodes` brings one of its own. A
+ * composition with no camera renders from the evaluator's default view, so silently
+ * dropping the default would change what an existing caller sees; supplying a camera is
+ * how you say you meant to.
+ */
+export function projectWith(nodes: DocNode[], init: Omit<Partial<Project>, 'nodes'> = {}): Project {
+  const base = emptyProject();
+  const keep = nodes.some((n) => n.type === 'camera') ? {} : base.nodes;
+  const project: Project = { ...base, ...init, nodes: { ...keep } };
+  for (const node of nodes) addNode(project, node);
+  return project;
 }
 
 /**
@@ -256,6 +282,13 @@ export function emptyProject(): Project {
 interface LegacyRegions {
   tour?: boolean | RegionTour;
   order?: RegionOrder;
+  /**
+   * Where the flat `order` goes when the node store claims that name (migration 6→7).
+   *
+   * Both are read, newest first: a document that came through the 6→7 step has
+   * `tourOrder`, and one hand-written against the older schema has `order`.
+   */
+  tourOrder?: RegionOrder;
   customOrder?: string[];
   dwell?: number;
   stopDurations?: number[];
@@ -285,6 +318,12 @@ interface LegacyRegions {
  * set intact — a migration that quietly resets someone's pacing to the defaults is
  * data loss that looks like a preference change.
  */
+/** The region orderings this format knows. A value that is not one of them means nothing. */
+const REGION_ORDERS: RegionOrder[] = ['geojson', 'valueDesc', 'valueAsc', 'alpha', 'custom'];
+
+const regionOrder = (value: unknown): RegionOrder | undefined =>
+  REGION_ORDERS.includes(value as RegionOrder) ? (value as RegionOrder) : undefined;
+
 function migrateTour(legacy: LegacyRegions, current: RegionTour): RegionTour {
   // Already nested: fill any field a newer build added and leave the rest alone.
   if (legacy.tour && typeof legacy.tour === 'object') return { ...defaultTour(), ...legacy.tour };
@@ -298,7 +337,11 @@ function migrateTour(legacy: LegacyRegions, current: RegionTour): RegionTour {
     // `tour` was the on/off flag; absent means an even older document, and those
     // all toured — that was the only thing the layer did.
     enabled: legacy.tour === undefined ? d.enabled : legacy.tour === true,
-    order: pick(legacy.order, d.order),
+    // Validated rather than taken on trust, because `order` is now also the node store's
+    // field name: a document that never set a region ordering arrives here with a
+    // fractional index in that slot, and writing `V` into the tour would leave the layer
+    // sorting by a rule that does not exist.
+    order: pick(regionOrder(legacy.tourOrder) ?? regionOrder(legacy.order), d.order),
     customOrder: pick(legacy.customOrder, d.customOrder),
     dwell: pick(legacy.dwell, d.dwell),
     stopDurations: pick(legacy.stopDurations, d.stopDurations),
@@ -342,19 +385,70 @@ export function migrate(input: unknown): Project {
       p.audio.cues = cues.map((c) => (c.id ? c : { ...c, id: createId() }));
     }
   }
-  p.layers = (p.layers ?? []).map((l) => {
-    const defaults = createLayer(l.type, l.in ?? 0);
-    const filled = coerceToDefaults({ ...defaults, ...l }, defaults) as Layer;
-    if (filled.type === 'route') {
-      filled.marker = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).marker, ...filled.marker };
-      filled.follow = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).follow, ...filled.follow };
-    }
-    if (filled.type === 'regions') filled.tour = migrateTour(l as unknown as LegacyRegions, filled.tour);
-    return filled;
-  });
-  p.cameras = (Array.isArray(p.cameras) ? p.cameras : []).map(fillCamera);
+  p.nodes = fillNodes(p.nodes);
   return p;
 }
+
+/**
+ * Repair the node store: every entry filled against its type's defaults, and every entry
+ * carrying the two fields the store itself needs.
+ *
+ * The record's **key** is taken as the node's identity, not the `id` field inside it. They
+ * can only disagree in a hand-edited file, and if they do, the key is what every lookup in
+ * the app will use — a node whose `id` says otherwise is a node that cannot be selected,
+ * deleted or referenced by a story block.
+ *
+ * A node missing an order key is placed after everything that has one, in the order the
+ * record enumerates. That is arbitrary, and it is the honest answer: the file did not say.
+ */
+function fillNodes(loaded: unknown): Project['nodes'] {
+  if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return {};
+  const out: Project['nodes'] = {};
+  let last: string | null = null;
+
+  // Existing keys first, so the ones the file *did* state keep their relative positions and
+  // anything unordered lands after them rather than in the middle.
+  for (const node of Object.values(loaded as Record<string, { order?: unknown }>)) {
+    const order = typeof node?.order === 'string' ? node.order : null;
+    if (order !== null && (last === null || order > last)) last = order;
+  }
+
+  for (const [key, value] of Object.entries(loaded as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const raw = value as Record<string, unknown> & { type?: unknown };
+
+    const filled = raw.type === 'camera' ? fillCamera(raw) : fillLayer(raw);
+    filled.id = key;
+    filled.parentId = typeof raw.parentId === 'string' ? raw.parentId : null;
+    if (typeof raw.order === 'string' && raw.order.length > 0) {
+      filled.order = raw.order;
+    } else {
+      last = orderBetween(last, null);
+      filled.order = last;
+    }
+    out[key] = filled;
+  }
+  return out;
+}
+
+/** Fill one layer against its type's defaults, including the pre-M9 flat tour fields. */
+function fillLayer(raw: Record<string, unknown>): Layer {
+  const type = (raw.type ?? 'text') as LayerType;
+  const at = typeof raw.in === 'number' ? raw.in : 0;
+  // An unknown `type` has no defaults to fill from, so it becomes a text layer rather than
+  // an object every consumer's switch falls through. Reachable only from a file this
+  // project did not write.
+  const defaults = createLayer(TYPES.includes(type) ? type : 'text', at);
+  const filled = coerceToDefaults({ ...defaults, ...raw }, defaults) as Layer;
+  if (filled.type === 'route') {
+    filled.marker = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).marker, ...filled.marker };
+    filled.follow = { ...(createLayer('route', 0) as Extract<Layer, { type: 'route' }>).follow, ...filled.follow };
+  }
+  if (filled.type === 'regions') filled.tour = migrateTour(raw as unknown as LegacyRegions, filled.tour);
+  return filled;
+}
+
+const TYPES: LayerType[] = ['route', 'marker', 'text', 'shape', 'regions', 'clouds', 'image'];
 
 /**
  * Repair a loaded camera node against the defaults.
@@ -373,6 +467,10 @@ function fillCamera(loaded: unknown): CameraNode {
     id: typeof c.id === 'string' ? c.id : defaults.id,
     type: 'camera',
     name: typeof c.name === 'string' ? c.name : defaults.name,
+    // Both are re-derived by `fillNodes`, which owns the store's shape; the defaults here
+    // only keep this function total for a caller that has no store to place it in.
+    parentId: typeof c.parentId === 'string' ? c.parentId : null,
+    order: typeof c.order === 'string' ? c.order : FIRST_ORDER,
     tracks: {
       center: coerceTrack(tracks.center, defaults.tracks.center),
       zoom: coerceTrack(tracks.zoom, defaults.tracks.zoom),

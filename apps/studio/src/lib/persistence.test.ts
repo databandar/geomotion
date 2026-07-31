@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Project } from '@geomotion/document';
-import { createLayer, emptyProject, migrate } from '@geomotion/document';
+import { createLayer, emptyProject, layersOf, migrate, projectWith } from '@geomotion/document';
 import type { MarkerLayer } from '@geomotion/document';
 import { demoProject, indiaTourProject } from './fixtures';
 import { loadLocal, saveLocal } from './persistence';
@@ -71,10 +71,9 @@ describe('save/load round trip', () => {
      * migration could most easily mangle — and the fixtures carry none, because none of
      * the bundled projects use one yet.
      */
-    const project = emptyProject();
     const marker = createLayer('marker', 0) as MarkerLayer;
     marker.size = { kind: 'expr', source: '8 + 2 * sin(t * 3)', inputs: { pop: 'geo:in-wb.population' } };
-    project.layers.push(marker);
+    const project = projectWith([marker]);
 
     const reopened = migrate(JSON.parse(JSON.stringify(project)));
     expect(reopened).toEqual(project);
@@ -105,7 +104,7 @@ describe('localStorage persistence', () => {
     localStorage.setItem('geomotion:project', JSON.stringify({ layers: [{ type: 'text', id: 'x' }] }));
     const loaded = loadLocal()!;
     expect(loaded.fps).toBeGreaterThan(0);
-    expect(loaded.layers[0]!.visible).toBe(true);
+    expect(layersOf(loaded)[0]!.visible).toBe(true);
   });
 
   it('reports a storage failure rather than throwing or staying quiet', () => {

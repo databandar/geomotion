@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { emptyProject, shotsOf, type MarkerLayer } from '@geomotion/document';
+import { camerasOf, emptyProject, layersOf, liveCamera, shotsOf, type MarkerLayer } from '@geomotion/document';
 import { useStore } from './store';
 
 /**
@@ -17,7 +17,7 @@ import { useStore } from './store';
  */
 
 const s = () => useStore.getState();
-const layers = () => s().project.layers;
+const layers = () => layersOf(s().project);
 const first = () => layers()[0] as MarkerLayer;
 
 beforeEach(() => {
@@ -216,7 +216,7 @@ describe('expression tracks', () => {
     s().addLayer('marker');
     const id = first().id;
     s().patch((p) => {
-      (p.layers[0] as MarkerLayer).size = {
+      (layersOf(p)[0] as MarkerLayer).size = {
         kind: 'expr',
         source: 'pop / 1000000',
         inputs: { pop: 'geo:in-wb.population' },
@@ -271,11 +271,12 @@ describe('framing a region into the camera', () => {
   const shot = { center: [75.09, 33.71] as [number, number], zoom: 6.85, bearing: 0, pitch: 30 };
 
   it('writes the framing it was handed', () => {
-    s().replaceProject({ ...emptyProject(), duration: 30, cameras: [] });
+    // No camera at all: the first keyframe is what calls one into being.
+    s().replaceProject({ ...emptyProject(), duration: 30, nodes: {} });
     useStore.getState().scrub(8);
     useStore.getState().addKeyframe(shot);
 
-    const cam = s().project.cameras[0]!;
+    const cam = liveCamera(s().project)!;
     const k = shotsOf(cam).find((x) => Math.abs(x.t - 8) < 0.02);
     expect(k).toMatchObject({ zoom: 6.85, pitch: 30 });
     expect(k?.center[0]).toBeCloseTo(75.09, 5);
@@ -284,22 +285,24 @@ describe('framing a region into the camera', () => {
   it('reframes the key already at the playhead instead of stacking a second', () => {
     // Double-clicking two regions in a row is ordinary; each should replace the shot, not
     // leave a pile of keys at one instant where whichever sorts first silently wins.
-    s().replaceProject({ ...emptyProject(), duration: 30, cameras: [] });
+    // No camera at all: the first keyframe is what calls one into being.
+    s().replaceProject({ ...emptyProject(), duration: 30, nodes: {} });
     useStore.getState().addKeyframe(shot);
     useStore.getState().addKeyframe({ ...shot, zoom: 4 });
 
-    expect(shotsOf(s().project.cameras[0]!)).toHaveLength(1);
-    expect(shotsOf(s().project.cameras[0]!)[0]?.zoom).toBe(4);
+    expect(shotsOf(liveCamera(s().project)!)).toHaveLength(1);
+    expect(shotsOf(liveCamera(s().project)!)[0]?.zoom).toBe(4);
   });
 
   it('is undoable, like any other edit', () => {
     // An AI or a gesture writes ordinary document content; nothing about it is special.
     // Undoing takes the whole camera node away again — the keyframe called it into being.
-    s().replaceProject({ ...emptyProject(), duration: 30, cameras: [] });
+    // No camera at all: the first keyframe is what calls one into being.
+    s().replaceProject({ ...emptyProject(), duration: 30, nodes: {} });
     useStore.getState().addKeyframe(shot);
-    expect(shotsOf(s().project.cameras[0]!)).toHaveLength(1);
+    expect(shotsOf(liveCamera(s().project)!)).toHaveLength(1);
     useStore.getState().undo();
-    expect(s().project.cameras).toHaveLength(0);
+    expect(camerasOf(s().project)).toHaveLength(0);
   });
 });
 
