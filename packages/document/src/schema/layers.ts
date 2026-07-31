@@ -93,7 +93,7 @@ const TIMING: PropertyMeta[] = [
   // Edited from the layer panel's eye, which is where people look for it.
   { prop: 'visible', label: 'Visible', custom: true, row: { kind: 'toggle' } },
   { prop: 'name', label: 'Name', custom: true, row: { kind: 'text' } },
-  { prop: 'locked', label: 'Locked', custom: true, row: { kind: 'toggle' } },
+  { prop: 'locked', label: 'Locked', custom: true, optional: true, row: { kind: 'toggle' } },
   { prop: 'id', label: 'Id', custom: true, row: { kind: 'text' } },
   { prop: 'type', label: 'Type', custom: true, row: { kind: 'text' } },
   { prop: 'parentId', label: 'Parent', custom: true, row: { kind: 'text' } },

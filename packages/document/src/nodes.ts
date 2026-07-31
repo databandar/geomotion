@@ -22,6 +22,7 @@
 import { current, isDraft, original } from 'immer';
 import { createId } from '@geomotion/core';
 import { compareOrder, orderBetween } from './order.ts';
+import type { MapContextNode } from './context.ts';
 import type { CameraNode, GroupNode, Layer, Project } from './types.ts';
 
 export type NodeId = string;
@@ -33,7 +34,7 @@ export type NodeId = string;
  * "a `type` string plus the fields that type needs". Groups and scenes join this union
  * without any existing member changing.
  */
-export type DocNode = Layer | CameraNode | GroupNode;
+export type DocNode = Layer | CameraNode | GroupNode | MapContextNode;
 
 /** The store itself. A plain record, so it serialises and structurally shares as it stands. */
 export type NodeStore = Record<NodeId, DocNode>;
@@ -52,8 +53,17 @@ export function isGroupNode(node: DocNode): node is GroupNode {
   return node.type === 'group';
 }
 
+export function isMapContextNode(node: DocNode): node is MapContextNode {
+  return node.type === 'mapContext';
+}
+
+/** Anything that holds other nodes. Groups and map contexts, so far. */
+export function isContainerNode(node: DocNode): node is GroupNode | MapContextNode {
+  return isGroupNode(node) || isMapContextNode(node);
+}
+
 export function isLayerNode(node: DocNode): node is Layer {
-  return !isCameraNode(node) && !isGroupNode(node);
+  return !isCameraNode(node) && !isContainerNode(node);
 }
 
 /** Whether a node takes part in draw order — everything except the cameras. */
@@ -85,6 +95,9 @@ function sortedIn(nodes: NodeStore): DocNode[] {
 const allCache = new WeakMap<NodeStore, DocNode[]>();
 const layerCache = new WeakMap<NodeStore, Layer[]>();
 const cameraCache = new WeakMap<NodeStore, CameraNode[]>();
+const groupCache = new WeakMap<NodeStore, GroupNode[]>();
+const contextCache = new WeakMap<NodeStore, MapContextNode[]>();
+const containerCache = new WeakMap<NodeStore, (GroupNode | MapContextNode)[]>();
 
 function memo<T>(store: WeakMap<NodeStore, T>, nodes: NodeStore, build: () => T): T {
   /*
@@ -143,7 +156,7 @@ function walkLayers(nodes: NodeStore): Layer[] {
       // is drawn once, at the first place the walk found it.
       if (seen.has(node.id)) continue;
       seen.add(node.id);
-      if (isGroupNode(node)) descend(node.id);
+      if (isContainerNode(node)) descend(node.id);
       else if (isLayerNode(node)) out.push(node);
     }
   };
@@ -176,9 +189,26 @@ function childIndex(nodes: NodeStore): Map<NodeId | null, DocNode[]> {
   return byParent;
 }
 
-/** The groups, in document order. */
+/**
+ * The groups, in document order.
+ *
+ * Memoised like every other ordered view, and for the same two reasons: the evaluator asks
+ * once a frame, and a React selector that rebuilds its array every render is an infinite
+ * render loop under zustand's snapshot check. Every view here is cached — a view that is not
+ * is a trap for whoever selects with it next, which has now happened three times.
+ */
 export function groupsOf(project: Project): GroupNode[] {
-  return sortedIn(project.nodes).filter(isGroupNode);
+  return memo(groupCache, project.nodes, () => sortedIn(project.nodes).filter(isGroupNode));
+}
+
+/** The map contexts, in document order. */
+export function mapContextsOf(project: Project): MapContextNode[] {
+  return memo(contextCache, project.nodes, () => sortedIn(project.nodes).filter(isMapContextNode));
+}
+
+/** Every container, in document order — what the alpha chain walks. */
+export function containersOf(project: Project): (GroupNode | MapContextNode)[] {
+  return memo(containerCache, project.nodes, () => sortedIn(project.nodes).filter(isContainerNode));
 }
 
 /**

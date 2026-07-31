@@ -5,6 +5,10 @@ import {
   ancestorsOf,
   camerasOf,
   childrenOf,
+  containersOf,
+  groupsOf,
+  mapContextsOf,
+  nodesOf,
   descendantsOf,
   duplicateNode,
   isGroupNode,
@@ -182,6 +186,17 @@ describe('the ordered views', () => {
     const next = transact(p, (d) => addNode(d, createLayer('marker', 0))).next;
     expect(layersOf(next)).not.toBe(layersOf(p));
     expect(layersOf(next)).toHaveLength(2);
+  });
+
+  it('are all stable, so any of them can be used as a selector', () => {
+    /*
+     * Enumerated rather than spot-checked. Three times now a view has been added uncached and
+     * the trap sprung on whoever first selected with it — the symptom is not a slow render but
+     * "Maximum update depth exceeded" and an editor that stops repainting.
+     */
+    const p = projectWith('route', 'marker');
+    const views = [nodesOf, layersOf, camerasOf, groupsOf, mapContextsOf, containersOf];
+    for (const view of views) expect(view(p), view.name).toBe(view(p));
   });
 
   it('read a draft as it stands now, not as it stood earlier in the recipe', () => {

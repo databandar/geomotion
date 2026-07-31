@@ -7,6 +7,39 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The document model — M2.6, the map context becomes a node (§04)
+
+- **A map context is a node, and things can belong to it.** `project.contexts[]` is gone; a
+  context lives in the flat store with the layers, groups and cameras, and the layers
+  parented to it are the ones it draws. That is §04's "world-space descendants project
+  through it", with one map: a context that is not live has no viewport for its children.
+  - **Story blocks remain the structural unit.** Which context is live is still decided by
+    the block under the playhead, and a block still references a context by id — the reason
+    the old shape was a table keyed by id rather than an inline copy. `Scene` is deliberately
+    *not* introduced; a future one would wrap story blocks rather than replace them, needing
+    one optional field on a block and no migration.
+  - Membership replaces maintaining a list of layer ids by hand. `hidden` still works, and
+    says the opposite thing: membership is what a stretch is *made of*, `hidden` is what an
+    otherwise-complete composition leaves out.
+  - A context nobody names is never live, so its subtree never draws — stated, and shown on
+    the panel row rather than left to be discovered.
+- **Its inspector is generated** from the registry, with no hand-written panel — the first
+  real payoff of the node-type registry. The basemap row is also the first to name an
+  **options source** rather than a literal list, because basemap ids live in
+  `@geomotion/map` and the document package may not depend on it.
+- **`optional` is now part of property metadata.** A map context's settings are absent on
+  purpose — absent *means* "the project's own" — so the inspector offers "use the project's"
+  and clearing a field removes it rather than writing a blank.
+- Contexts are picked per beat in the storyboard, and by three commands (`context.add`,
+  `context.assign`, `context.clear`). Nesting is storable today and draws nothing: that is
+  the seam an inset (§07) will use.
+- **Format 7 → 8** with a frozen fixture. Contexts append after the layers, so no draw order
+  moves; golden frames unchanged.
+- **Fixed on the way:** three of the store's ordered views were uncached, and the third one
+  used as a React selector took the editor into "Maximum update depth exceeded". Every
+  ordered view is memoised now, with a test that enumerates them so the next one cannot
+  repeat it.
+
 ### The editor — M2.5, commands and ⌘K (§02, §11, §13)
 
 - **⌘K reaches everything.** A command palette over every action the editor has: type a few

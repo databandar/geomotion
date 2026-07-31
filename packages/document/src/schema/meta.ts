@@ -52,7 +52,16 @@ export type PropertyRow =
   | { kind: 'track'; min: number; max: number; step?: number; precision?: number; unit?: string }
   | { kind: 'color' }
   | { kind: 'toggle' }
-  | { kind: 'select'; options: readonly (string | { value: string; label: string })[] }
+  /**
+   * A choice from a fixed list, or from one the app supplies.
+   *
+   * `optionsFrom` exists because some lists do not belong to this package: basemap ids live
+   * in `@geomotion/map` and colour ramps in `core`, and the dependency law (§2) points the
+   * other way. The metadata names the source; the app resolves it. That keeps the
+   * description here complete without dragging the registry up the graph.
+   */
+  | { kind: 'select'; options: readonly (string | { value: string; label: string })[]; optionsFrom?: undefined }
+  | { kind: 'select'; optionsFrom: string; options?: undefined }
   | { kind: 'text'; multiline?: boolean; mono?: boolean; placeholder?: string };
 
 export interface PropertyMeta {
@@ -64,6 +73,16 @@ export interface PropertyMeta {
   section?: string;
   /** Hover help. Where a property has a reason to exist, this is where it is written down. */
   help?: string;
+  /**
+   * Absent is a meaning, not a gap.
+   *
+   * A map context's `basemap` left unset means "the project's own", which is why a fresh one
+   * carries none of its settings. Saying so here is what lets the coverage test keep its
+   * grip — a described property that is missing from a fresh node is otherwise
+   * indistinguishable from one that was renamed — and what lets the generated inspector offer
+   * "use the project's" rather than an empty control.
+   */
+  optional?: boolean;
   /**
    * This property has a bespoke editor and the generated inspector must skip it.
    *

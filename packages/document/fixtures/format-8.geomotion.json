@@ -1,0 +1,188 @@
+{
+  "format": 8,
+  "name": "Format 1 — frozen",
+  "duration": 12,
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "basemap": "dark",
+  "terrain": false,
+  "terrainExaggeration": 1.4,
+  "background": "#0d1117",
+  "story": [
+    {
+      "id": "b1",
+      "t": 0,
+      "d": 6,
+      "say": "The whole country.",
+      "nodes": [
+        "m1"
+      ],
+      "context": "ctx-overview"
+    }
+  ],
+  "nodes": {
+    "an90d9hf": {
+      "id": "an90d9hf",
+      "type": "camera",
+      "name": "Camera",
+      "tracks": {
+        "center": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": [
+                139.7,
+                35.68
+              ],
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": [
+                -122.4,
+                37.77
+              ],
+              "easing": "easeInOutCubic"
+            }
+          ]
+        },
+        "zoom": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": 5,
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": 4,
+              "easing": "easeInOutCubic",
+              "dip": 1.5
+            }
+          ]
+        },
+        "bearing": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": 20,
+              "easing": "easeInOutCubic"
+            }
+          ]
+        },
+        "pitch": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": 30,
+              "easing": "easeInOutCubic"
+            }
+          ]
+        }
+      },
+      "behaviours": {},
+      "parentId": null,
+      "order": "V"
+    },
+    "m1": {
+      "id": "m1",
+      "visible": true,
+      "in": 0,
+      "out": 12,
+      "fade": 0.5,
+      "type": "marker",
+      "name": "Tokyo",
+      "coord": [
+        139.7,
+        35.68
+      ],
+      "color": "#ffbd2e",
+      "size": {
+        "kind": "static",
+        "value": 14
+      },
+      "label": "Tokyo",
+      "labelSize": 16,
+      "labelColor": "#ffffff",
+      "labelOffset": 16,
+      "halo": true,
+      "behaviours": {
+        "scale": [
+          {
+            "id": "xevczzx0",
+            "type": "pop",
+            "enabled": true
+          }
+        ],
+        "ring": [
+          {
+            "id": "chp3stgj",
+            "type": "pulse",
+            "enabled": false
+          }
+        ]
+      },
+      "parentId": null,
+      "order": "k"
+    },
+    "t1": {
+      "id": "t1",
+      "visible": true,
+      "in": 0,
+      "out": 6,
+      "fade": 0.5,
+      "type": "text",
+      "name": "Title",
+      "text": "Format one",
+      "x": 0.5,
+      "y": 0.16,
+      "size": 44,
+      "color": "#ffffff",
+      "weight": 700,
+      "align": "center",
+      "background": false,
+      "backgroundColor": "#000000aa",
+      "letterSpacing": 0,
+      "anim": "slideUp",
+      "parentId": null,
+      "order": "s"
+    },
+    "ctx-overview": {
+      "id": "ctx-overview",
+      "name": "Overview",
+      "basemap": "satellite-labels",
+      "terrain": true,
+      "hidden": [
+        "t1"
+      ],
+      "type": "mapContext",
+      "parentId": null,
+      "order": "w",
+      "visible": true,
+      "behaviours": {}
+    }
+  }
+}

@@ -8,6 +8,7 @@ import {
   createCamera,
   createGroup,
   createLayer,
+  createMapContext,
   descendantsOf,
   duplicateNode,
   isGroupNode,
@@ -169,6 +170,17 @@ interface State {
   moveLayer: (id: string, dir: -1 | 1) => void;
   /** Put the selected nodes in a new group, where the topmost of them sat. ⌘G. */
   groupSelection: () => void;
+  /**
+   * Add a map context, taking the selected layers into it.
+   *
+   * The same gesture as grouping, because that is what making a context out of a beat is:
+   * "these layers are what the map looks like here".
+   */
+  addMapContext: () => void;
+  /** Point a story block at a context, or at nothing — which is the project's own look. */
+  setBlockContext: (blockId: string, contextId: string | null) => void;
+  /** Remove an optional property, so it falls back to the project's own value. */
+  clearNodeProp: (id: string, prop: string) => void;
   /** Put a group's children back where the group was, and remove it. ⇧⌘G. */
   ungroup: (id: string) => void;
   /** Lock or unlock a layer. Locked layers refuse every other edit — see `editable`. */
@@ -608,6 +620,45 @@ export const useStore = create<State>((set, get) => ({
       for (const member of members) setNodeParent(p, member.id, group.id);
     });
     set({ selection: { kind: 'layer', id: group.id }, also: [] });
+  },
+
+  addMapContext: () => {
+    const { project, selection, also } = get();
+    const wanted = new Set(selection?.kind === 'layer' ? [selection.id, ...also] : []);
+    const primary = selection?.kind === 'layer' ? project.nodes[selection.id] : undefined;
+    const parentId = primary?.parentId ?? null;
+
+    // Same rule as grouping: only nodes already sharing a parent come along, so a keystroke
+    // that reads "put these together" never moves things across the tree.
+    const members = nodesOf(project).filter(
+      (n) => wanted.has(n.id) && (n.parentId ?? null) === parentId && !isEditLocked(project, n.id),
+    );
+    const context = createMapContext();
+    const anchor = members[members.length - 1];
+
+    get().patch((p) => {
+      addNode(p, context, { parentId, ...(anchor ? { after: anchor.id } : {}) });
+      for (const member of members) setNodeParent(p, member.id, context.id);
+    });
+    set({ selection: { kind: 'layer', id: context.id }, also: [] });
+  },
+
+  setBlockContext: (blockId, contextId) => {
+    get().patch((p) => {
+      const block = p.story.find((b) => b.id === blockId);
+      if (!block) return;
+      // Removed rather than set to empty, so a block that never had one and a block whose
+      // context was cleared serialise identically.
+      if (contextId) block.context = contextId;
+      else delete block.context;
+    });
+  },
+
+  clearNodeProp: (id, prop) => {
+    get().patch((p) => {
+      const node = editable(p, id) as Record<string, unknown> | undefined;
+      if (node) delete node[prop];
+    });
   },
 
   /**

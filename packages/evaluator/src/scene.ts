@@ -11,7 +11,7 @@ import type {
   TextRender,
 } from '@geomotion/renderer';
 import type { CameraNode, LngLat, Project, RegionsLayer, RouteLayer } from '@geomotion/document';
-import { groupsOf, layersOf, liveCamera, resolveMapContext } from '@geomotion/document';
+import { containersOf, layersOf, liveCamera, liveContext, resolveMapContext } from '@geomotion/document';
 import { clamp01, invLerp, lerp, lerpAngle, lerpLngLat } from '@geomotion/core';
 import { applyBehaviours, ease, evalTrack, trackSegment, type FactLookup } from '@geomotion/animation';
 import type { EasingName } from '@geomotion/document';
@@ -124,46 +124,61 @@ export function clearPathCache(id?: string) {
 /* --------------------------------------------------------------- lifecycle */
 
 /**
- * How much of each group's alpha reaches the nodes under it, at this instant.
+ * How much of each container's alpha reaches the nodes under it, at this instant.
  *
- * A group multiplies into every descendant (docs/features/groups.md): hiding one hides its
- * subtree, and a keyframed opacity fades a whole beat as one thing. The value is cumulative
- * — a group inside a dimmed group is dimmed twice, which is what "inherits from its parent"
- * means — so it is computed once per frame per group rather than walked per layer.
+ * Two kinds of container, one chain:
  *
- * `null` when the project has no groups, which is most of them: the layer loop then does
+ * - a **group** multiplies its opacity into every descendant, so a beat fades as one thing
+ *   (docs/features/groups.md);
+ * - a **map context** passes everything through while it is the map, and nothing when it is
+ *   not (docs/features/map-context-node.md). That is §04's "world-space descendants project
+ *   through it" with one map: a context that is not live has no viewport for its children to
+ *   project into. Which one is live is the story block's business, unchanged.
+ *
+ * Cumulative — a group inside a context is gated by both, which is what "inherits from its
+ * parent" means — so it is computed once per frame per container rather than walked per
+ * layer.
+ *
+ * `null` when the project has neither, which is most of them: the layer loop then does
  * exactly what it did before, and this allocates nothing.
  */
-function groupAlphas(project: Project, time: number, hidden: ReadonlySet<string>, facts: FactLookup): Map<string, number> | null {
-  const groups = groupsOf(project);
-  if (groups.length === 0) return null;
+function containerAlphas(
+  project: Project,
+  time: number,
+  hidden: ReadonlySet<string>,
+  facts: FactLookup,
+): Map<string, number> | null {
+  const containers = containersOf(project);
+  if (containers.length === 0) return null;
 
+  const live = liveContext(project, time)?.id;
   const out = new Map<string, number>();
-  const alphaOf = (group: (typeof groups)[number]): number => {
-    const cached = out.get(group.id);
+
+  const alphaOf = (node: (typeof containers)[number]): number => {
+    const cached = out.get(node.id);
     if (cached !== undefined) return cached;
     // Marked before recursing: a parent cycle in a hand-edited file would otherwise
     // recurse forever, and one frame of a wrong alpha beats a hung tab.
-    out.set(group.id, 0);
+    out.set(node.id, 0);
 
-    const own =
-      !group.visible || hidden.has(group.id)
-        ? 0
-        : // A group whose opacity expression is mid-edit contributes nothing rather than
-          // fully opaque: a subtree that vanishes reads as "the formula is broken", while
-          // one that renders normally hides the mistake.
-          clamp01(evalTrack(group.opacity, time, { facts, fallback: 0 }));
+    let own: number;
+    if (hidden.has(node.id) || !node.visible) own = 0;
+    else if (node.type === 'mapContext') own = node.id === live ? 1 : 0;
+    // A group whose opacity expression is mid-edit contributes nothing rather than fully
+    // opaque: a subtree that vanishes reads as "the formula is broken", while one that
+    // renders normally hides the mistake.
+    else own = clamp01(evalTrack(node.opacity, time, { facts, fallback: 0 }));
 
-    const parentId = group.parentId;
+    const parentId = node.parentId;
     const parent = parentId === null ? undefined : project.nodes[parentId];
-    const inherited = parent && parent.type === 'group' ? alphaOf(parent) : 1;
+    const inherited = parent && (parent.type === 'group' || parent.type === 'mapContext') ? alphaOf(parent) : 1;
 
     const total = own * inherited;
-    out.set(group.id, total);
+    out.set(node.id, total);
     return total;
   };
 
-  for (const group of groups) alphaOf(group);
+  for (const node of containers) alphaOf(node);
   return out;
 }
 
@@ -454,12 +469,12 @@ export function evaluate(project: Project, time: number): Scene {
    */
   const hidden = resolveMapContext(project, time).hidden;
 
-  /** What each group lets through this frame; `null` when the project has none. */
-  const groupAlpha = groupAlphas(project, time, hidden, facts);
+  /** What each container lets through this frame; `null` when the project has none. */
+  const containerAlpha = containerAlphas(project, time, hidden, facts);
 
   for (const layer of layersOf(project)) {
     const parentId = layer.parentId;
-    const inherited = groupAlpha === null || parentId === null ? 1 : (groupAlpha.get(parentId) ?? 1);
+    const inherited = containerAlpha === null || parentId === null ? 1 : (containerAlpha.get(parentId) ?? 1);
     const alpha = hidden.has(layer.id) ? 0 : layerAlpha(layer, time) * inherited;
 
     if (layer.type === 'route') {

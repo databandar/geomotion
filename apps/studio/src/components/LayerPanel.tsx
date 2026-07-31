@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { useRenderHost } from '../render/host';
-import { childrenOf, isGroupNode, liveCamera, shotsOf } from '@geomotion/document';
+import { childrenOf, isContainerNode, isMapContextNode, liveCamera, shotsOf } from '@geomotion/document';
 import type { DocNode, LayerType, Project } from '@geomotion/document';
 import Icon, { type IconName } from './Icon';
 import { Menu } from './ui';
@@ -36,7 +36,7 @@ function rowsOf(project: Project, collapsed: Record<string, boolean>, parentId: 
   for (const node of [...childrenOf(project, parentId)].reverse()) {
     if (node.type === 'camera') continue;
     out.push({ node, depth });
-    if (isGroupNode(node) && !collapsed[node.id]) out.push(...rowsOf(project, collapsed, node.id, depth + 1));
+    if (isContainerNode(node) && !collapsed[node.id]) out.push(...rowsOf(project, collapsed, node.id, depth + 1));
   }
   return out;
 }
@@ -60,6 +60,7 @@ export default function LayerPanel() {
   const addKeyframe = useStore((s) => s.addKeyframe);
   const setLayerLocked = useStore((s) => s.setLayerLocked);
   const groupSelection = useStore((s) => s.groupSelection);
+  const addMapContext = useStore((s) => s.addMapContext);
   const ungroup = useStore((s) => s.ungroup);
 
   const rows = rowsOf(project, collapsed);
@@ -108,12 +109,16 @@ export default function LayerPanel() {
         <Menu
           align="left"
           trigger={{ text: 'Add layer', icon: 'plus' }}
-          items={ADD.map((a) => ({
-            label: a.label,
-            icon: a.icon,
-            iconClass: 't-' + a.type,
-            onSelect: () => addLayer(a.type),
-          }))}
+          items={[
+            ...ADD.map((a) => ({
+              label: a.label,
+              icon: a.icon,
+              iconClass: 't-' + a.type,
+              onSelect: () => addLayer(a.type),
+            })),
+            // A container rather than a layer, so it sits apart from the seven.
+            { label: 'Map context', icon: 'regions' as const, onSelect: addMapContext },
+          ]}
         />
       </div>
 
@@ -148,7 +153,8 @@ export default function LayerPanel() {
         {rows.map(({ node, depth }) => {
           const sel = selectedIds.has(node.id);
           const locked = 'locked' in node && node.locked === true;
-          const group = isGroupNode(node);
+          const container = isContainerNode(node);
+          const context = isMapContextNode(node);
           const visible = 'visible' in node ? node.visible : true;
           /*
            * A row inside a hidden or locked group shows it: the child's own `visible` is
@@ -171,13 +177,13 @@ export default function LayerPanel() {
                 'layer-item' +
                 (sel ? ' sel' : '') +
                 (locked || inherited.locked ? ' locked' : '') +
-                (group ? ' group-row' : '') +
+                (container ? ' group-row' : '') +
                 (inherited.hidden || !visible ? ' dim' : '')
               }
               style={depth > 0 ? { paddingLeft: 8 + depth * 14 } : undefined}
               onClick={(e) => onRowClick(e, node.id)}
             >
-              {group ? (
+              {container ? (
                 <button
                   className={'icon-btn twist' + (collapsed[node.id] ? ' shut' : '')}
                   title={collapsed[node.id] ? 'Expand' : 'Collapse'}
@@ -203,10 +209,13 @@ export default function LayerPanel() {
                   you read *kinds* by colour without decoding seven glyphs. */}
               <span className={'row-dot t-' + node.type} />
               <span className={'glyph t-' + node.type}>
-                <Icon name={group ? 'folder' : (ADD.find((a) => a.type === node.type)?.icon ?? 'shape')} size={13} />
+                <Icon
+                  name={context ? 'regions' : container ? 'folder' : (ADD.find((a) => a.type === node.type)?.icon ?? 'shape')}
+                  size={13}
+                />
               </span>
               <span className="lname">{node.name}</span>
-              {group && (
+              {container && (
                 <>
                   <span className="count">{childrenOf(project, node.id).length}</span>
                   <button
@@ -246,7 +255,7 @@ export default function LayerPanel() {
                   items={[
                     { label: 'Move up', icon: 'arrow-up', onSelect: () => moveLayer(node.id, 1), disabled: locked },
                     { label: 'Move down', icon: 'arrow-down', onSelect: () => moveLayer(node.id, -1), disabled: locked },
-                    ...(group
+                    ...(container && !context
                       ? [{ label: 'Ungroup', icon: 'shape' as const, onSelect: () => ungroup(node.id), disabled: locked }]
                       : []),
                     // Duplicating a locked layer is allowed — it reads the layer and

@@ -8,14 +8,15 @@
  */
 import { registerNodeType } from './meta.ts';
 import { LAYER_TYPES } from './layers.ts';
-import { cameraType, groupType } from './containers.ts';
+import { cameraType, groupType, mapContextType } from './containers.ts';
 
 for (const def of Object.values(LAYER_TYPES)) registerNodeType(def);
 registerNodeType(groupType);
+registerNodeType(mapContextType);
 registerNodeType(cameraType);
 
 export { defaultTour, layerBase, LAYER_TYPES } from './layers.ts';
-export { createGroup, cameraType, groupType } from './containers.ts';
+export { createGroup, createMapContext, cameraType, groupType, mapContextType } from './containers.ts';
 export {
   createNode,
   nodeTypeDef,

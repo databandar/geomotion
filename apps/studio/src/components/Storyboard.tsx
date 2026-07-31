@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { blockAt, layersOf, storyInOrder } from '@geomotion/document';
+import { blockAt, contextsOf, layersOf, storyInOrder } from '@geomotion/document';
 
 /**
  * The storyboard — v2 §10, §13's Story workspace.
@@ -19,6 +19,8 @@ export default function Storyboard() {
   const time = useStore((s) => s.time);
   const scrub = useStore((s) => s.scrub);
   const layers = useStore((s) => layersOf(s.project));
+  const contexts = useStore((s) => contextsOf(s.project));
+  const setBlockContext = useStore((s) => s.setBlockContext);
 
   if (story.length === 0) {
     return (
@@ -44,29 +46,57 @@ export default function Storyboard() {
       </div>
 
       {storyInOrder(story).map((b, i) => (
-        <button
-          key={b.id}
-          type="button"
-          className={'story-card' + (here?.id === b.id ? ' now' : '')}
-          // Scrubbing to the block is what makes the card a way *into* the composition
-          // rather than a read-only summary.
-          onClick={() => scrub(b.t)}
-          title={`Jump to ${b.t.toFixed(1)}s`}
-        >
-          <span className="card-n">{i + 1}</span>
-          <span className="card-body">
-            <span className="card-say">{b.say ?? b.onScreen ?? <em>no line</em>}</span>
-            <span className="card-meta">
-              {b.t.toFixed(1)}s · {b.d.toFixed(1)}s
-              {b.kind ? ` · ${b.kind}` : ''}
-              {' · '}
-              {/* Counted against the project, so a block naming a deleted layer says so
-                  rather than reporting a number that is no longer true. */}
-              {b.nodes.filter((id) => layers.some((l) => l.id === id)).length} layer
-              {b.nodes.length === 1 ? '' : 's'}
+        <div key={b.id} className={'story-card' + (here?.id === b.id ? ' now' : '')}>
+          <button
+            type="button"
+            className="card-jump"
+            // Scrubbing to the block is what makes the card a way *into* the composition
+            // rather than a read-only summary.
+            onClick={() => scrub(b.t)}
+            title={`Jump to ${b.t.toFixed(1)}s`}
+          >
+            <span className="card-n">{i + 1}</span>
+            <span className="card-body">
+              <span className="card-say">{b.say ?? b.onScreen ?? <em>no line</em>}</span>
+              <span className="card-meta">
+                {b.t.toFixed(1)}s · {b.d.toFixed(1)}s
+                {b.kind ? ` · ${b.kind}` : ''}
+                {' · '}
+                {/* Counted against the project, so a block naming a deleted layer says so
+                    rather than reporting a number that is no longer true. */}
+                {b.nodes.filter((id) => layers.some((l) => l.id === id)).length} layer
+                {b.nodes.length === 1 ? '' : 's'}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+
+          {/*
+            * What the map looks like during this beat.
+            *
+            * The block is where this belongs: a context is a *look*, and when it applies is
+            * the story's business — which is the whole reason scenes are not a document
+            * concept here. Only shown when the project has a context to pick, so a
+            * composition that uses none carries no extra control.
+            */}
+          {contexts.length > 0 && (
+            <label className="card-context">
+              <span className="dim">Map</span>
+              <select
+                className="select"
+                value={b.context ?? ''}
+                aria-label={`Map context for beat ${i + 1}`}
+                onChange={(e) => setBlockContext(b.id, e.target.value || null)}
+              >
+                <option value="">Project default</option>
+                {contexts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
       ))}
     </div>
   );

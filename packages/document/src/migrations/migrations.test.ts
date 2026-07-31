@@ -9,6 +9,7 @@ import { CURRENT_FORMAT, formatOf, runMigrations } from './index.ts';
 import { migrate1to2 } from './1-to-2.ts';
 import { migrate2to3 } from './2-to-3.ts';
 import { migrate6to7 } from './6-to-7.ts';
+import { migrate7to8 } from './7-to-8.ts';
 
 /**
  * ENGINEERING_GUIDE §3.6.5: every format version keeps a frozen fixture forever, and
@@ -219,6 +220,52 @@ describe('migrate6to7', () => {
     // It runs against files this project did not write; a load that fails is a project
     // someone cannot open.
     expect(migrate6to7({ format: 6 }).nodes).toEqual({});
+  });
+});
+
+describe('migrate7to8', () => {
+  const doc = (contexts: unknown[], nodes: Record<string, unknown> = {}) => ({ format: 7, contexts, nodes });
+
+  it('puts each context in the store as a node', () => {
+    const out = migrate7to8(doc([{ id: 'c1', name: 'Overview', basemap: 'satellite' }]));
+    const node = (out.nodes as Record<string, Record<string, unknown>>).c1!;
+    expect(node.type).toBe('mapContext');
+    expect(node.basemap).toBe('satellite');
+    expect(node.parentId).toBeNull();
+    expect(node.visible).toBe(true);
+  });
+
+  it('keeps the id, because story blocks reference it', () => {
+    // The whole reason the old shape was a table keyed by id: the reference survives the
+    // container changing underneath it.
+    const out = migrate7to8({ format: 7, contexts: [{ id: 'c1' }], nodes: {}, story: [{ id: 'b', context: 'c1' }] });
+    expect(Object.keys(out.nodes as object)).toEqual(['c1']);
+    expect((out.story as { context: string }[])[0]?.context).toBe('c1');
+  });
+
+  it('appends after everything already in the store, so nothing moves in the draw order', () => {
+    const out = migrate7to8(doc([{ id: 'c1' }], { a: { id: 'a', type: 'text', order: 'k' } }));
+    const nodes = out.nodes as Record<string, { order: string }>;
+    expect(nodes.c1!.order > nodes.a!.order).toBe(true);
+  });
+
+  it('removes the array it replaced', () => {
+    expect(migrate7to8(doc([{ id: 'c1' }]))).not.toHaveProperty('contexts');
+  });
+
+  it('re-keys a context whose id already names a node, rather than replacing the node', () => {
+    // Replacing would delete a layer on load — the file still opens, so the loss looks like
+    // something the user did.
+    const out = migrate7to8(doc([{ id: 'a', name: 'Clash' }], { a: { id: 'a', type: 'text', order: 'k' } }));
+    const nodes = out.nodes as Record<string, { type: string }>;
+    expect(nodes.a!.type).toBe('text');
+    expect(Object.values(nodes).filter((n) => n.type === 'mapContext')).toHaveLength(1);
+  });
+
+  it('leaves a document with no contexts exactly as it found it', () => {
+    const before = { format: 7, nodes: { a: { id: 'a' } } };
+    expect(migrate7to8({ ...before, contexts: [] })).toEqual(before);
+    expect(migrate7to8({ ...before })).toEqual(before);
   });
 });
 

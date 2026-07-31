@@ -41,8 +41,9 @@ describe('Storyboard', () => {
     withStory([block('a', 0, 5, 'First'), block('b', 5, 5, 'Second')]);
     useStore.setState({ time: 7 });
     render(<Storyboard />);
-    expect(screen.getByText('Second').closest('button')).toHaveClass('now');
-    expect(screen.getByText('First').closest('button')).not.toHaveClass('now');
+    // The card is the container now that it holds a context picker beside the jump button.
+    expect(screen.getByText('Second').closest('.story-card')).toHaveClass('now');
+    expect(screen.getByText('First').closest('.story-card')).not.toHaveClass('now');
   });
 
   it('jumps the playhead to a block when its card is clicked', async () => {

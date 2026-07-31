@@ -19,7 +19,7 @@ describe('every registered type', () => {
 
   it('is there', () => {
     expect(types.map((t) => t.type).sort()).toEqual(
-      ['camera', 'clouds', 'group', 'image', 'marker', 'regions', 'route', 'shape', 'text'].sort(),
+      ['camera', 'clouds', 'group', 'image', 'mapContext', 'marker', 'regions', 'route', 'shape', 'text'].sort(),
     );
   });
 
@@ -35,10 +35,11 @@ describe('every registered type', () => {
     // wired to nothing, which reads as a broken control rather than a missing one.
     const node = createNode(type, 0) as unknown as Record<string, unknown>;
     const stray = propsOf(type)
+      // A property declared `optional` is absent on purpose — absent *is* its meaning, as
+      // with a map context's basemap ("the project's own"). Everything else must be there.
+      .filter((m) => !m.optional)
       .map((m) => m.prop)
-      // `locked` is absent until something is locked — the one field that is legitimately
-      // not on a fresh node.
-      .filter((prop) => prop !== 'locked' && !(prop in node));
+      .filter((prop) => !(prop in node));
     expect(stray, `${type} describes properties it does not have`).toEqual([]);
   });
 

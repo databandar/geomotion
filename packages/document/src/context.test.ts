@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { projectWith } from './project.ts';
+import { createMapContext } from './schema/index.ts';
 import { cameraFromShots, keyframe } from './camera.ts';
-import { resolveMapContext, type MapContext } from './context.ts';
+import { contextsOf, liveContext, resolveMapContext, type MapContextNode } from './context.ts';
+import { addNode, isContainerNode, isMapContextNode, layersOf } from './nodes.ts';
+import { createLayer } from './project.ts';
+import { transact } from './transact.ts';
 import type { Project } from './types.ts';
 import type { StoryBlock } from './story.ts';
 
@@ -11,15 +15,18 @@ import type { StoryBlock } from './story.ts';
  * replaced everything it did not name would blank the basemap the moment anyone used one
  * to switch the projection.
  */
-const ctx = (id: string, over: Partial<MapContext> = {}): MapContext => ({ id, name: id, ...over });
+/** A context node with `id` for a name, so a test reads as the thing it is checking. */
+const ctx = (id: string, over: Partial<MapContextNode> = {}): MapContextNode =>
+  ({ ...createMapContext(id), id, ...over }) as MapContextNode;
 const block = (id: string, t: number, d: number, context?: string): StoryBlock =>
   ({ id, t, d, nodes: [], ...(context ? { context } : {}) });
 
+// Contexts are nodes now, so they go in the store beside everything else.
 const withStory = (
   story: StoryBlock[],
-  contexts: MapContext[],
+  contexts: MapContextNode[],
   cameras: Project['nodes'][string][] = [],
-): Project => projectWith(cameras, { duration: 60, basemap: 'dark', story, contexts });
+): Project => projectWith([...cameras, ...contexts], { duration: 60, basemap: 'dark', story });
 
 describe('resolveMapContext', () => {
   it('is the project\'s own settings where no block applies', () => {
@@ -98,5 +105,61 @@ describe('a context\'s camera is a default, never an override', () => {
   it('counts a key on the block\'s end as outside it', () => {
     // Half-open, the same rule blocks themselves use.
     expect(resolveMapContext(withCamera([5]), 2).camera?.zoom).toBe(9);
+  });
+});
+
+describe('a context as a node', () => {
+  const layer = (name: string) => createLayer('text', 0, { name, out: 30 } as never);
+
+  it('is a container, not a layer', () => {
+    const c = ctx('sat');
+    const p = withStory([], [c]);
+    expect(isMapContextNode(p.nodes[c.id]!)).toBe(true);
+    expect(isContainerNode(p.nodes[c.id]!)).toBe(true);
+    expect(layersOf(p).map((l) => l.id)).not.toContain(c.id);
+  });
+
+  it('draws its children where it sits in the order', () => {
+    // §6.5 again: depth-first document order. A context holds a place like a group does.
+    const c = ctx('sat');
+    const inside = layer('inside');
+    const after = layer('after');
+    const p = transact(withStory([], [c]), (d) => {
+      addNode(d, inside, { parentId: c.id });
+      addNode(d, after);
+    }).next;
+    expect(layersOf(p).map((l) => l.name)).toEqual(['inside', 'after']);
+  });
+
+  it('is live only while a block names it', () => {
+    const c = ctx('sat', { basemap: 'satellite' });
+    const p = withStory([block('b', 0, 5, c.id)], [c]);
+    expect(liveContext(p, 2)?.id).toBe(c.id);
+    expect(liveContext(p, 9)).toBeUndefined();
+  });
+
+  it('is never live while it is switched off', () => {
+    // Which is how you take a whole stretch's look, and everything belonging to it, out of
+    // the composition without deleting either.
+    const c = ctx('sat', { basemap: 'satellite', visible: false });
+    const p = withStory([block('b', 0, 5, c.id)], [c]);
+    expect(liveContext(p, 2)).toBeUndefined();
+    expect(resolveMapContext(p, 2).basemap).toBe('dark');
+  });
+
+  it('is never live when no block names it', () => {
+    // Honest rather than surprising: a context nobody uses shows nothing, and the panel says
+    // so on the row rather than leaving you to wonder.
+    const c = ctx('unused', { basemap: 'satellite' });
+    const p = withStory([block('b', 0, 5)], [c]);
+    expect(liveContext(p, 2)).toBeUndefined();
+  });
+
+  it('lets several blocks share one, which is the point of referencing by id', () => {
+    const c = ctx('sat', { basemap: 'satellite' });
+    const p = withStory([block('a', 0, 5, c.id), block('b', 10, 5, c.id)], [c]);
+    expect(resolveMapContext(p, 2).basemap).toBe('satellite');
+    expect(resolveMapContext(p, 12).basemap).toBe('satellite');
+    expect(contextsOf(p)).toHaveLength(1);
   });
 });

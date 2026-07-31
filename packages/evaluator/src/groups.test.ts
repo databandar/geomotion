@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addNode,
   createGroup,
+  createMapContext,
   createLayer,
   keyframedTrack,
   layersOf,
@@ -10,6 +11,7 @@ import {
   staticTrack,
   transact,
   type GroupNode,
+  type MapContextNode,
   type Project,
   type TextLayer,
 } from '@geomotion/document';
@@ -131,5 +133,75 @@ describe('draw order through groups', () => {
     }).next;
 
     expect(layersOf(project).map((l) => l.name)).toEqual(['Kept', 'Orphan']);
+  });
+});
+
+/**
+ * Membership: a layer under a map context draws only while that context is the map
+ * (docs/features/map-context-node.md). Which context that is remains the story block's
+ * business — the mental model does not move, only where the layers live.
+ */
+describe('a map context gates its subtree', () => {
+  const block = (id: string, t: number, d: number, context?: string) => ({
+    id,
+    t,
+    d,
+    nodes: [],
+    ...(context ? { context } : {}),
+  });
+
+  /** One context holding one layer, live for the first five seconds. */
+  function withContext(over: Partial<MapContextNode> = {}, named = true) {
+    const ctx = { ...createMapContext('Overview'), ...over };
+    const inside = text('Inside');
+    const outside = text('Outside');
+    const project = transact(
+      projectWith([ctx, inside, outside], { duration: 30, story: [block('b', 0, 5, named ? ctx.id : undefined)] }),
+      (d) => setNodeParent(d, inside.id, ctx.id),
+    ).next;
+    return { project, ctx, inside, outside };
+  }
+
+  it('draws what belongs to it while it is live', () => {
+    const { project, inside } = withContext();
+    expect(alphaOf(project, inside, 2)).toBe(1);
+  });
+
+  it('and nothing while it is not', () => {
+    const { project, inside, outside } = withContext();
+    expect(alphaOf(project, inside, 9)).toBe(0);
+    // A layer at the root is not part of any stretch, so it draws throughout.
+    expect(alphaOf(project, outside, 9)).toBe(1);
+  });
+
+  it('draws nothing at all when no block names it', () => {
+    const { project, inside } = withContext({}, false);
+    expect(alphaOf(project, inside, 2)).toBe(0);
+  });
+
+  it('draws nothing while it is switched off', () => {
+    const { project, inside } = withContext({ visible: false });
+    expect(alphaOf(project, inside, 2)).toBe(0);
+  });
+
+  it('multiplies with a group inside it, because inheritance compounds', () => {
+    const ctx = createMapContext('Overview');
+    const group = { ...createGroup('Beat'), opacity: staticTrack(0.5) };
+    const layer = text('Deep');
+    const project = transact(
+      projectWith([ctx, group, layer], { duration: 30, story: [block('b', 0, 5, ctx.id)] }),
+      (d) => {
+        setNodeParent(d, group.id, ctx.id);
+        setNodeParent(d, layer.id, group.id);
+      },
+    ).next;
+
+    expect(alphaOf(project, layer, 2)).toBeCloseTo(0.5, 6);
+    expect(alphaOf(project, layer, 9)).toBe(0);
+  });
+
+  it('leaves a project with no contexts exactly as it was', () => {
+    const alone = text('Alone');
+    expect(alphaOf(projectWith([alone]), alone, 2)).toBe(1);
   });
 });

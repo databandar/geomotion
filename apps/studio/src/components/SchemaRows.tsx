@@ -1,5 +1,6 @@
 import { propsOf } from '@geomotion/document';
-import type { DocNode, PropertyMeta, Track } from '@geomotion/document';
+import type { DocNode, PropertyMeta, PropertyRow, Track } from '@geomotion/document';
+import { BASEMAPS } from '@geomotion/map';
 import { useStore } from '../store';
 import { Color, Field, Num, Section, Select, Slider, Text, Toggle } from './ui';
 import TrackedNumber from './TrackedNumber';
@@ -51,6 +52,26 @@ export default function SchemaRows({ node }: { node: DocNode }) {
 }
 
 /**
+ * The list a select offers.
+ *
+ * `optionsFrom` names a list this package owns and the document package cannot: basemap ids
+ * live in `@geomotion/map`, and the dependency law points the other way (§2). An optional
+ * property leads with "the project's own", which is what absent means — and picking it clears
+ * the field rather than writing a value that pretends to be a choice.
+ */
+const SOURCES: Record<string, readonly { value: string; label: string }[]> = {
+  basemap: BASEMAPS.map((b) => ({ value: b.id, label: b.name })),
+};
+
+function optionsOf(
+  row: Extract<PropertyRow, { kind: 'select' }>,
+  meta: PropertyMeta,
+): readonly (string | { value: string; label: string })[] {
+  const listed = row.options ?? SOURCES[row.optionsFrom ?? ''] ?? [];
+  return meta.optional ? [{ value: '', label: 'Use the project’s' }, ...listed] : listed;
+}
+
+/**
  * One row.
  *
  * The switch is exhaustive over `PropertyRow['kind']`, which is the point of that union being
@@ -59,9 +80,13 @@ export default function SchemaRows({ node }: { node: DocNode }) {
  */
 function Row({ node, meta }: { node: DocNode; meta: PropertyMeta }) {
   const update = useStore((s) => s.updateLayer);
+  const clearProp = useStore((s) => s.clearNodeProp);
   const value = (node as unknown as Record<string, unknown>)[meta.prop];
   // Coalescing by property, so dragging one slider is one undo step and dragging two is two.
   const set = (v: unknown) => update(node.id, { [meta.prop]: v } as never, meta.prop);
+  // An optional property is *removed* rather than blanked: absent is its meaning ("the
+  // project's own"), and an empty string would be an override that happens to say nothing.
+  const clear = () => clearProp(node.id, meta.prop);
   const row = meta.row;
 
   if (row.kind === 'track') {
@@ -104,7 +129,9 @@ function Row({ node, meta }: { node: DocNode; meta: PropertyMeta }) {
         ))}
       {row.kind === 'color' && <Color value={String(value ?? '')} onChange={set} />}
       {row.kind === 'toggle' && <Toggle value={value === true} onChange={set} />}
-      {row.kind === 'select' && <Select value={String(value ?? '')} onChange={set} options={row.options} />}
+      {row.kind === 'select' && (
+        <Select value={String(value ?? '')} onChange={(v) => (v === '' ? clear() : set(v))} options={optionsOf(row, meta)} />
+      )}
       {row.kind === 'text' && (
         <Text
           value={String(value ?? '')}

@@ -5,9 +5,10 @@ import { addNode, type DocNode } from './nodes.ts';
 import { CURRENT_FORMAT, runMigrations } from './migrations/index.ts';
 import { coerceTrack, isTrack } from './track.ts';
 // Importing the registry is what populates it — see schema/index.ts.
-import { LAYER_TYPES, createGroup, defaultTour, layerBase, nodeTypeDef } from './schema/index.ts';
+import { LAYER_TYPES, createGroup, createMapContext, defaultTour, layerBase, nodeTypeDef } from './schema/index.ts';
 
 import type { Track } from './track.ts';
+import type { MapContextNode } from './context.ts';
 import type {
   CameraNode,
   GroupNode,
@@ -59,7 +60,6 @@ export function emptyProject(): Project {
     terrainExaggeration: 1.4,
     background: '#0d1117',
     nodes: { [camera.id]: camera },
-    contexts: [],
     story: [],
   };
 }
@@ -228,7 +228,14 @@ function fillNodes(loaded: unknown): Project['nodes'] {
     if (!value || typeof value !== 'object') continue;
     const raw = value as Record<string, unknown> & { type?: unknown };
 
-    const filled = raw.type === 'camera' ? fillCamera(raw) : raw.type === 'group' ? fillGroup(raw) : fillLayer(raw);
+    const filled =
+      raw.type === 'camera'
+        ? fillCamera(raw)
+        : raw.type === 'group'
+          ? fillGroup(raw)
+          : raw.type === 'mapContext'
+            ? fillMapContext(raw)
+            : fillLayer(raw);
     filled.id = key;
     filled.parentId = typeof raw.parentId === 'string' ? raw.parentId : null;
     if (typeof raw.order === 'string' && raw.order.length > 0) {
@@ -263,6 +270,44 @@ function fillGroup(raw: Record<string, unknown>): GroupNode {
     behaviours:
       raw.behaviours && typeof raw.behaviours === 'object' && !Array.isArray(raw.behaviours)
         ? (raw.behaviours as GroupNode['behaviours'])
+        : {},
+  };
+}
+
+/**
+ * Repair a loaded map context.
+ *
+ * Every setting is optional and *absent means the project's own*, so a field of the wrong
+ * type is dropped rather than replaced with a default — writing `basemap: 'dark'` over a
+ * corrupt value would silently change what the map looks like, while dropping it falls back
+ * to the composition's own answer, which is what an absent field already means.
+ */
+function fillMapContext(raw: Record<string, unknown>): MapContextNode {
+  const defaults = createMapContext();
+  const number = typeof raw.terrainExaggeration === 'number' && Number.isFinite(raw.terrainExaggeration);
+  const projection = raw.projection === 'mercator' || raw.projection === 'globe';
+  const camera = !!raw.camera && typeof raw.camera === 'object' && !Array.isArray(raw.camera);
+
+  // Spread conditionally rather than assigning `undefined`: under
+  // `exactOptionalPropertyTypes` an absent key and a key holding `undefined` are different
+  // things, and only the first means "the project's own".
+  return {
+    id: typeof raw.id === 'string' ? raw.id : defaults.id,
+    type: 'mapContext',
+    name: typeof raw.name === 'string' ? raw.name : defaults.name,
+    parentId: typeof raw.parentId === 'string' ? raw.parentId : null,
+    order: typeof raw.order === 'string' ? raw.order : defaults.order,
+    visible: typeof raw.visible === 'boolean' ? raw.visible : true,
+    ...(raw.locked === true ? { locked: true as const } : {}),
+    ...(typeof raw.basemap === 'string' ? { basemap: raw.basemap } : {}),
+    ...(typeof raw.terrain === 'boolean' ? { terrain: raw.terrain } : {}),
+    ...(number ? { terrainExaggeration: raw.terrainExaggeration as number } : {}),
+    ...(projection ? { projection: raw.projection as 'mercator' | 'globe' } : {}),
+    ...(camera ? { camera: raw.camera as NonNullable<MapContextNode['camera']> } : {}),
+    ...(Array.isArray(raw.hidden) ? { hidden: raw.hidden.filter((h) => typeof h === 'string') } : {}),
+    behaviours:
+      raw.behaviours && typeof raw.behaviours === 'object' && !Array.isArray(raw.behaviours)
+        ? (raw.behaviours as MapContextNode['behaviours'])
         : {},
   };
 }

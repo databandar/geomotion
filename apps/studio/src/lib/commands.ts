@@ -1,5 +1,5 @@
 import { createRegistry, type Command } from '@geomotion/commands';
-import { camerasOf, isGroupNode, layersOf } from '@geomotion/document';
+import { blockAt, camerasOf, isGroupNode, isMapContextNode, layersOf } from '@geomotion/document';
 import type { LayerType } from '@geomotion/document';
 import { useStore } from '../store';
 import { projectExtent } from './extent';
@@ -156,6 +156,41 @@ export function registerEditorCommands(host: () => RenderHost | null): void {
       run: () => {
         const node = selected();
         if (node) s().ungroup(node.id);
+      },
+    },
+
+    /* ---------------------------------------------------------- map contexts */
+    {
+      id: 'context.add',
+      title: 'Add a map context',
+      category: 'Add',
+      keywords: ['basemap', 'terrain', 'look', 'scene'],
+      run: () => s().addMapContext(),
+    },
+    {
+      id: 'context.assign',
+      title: 'Use this map context for the beat here',
+      category: 'Story',
+      keywords: ['block', 'beat', 'apply'],
+      enabled: () => {
+        const node = selected();
+        return !!node && isMapContextNode(node) && !!blockAt(s().project.story, s().time);
+      },
+      run: () => {
+        const node = selected();
+        const block = blockAt(s().project.story, s().time);
+        if (node && block) s().setBlockContext(block.id, node.id);
+      },
+    },
+    {
+      id: 'context.clear',
+      title: 'Take the beat here back to the project’s map',
+      category: 'Story',
+      keywords: ['default', 'reset'],
+      enabled: () => !!blockAt(s().project.story, s().time)?.context,
+      run: () => {
+        const block = blockAt(s().project.story, s().time);
+        if (block) s().setBlockContext(block.id, null);
       },
     },
 

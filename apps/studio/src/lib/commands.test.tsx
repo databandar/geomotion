@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RESERVED, formatShortcut } from '@geomotion/commands';
-import { emptyProject, layersOf, projectWith, createGroup, addNode, transact } from '@geomotion/document';
+import { addNode, childrenOf, contextsOf, createGroup, emptyProject, layersOf, projectWith, transact } from '@geomotion/document';
 import { useStore } from '../store';
 import { commands, registerEditorCommands } from './commands';
 
@@ -146,7 +146,7 @@ describe('the palette source', () => {
 
   it('offers something for every category', () => {
     const cats = new Set(commands.all().filter((c) => !c.hidden).map((c) => c.category));
-    expect([...cats].sort()).toEqual(['Add', 'Camera', 'Edit', 'Layer', 'Select', 'Tools', 'Transport', 'View']);
+    expect([...cats].sort()).toEqual(['Add', 'Camera', 'Edit', 'Layer', 'Select', 'Story', 'Tools', 'Transport', 'View']);
   });
 });
 
@@ -159,5 +159,67 @@ describe('a project built only through commands', () => {
     commands.run('layer.add.text');
     commands.run('layer.duplicate');
     expect(layersOf(useStore.getState().project).map((l) => l.type)).toEqual(['regions', 'text', 'text']);
+  });
+});
+
+describe('map contexts', () => {
+  const withBlock = (context?: string) =>
+    useStore.getState().patch((p) => {
+      p.story = [{ id: 'b1', t: 0, d: 10, nodes: [], ...(context ? { context } : {}) }];
+    });
+
+  it('adds a context, taking the selected layers into it', () => {
+    // The same gesture as grouping, because that is what making a context out of a beat is.
+    const a = useStore.getState().addLayer('marker');
+    const b = useStore.getState().addLayer('text');
+    useStore.getState().selectMany(a.id, [a.id, b.id]);
+    commands.run('context.add');
+
+    const ctx = contextsOf(useStore.getState().project)[0]!;
+    expect(childrenOf(useStore.getState().project, ctx.id).map((n) => n.id).sort()).toEqual([a.id, b.id].sort());
+    // Still two layers: they moved, they were not copied or lost.
+    expect(layersOf(useStore.getState().project)).toHaveLength(2);
+  });
+
+  it('adds an empty one when nothing is selected', () => {
+    commands.run('context.add');
+    expect(contextsOf(useStore.getState().project)).toHaveLength(1);
+  });
+
+  it('points the beat under the playhead at the selected context', () => {
+    commands.run('context.add');
+    withBlock();
+    const ctx = contextsOf(useStore.getState().project)[0]!;
+    useStore.getState().select({ kind: 'layer', id: ctx.id });
+
+    expect(commands.run('context.assign')).toBe(true);
+    expect(useStore.getState().project.story[0]?.context).toBe(ctx.id);
+  });
+
+  it('will not assign with no beat under the playhead', () => {
+    commands.run('context.add');
+    const ctx = contextsOf(useStore.getState().project)[0]!;
+    useStore.getState().select({ kind: 'layer', id: ctx.id });
+    expect(commands.run('context.assign')).toBe(false);
+  });
+
+  it('takes a beat back to the project\'s own map, leaving no trace', () => {
+    commands.run('context.add');
+    const ctx = contextsOf(useStore.getState().project)[0]!;
+    withBlock(ctx.id);
+    expect(commands.run('context.clear')).toBe(true);
+    // Removed, not blanked: a block that never had one and a block whose context was
+    // cleared serialise identically.
+    expect('context' in (useStore.getState().project.story[0] ?? {})).toBe(false);
+  });
+
+  it('is one undo step', () => {
+    const a = useStore.getState().addLayer('marker');
+    useStore.getState().select({ kind: 'layer', id: a.id });
+    commands.run('context.add');
+    commands.run('edit.undo');
+
+    expect(contextsOf(useStore.getState().project)).toHaveLength(0);
+    expect(useStore.getState().project.nodes[a.id]?.parentId).toBeNull();
   });
 });
