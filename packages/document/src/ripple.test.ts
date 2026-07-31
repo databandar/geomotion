@@ -9,7 +9,7 @@ import type { StoryBlock } from './story.ts';
  * follows the voice when a line is retimed, and the voice follows the picture when a beat
  * is dragged. It touches most of the document at once, so the edges are where it counts.
  */
-const block = (id: string, t: number, d: number, nodes: string[]): StoryBlock => ({ id, t, d, nodes });
+const block = (id: string, t: number, d: number, nodes: string[] = []): StoryBlock => ({ id, t, d, nodes });
 const cue = (id: string, t: number, d = 1): AudioCue => ({ id, t, d, text: id } as AudioCue);
 
 const route = (id: string, at: number): RouteLayer => {
