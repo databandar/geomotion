@@ -35,6 +35,8 @@ export {
   coerceTrack,
   hasKeyAt,
   toKeyframed,
+  trackedProps,
+  withKeyMoved,
   withValueAt,
   withoutKeyAt,
   isAnimated,

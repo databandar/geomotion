@@ -200,3 +200,32 @@ export function withoutKeyAt<T>(track: Track<T>, time: number): Track<T> {
 export function hasKeyAt<T>(track: Track<T>, time: number): boolean {
   return track.kind === 'keyframed' && at(track.keys, time) >= 0;
 }
+
+/**
+ * Move one key to a new time.
+ *
+ * If it lands on another key, that one is replaced — the same rule as dragging a layer
+ * bar onto another, and the only alternative is two keys at one instant, where whichever
+ * happens to sort first silently wins.
+ */
+export function withKeyMoved<T>(track: Track<T>, keyId: string, time: number): Track<T> {
+  if (track.kind !== 'keyframed') return track;
+  const moving = track.keys.find((k) => k.id === keyId);
+  if (!moving) return track;
+
+  const rest = track.keys.filter((k) => k.id !== keyId && Math.abs(k.t - time) >= KEY_EPSILON);
+  return keyframedTrack([...rest, { ...moving, t: time }]);
+}
+
+/**
+ * The names of an object's tracked properties.
+ *
+ * Derived by looking, rather than declared in a list that would drift the first time a
+ * property became tracked and nobody updated it. The timeline and the inspector both ask
+ * this question, and they must not be able to disagree.
+ */
+export function trackedProps(node: object): string[] {
+  return Object.entries(node)
+    .filter(([, v]) => isTrack(v))
+    .map(([k]) => k);
+}

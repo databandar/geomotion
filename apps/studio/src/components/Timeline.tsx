@@ -1,8 +1,8 @@
-import { useCallback, useRef } from 'react';
+import { Fragment, useCallback, useRef } from 'react';
 import { useStore } from '../store';
 import Icon from './Icon';
-import { isRetimable } from '@geomotion/document';
-import type { RouteLayer } from '@geomotion/document';
+import { isRetimable, trackedProps } from '@geomotion/document';
+import type { RouteLayer, Track } from '@geomotion/document';
 import { clamp } from '@geomotion/core';
 
 const GUTTER = 148;
@@ -104,15 +104,24 @@ export default function Timeline() {
             </div>
           )}
           {project.layers.map((l) => (
-            <div
-              key={l.id}
-              className={'tl-gutter-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}
-              onClick={() => select({ kind: 'layer', id: l.id })}
-              title={l.name}
-            >
-              <span className={'dot t-' + l.type} />
-              {l.name}
-            </div>
+            <Fragment key={l.id}>
+              <div
+                className={'tl-gutter-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}
+                onClick={() => select({ kind: 'layer', id: l.id })}
+                title={l.name}
+              >
+                <span className={'dot t-' + l.type} />
+                {l.name}
+              </div>
+              {/* One label per animated property, mirroring the track rows opposite —
+                  the two lists walk the same `animatedProps`, so they cannot drift. */}
+              {animatedProps(l).map((prop) => (
+                <div key={prop} className="tl-gutter-row track-prop" title={`${l.name} · ${propLabel(prop)}`}>
+                  <span className="prop-kf" />
+                  {propLabel(prop)}
+                </div>
+              ))}
+            </Fragment>
           ))}
         </div>
 
@@ -177,11 +186,11 @@ export default function Timeline() {
             )}
 
             {project.layers.map((l) => (
-              <div
-                key={l.id}
-                className={'tl-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}
-                onPointerDown={startScrub}
-              >
+              <Fragment key={l.id}>
+                <div
+                  className={'tl-row' + (selection?.kind === 'layer' && selection.id === l.id ? ' sel' : '')}
+                  onPointerDown={startScrub}
+                >
                 <div
                   className={'bar t-' + l.type + (l.visible ? '' : ' hidden')}
                   style={{ left: l.in * pxPerSec, width: Math.max(6, (l.out - l.in) * pxPerSec) }}
@@ -215,7 +224,19 @@ export default function Timeline() {
                 </div>
 
                 {l.type === 'route' && <DrawWindow layer={l} pxPerSec={pxPerSec} snap={snap} dragSeconds={dragSeconds} />}
-              </div>
+                </div>
+                {animatedProps(l).map((prop) => (
+                  <TrackRow
+                    key={prop}
+                    layerId={l.id}
+                    prop={prop}
+                    track={(l as unknown as Record<string, Track<number>>)[prop]!}
+                    pxPerSec={pxPerSec}
+                    snap={snap}
+                    dragSeconds={dragSeconds}
+                  />
+                ))}
+              </Fragment>
             ))}
 
             <div className="playhead" style={{ left: time * pxPerSec }}>
@@ -224,6 +245,77 @@ export default function Timeline() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * A layer's properties that actually move.
+ *
+ * Static tracks are left out: a row of nothing for every property that happens to be
+ * tracked would bury the ones that matter, and after the bespoke tweens fold in there
+ * will be dozens. A property earns a row by being animated.
+ */
+function animatedProps(layer: object): string[] {
+  return trackedProps(layer).filter(
+    (p) => (layer as Record<string, Track<number>>)[p]?.kind === 'keyframed',
+  );
+}
+
+/** `labelSize` -> `Label size`. The document's names are not display copy. */
+function propLabel(prop: string): string {
+  const spaced = prop.replace(/([A-Z])/g, ' $1').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * One property's keyframes, laid on the timeline.
+ *
+ * The keys are the same diamond the inspector's pip uses, in the same colour, because
+ * they are the same thing seen from two places — a person should not have to learn twice
+ * that a diamond is a keyframe.
+ */
+function TrackRow({
+  layerId,
+  prop,
+  track,
+  pxPerSec,
+  snap,
+  dragSeconds,
+}: {
+  layerId: string;
+  prop: string;
+  track: Track<number>;
+  pxPerSec: number;
+  snap: (t: number) => number;
+  dragSeconds: (e: React.PointerEvent, cb: (dt: number, done: boolean) => void) => void;
+}) {
+  const moveKey = useStore((s) => s.moveLayerKey);
+  const scrub = useStore((s) => s.scrub);
+  // Deliberately no second check on the track's kind. `animatedProps` decides which
+  // properties get a row, and the gutter walks the same list — a guard here could
+  // disagree with it and leave every row below labelled with the wrong name.
+  const keys = track.kind === 'keyframed' ? track.keys : [];
+
+  return (
+    <div className="tl-row track-row">
+      {keys.map((k) => (
+        <div
+          key={k.id}
+          className="prop-kf"
+          style={{ left: k.t * pxPerSec }}
+          title={`${propLabel(prop)} ${k.value} at ${k.t.toFixed(2)}s — drag to retime`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            // Scrubbing to the key you grabbed shows the value you are about to move,
+            // which is the difference between retiming deliberately and guessing.
+            scrub(k.t);
+            const t0 = k.t;
+            dragSeconds(e, (dt) => moveKey(layerId, prop, k.id, snap(t0 + dt)));
+          }}
+        />
+      ))}
     </div>
   );
 }

@@ -4,6 +4,8 @@ import {
   keyframedTrack,
   staticTrack,
   toKeyframed,
+  trackedProps,
+  withKeyMoved,
   withValueAt,
   withoutKeyAt,
   type Keyframe,
@@ -100,5 +102,46 @@ describe('hasKeyAt', () => {
     expect(hasKeyAt(t, 2)).toBe(true);
     expect(hasKeyAt(t, 3)).toBe(false);
     expect(hasKeyAt(staticTrack(5), 2)).toBe(false);
+  });
+});
+
+describe('withKeyMoved', () => {
+  it('retimes one key and keeps the order', () => {
+    // Ids come from a shared counter, so the key is captured rather than guessed.
+    const middle = key(2, 5);
+    const t = withKeyMoved(keyframedTrack([key(0, 1), middle, key(4, 9)]), middle.id, 5);
+    expect(keys(t)?.map(([time]) => time)).toEqual([0, 4, 5]);
+  });
+
+  it('replaces a key it lands on', () => {
+    /*
+     * The same rule as dropping a layer bar onto another. Two keys at one instant is the
+     * alternative, and there whichever happens to sort first silently wins.
+     */
+    const later = key(2, 5);
+    const t = withKeyMoved(keyframedTrack([key(0, 1), later]), later.id, 0);
+    expect(keys(t)).toEqual([[0, 5]]);
+  });
+
+  it('ignores a key id it does not have', () => {
+    const before = keyframedTrack([key(0, 1)]);
+    expect(withKeyMoved(before, 'nope', 3)).toBe(before);
+  });
+
+  it('does nothing to a static track', () => {
+    const before = staticTrack(4);
+    expect(withKeyMoved(before, 'k', 1)).toBe(before);
+  });
+});
+
+describe('trackedProps', () => {
+  it('finds tracks by looking, not by a list that can drift', () => {
+    // The timeline and the inspector both ask this; they must not be able to disagree.
+    const node = { id: 'x', name: 'n', size: staticTrack(4), opacity: keyframedTrack([key(0, 1)]) };
+    expect(trackedProps(node).sort()).toEqual(['opacity', 'size']);
+  });
+
+  it('is empty for a node with no tracks', () => {
+    expect(trackedProps({ id: 'x', size: 4 })).toEqual([]);
   });
 });

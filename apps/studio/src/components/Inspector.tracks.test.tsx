@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { createLayer, emptyProject, type MarkerLayer } from '@geomotion/document';
 import { evalTrack } from '@geomotion/animation';
 import Inspector from './Inspector';
+import Timeline from './Timeline';
 import { useStore } from '../store';
 
 /**
@@ -173,5 +174,76 @@ describe('the pip is a sibling of the label, not inside it', () => {
     withMarker();
     render(<Inspector />);
     expect(pip()).toHaveAccessibleName(/Fixed value/);
+  });
+});
+
+describe('the timeline shows a row per animated property', () => {
+  const rows = () => document.querySelectorAll('.tl-row.track-row');
+  const keysOnScreen = () => document.querySelectorAll('.tl-row .prop-kf');
+
+  it('shows nothing for a property that does not move', () => {
+    /*
+     * A row of nothing for every tracked property would bury the ones that matter, and
+     * after the bespoke tweens fold in there will be dozens. A property earns a row by
+     * being animated.
+     */
+    withMarker();
+    render(<Timeline />);
+    expect(rows()).toHaveLength(0);
+    // Asserted on the gutter too: that is where the filter's effect shows, and a label
+    // with no row beneath it pushes every row below out of alignment.
+    expect(document.querySelectorAll('.tl-gutter-row.track-prop')).toHaveLength(0);
+  });
+
+  it('shows a row with one diamond per key once it is animated', () => {
+    const layer = withMarker();
+    act(() => {
+      useStore.getState().toggleLayerTrack(layer.id, 'size', 8);
+      useStore.getState().scrub(4);
+      useStore.getState().toggleLayerKey(layer.id, 'size', 8);
+    });
+    render(<Timeline />);
+    expect(rows()).toHaveLength(1);
+    expect(keysOnScreen()).toHaveLength(2);
+  });
+
+  it('keeps the gutter labelled in step with the rows', () => {
+    // The two lists walk the same `animatedProps`; if they could drift, every row below
+    // would be labelled with the wrong name.
+    const layer = withMarker();
+    act(() => useStore.getState().toggleLayerTrack(layer.id, 'size', 8));
+    render(<Timeline />);
+    expect(document.querySelectorAll('.tl-gutter-row.track-prop')).toHaveLength(rows().length);
+    expect(document.querySelector('.tl-gutter-row.track-prop')?.textContent).toContain('Size');
+  });
+
+  it('retimes a key without disturbing the others', () => {
+    const layer = withMarker();
+    act(() => {
+      useStore.getState().toggleLayerTrack(layer.id, 'size', 8);
+      useStore.getState().scrub(4);
+      useStore.getState().toggleLayerKey(layer.id, 'size', 8);
+    });
+    const track = marker().size as { keys: { id: string; t: number }[] };
+    const moving = track.keys.find((k) => k.t === 4)!;
+    act(() => useStore.getState().moveLayerKey(layer.id, 'size', moving.id, 7));
+
+    const after = (marker().size as { keys: { t: number }[] }).keys.map((k) => k.t);
+    expect(after.sort((a, b) => a - b)).toEqual([0, 7]);
+  });
+
+  it('never lets a key be dragged before zero', () => {
+    // Negative time is off the front of the composition; nothing can play there.
+    const layer = withMarker();
+    act(() => {
+      useStore.getState().toggleLayerTrack(layer.id, 'size', 8);
+      useStore.getState().scrub(4);
+      useStore.getState().toggleLayerKey(layer.id, 'size', 8);
+    });
+    const moving = (marker().size as { keys: { id: string; t: number }[] }).keys.find((k) => k.t === 4)!;
+    act(() => useStore.getState().moveLayerKey(layer.id, 'size', moving.id, -5));
+
+    const times = (marker().size as { keys: { t: number }[] }).keys.map((k) => k.t);
+    expect(Math.min(...times)).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 # Property tracks
 
-**Status:** M4 landed — the substrate, the format chain, and a property you can animate
-from the inspector.
+**Status:** M5 landed — the substrate, the format chain, and a property you can animate
+from the inspector and retime on the timeline.
 
 **Governing sections:** ARCHITECTURE §04 ("every property is a track"), §06 (normative
 evaluation order). ENGINEERING_GUIDE §2 (`animation` owns `evalTrack`), §3.8, §126.
@@ -176,6 +176,25 @@ its own cleanup when vitest runs with `globals`, which this project does not. Ev
 `render` in a file piled into the same DOM. Tests reaching for the first match survived
 it; anything asking for *the* button found several.
 
+## M5 — keyframe rows
+
+Every animated property gets a row under its layer, with its keys as diamonds you can
+drag. M4 made keys creatable; without this you could only reach one by scrubbing to it
+and could not see where the others were.
+
+- **Only animated properties get a row.** A row of nothing for every tracked property
+  would bury the ones that matter, and there will be dozens once the bespoke tweens fold
+  in. A property earns a row by moving.
+- **The same diamond as the inspector's pip, in the same colour.** They are the same
+  thing seen from two places; nobody should learn twice that a diamond is a keyframe.
+- **Grabbing a key scrubs to it**, so the value being retimed is the value on screen.
+- **A key dropped onto another replaces it** — the rule layer bars already follow, and
+  the alternative is two keys at one instant where whichever sorts first silently wins.
+- **`animatedProps` is the single decision.** The gutter and the track area walk the same
+  list. `TrackRow` deliberately does *not* re-check the track's kind: a second opinion
+  could disagree with the gutter and push every row below out of alignment. Verified in a
+  browser — worst gutter-to-row offset 0px.
+
 ## Not yet
 
-Timeline keyframe rows, the remaining bespoke tweens, `bound`, `expr`.
+The remaining bespoke tweens, `bound`, `expr`.

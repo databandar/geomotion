@@ -8,6 +8,7 @@ import {
   staticTrack,
   toKeyframed,
   transact,
+  withKeyMoved,
   withValueAt,
   withoutKeyAt,
 } from '@geomotion/document';
@@ -85,6 +86,8 @@ interface State {
   toggleLayerTrack: (id: string, prop: string, valueNow: number) => void;
   /** Add or remove the key at the playhead. */
   toggleLayerKey: (id: string, prop: string, valueNow: number) => void;
+  /** Retime one key of a tracked property. */
+  moveLayerKey: (id: string, prop: string, keyId: string, t: number) => void;
   moveLayer: (id: string, dir: -1 | 1) => void;
 
   addAudioCue: (cue: Omit<AudioCue, 'id'>) => void;
@@ -276,6 +279,15 @@ export const useStore = create<State>((set, get) => ({
         ? withoutKeyAt(t, time)
         : withValueAt(toKeyframed(t, time, valueNow, 'linear'), time, valueNow, 'linear');
     });
+  },
+
+  moveLayerKey: (id, prop, keyId, t) => {
+    get().patch((p) => {
+      const layer = p.layers.find((l) => l.id === id) as Record<string, unknown> | undefined;
+      const track = layer?.[prop];
+      if (!isTrack(track)) return;
+      layer![prop] = withKeyMoved(track as Track<number>, keyId, Math.max(0, t));
+    }, `${id}:${prop}:${keyId}:move`);
   },
 
   moveLayer: (id, dir) => {
