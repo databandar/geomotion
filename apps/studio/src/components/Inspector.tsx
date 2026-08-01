@@ -970,15 +970,28 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
       </Section>
 
       <Section title="Readouts">
-        <Field label="Callout card">
-          <Toggle value={layer.showCallout} onChange={(showCallout) => apply({ showCallout })} />
+        <Field label="Readout" hint="How the active region’s value is shown">
+          <Select
+            value={layer.calloutStyle}
+            onChange={(calloutStyle) => apply({ calloutStyle })}
+            options={[
+              { value: 'card', label: 'Card' },
+              { value: 'plain', label: 'Just the number' },
+              { value: 'pill', label: 'Pill' },
+              { value: 'none', label: 'None' },
+            ]}
+          />
         </Field>
-        {layer.showCallout && (
+        {layer.calloutStyle !== 'none' && (
           <>
-            <TrackedNumber label="Card size" layerId={layer.id} prop="calloutSize" track={layer.calloutSize} min={50} max={180} step={1} precision={0} />
-            <Field label="Show rank">
-              <Toggle value={layer.showRank} onChange={(showRank) => apply({ showRank })} />
-            </Field>
+            {/* Scales every look, not just the card, so it is no longer "card size". */}
+            <TrackedNumber label="Readout size" layerId={layer.id} prop="calloutSize" track={layer.calloutSize} min={50} max={180} step={1} precision={0} />
+            {/* Only the card has a row to put a rank in. */}
+            {layer.calloutStyle === 'card' && (
+              <Field label="Show rank">
+                <Toggle value={layer.showRank} onChange={(showRank) => apply({ showRank })} />
+              </Field>
+            )}
           </>
         )}
         <Field label="Legend">

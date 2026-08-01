@@ -238,6 +238,15 @@ export interface ShapeLayer extends LayerBase {
   extrudeHeight: Track<number>;
 }
 
+/**
+ * The looks a readout can take.
+ *
+ * `card` is the full glass panel; `plain` drops the box and lets the number sit on the map,
+ * which is what "just the numbers" means; `pill` is one compact line for dense maps; `none`
+ * draws nothing.
+ */
+export type CalloutStyle = 'card' | 'plain' | 'pill' | 'none';
+
 export type RegionOrder = 'geojson' | 'valueDesc' | 'valueAsc' | 'alpha' | 'custom';
 
 /**
@@ -290,7 +299,14 @@ export interface RegionsLayer extends LayerBase {
   tour: RegionTour;
 
   /* readouts */
-  showCallout: boolean;
+  /**
+   * How the active region's readout is drawn — §07's "region layers bind fills to facts";
+   * this is the same value, read rather than shaded.
+   *
+   * `'none'` replaces the old `showCallout: false`. One field rather than a boolean *and* an
+   * enum, because two fields meaning one thing let two readers disagree (§3.6.4).
+   */
+  calloutStyle: CalloutStyle;
   calloutSize: Track<number>;
   showRank: boolean;
   showLegend: boolean;

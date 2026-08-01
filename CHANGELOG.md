@@ -7,6 +7,32 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The readout has a style, not a switch (§07, §02) — format 10
+
+- **`showCallout: boolean` becomes `calloutStyle: 'card' | 'plain' | 'pill' | 'none'`.**
+  `false` was already "draw nothing", so it maps onto `'none'` exactly and no existing project
+  changes what it shows. The boolean is removed rather than kept beside the enum — two fields
+  meaning one thing let two readers disagree (§3.6.4).
+- **Half the ask already worked and nobody could find it.** `showCallout: false` plus
+  `tour.labelAll` already gave "no card, just the numbers"; a checkbox called "Callout card"
+  simply does not read as "how do you want this shown".
+- **Two new looks.** `plain` puts the name and the number on the map with no furniture — the
+  "just the numbers" ask. `pill` is one compact line for maps where several regions are named
+  close together and a card would cover them.
+  - They are **not the card with pieces switched off**: a box you have removed leaves its
+    padding, shadow budget and reserved rows behind, and reads as a card that failed to draw.
+    They measure and lay themselves out, branching before any of the card's work.
+  - All four anchor through the same `placeReadout`, so placement did not need to learn a
+    second thing.
+- **"Card size" is now "Readout size"** (it scales every look) and **Show rank** appears only
+  for `card`, which is the only look with a row to put a rank in.
+- **Golden frames all ten byte-identical, max Δ0** — they use `card`, and the card's code path
+  is untouched.
+- **Found on the way:** `plain` drew the region's name in the region's own accent — which is
+  the fill it sits on, so the one colour guaranteed to have no contrast. The first render read
+  "JHARKHAND" in dark red on a dark red state. White now; the accent belongs to the card.
+- See [`docs/features/callout-styles.md`](docs/features/callout-styles.md).
+
 ### Fixed — a frame no longer goes out before its basemap tiles (§00, §14)
 
 - **Rendered videos could contain grey loading blocks, and nothing said so.** `waitForIdle`

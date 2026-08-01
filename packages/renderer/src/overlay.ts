@@ -213,11 +213,104 @@ const INK = '#ffffff';
 const INK_DIM = 'rgba(255,255,255,0.62)';
 const SURFACE = 'rgba(12,16,22,0.86)';
 
+/**
+ * The readouts that are not a card: `plain` and `pill`.
+ *
+ * `plain` is the ask "just the numbers" — the value on the map with no furniture, held
+ * legible over satellite imagery by a shadow rather than by a panel. `pill` is one compact
+ * line for maps where several regions are named close together and a card would cover them.
+ *
+ * Both anchor the same way the card does, through `placeReadout`, so a readout never leaves
+ * the frame whichever look it wears.
+ */
+function drawLightReadout(
+  f: OverlayFrame,
+  r: RegionsRender,
+  d: { p: { x: number; y: number }; s: number; shown: string; name: string },
+) {
+  const { ctx } = f;
+  const { style } = r;
+  const { p, s, shown, name } = d;
+  const pill = style.calloutStyle === 'pill';
+
+  const nameSize = (pill ? 16 : 20) * s;
+  const valueSize = (pill ? 26 : 64) * s;
+  const tracking = 2.2 * s;
+  const gap = (pill ? 12 : 6) * s;
+
+  ctx.save();
+  ctx.font = `700 ${nameSize}px ${FONT_STACK}`;
+  const nameW = measureTracked(ctx, name, tracking);
+  ctx.font = `800 ${valueSize}px ${FONT_STACK}`;
+  const valueW = ctx.measureText(shown).width;
+
+  // A pill lays its two parts side by side; plain stacks them.
+  const padX = pill ? 18 * s : 0;
+  const padY = pill ? 11 * s : 0;
+  const boxW = (pill ? nameW + gap + valueW : Math.max(nameW, valueW)) + padX * 2;
+  const boxH = (pill ? Math.max(nameSize, valueSize) : nameSize + gap + valueSize) + padY * 2;
+
+  const { x, y } = placeReadout(p, boxW, boxH, f, f.scale, s);
+
+  ctx.translate(x + boxW / 2, y + boxH / 2);
+  ctx.scale(r.pop, r.pop);
+  ctx.translate(-(x + boxW / 2), -(y + boxH / 2));
+  ctx.globalAlpha = r.alpha * r.calloutAlpha;
+
+  if (pill) {
+    ctx.fillStyle = SURFACE;
+    roundRect(ctx, x, y, boxW, boxH, boxH / 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = Math.max(1, s);
+    roundRect(ctx, x, y, boxW, boxH, boxH / 2);
+    ctx.stroke();
+  } else {
+    /*
+     * No box, so the type carries itself. A drop shadow rather than a halo stroke: a stroke
+     * thick enough to read over satellite imagery starts eating the letterforms at this
+     * size, which is the whole reason for choosing this look.
+     */
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 18 * s;
+    ctx.shadowOffsetY = 2 * s;
+  }
+
+  ctx.textAlign = 'left';
+  if (pill) {
+    const midY = y + boxH / 2;
+    ctx.font = `700 ${nameSize}px ${FONT_STACK}`;
+    ctx.fillStyle = INK_DIM;
+    ctx.textBaseline = 'middle';
+    drawTracked(ctx, name, x + padX, midY, tracking, 'fill');
+    ctx.font = `800 ${valueSize}px ${FONT_STACK}`;
+    ctx.fillStyle = INK;
+    ctx.fillText(shown, x + padX + nameW + gap, midY);
+    ctx.textBaseline = 'alphabetic';
+  } else {
+    /*
+     * The name in white, not in the region's accent.
+     *
+     * The accent *is* the fill the readout is sitting on — the whole point of a choropleth —
+     * so accent-coloured type over it is the one colour guaranteed to have no contrast. Seen
+     * in the first render: "JHARKHAND" in dark red on a dark red state.
+     */
+    ctx.font = `700 ${nameSize}px ${FONT_STACK}`;
+    ctx.fillStyle = INK_DIM;
+    drawTracked(ctx, name, x, y + nameSize, tracking, 'fill');
+    ctx.font = `800 ${valueSize}px ${FONT_STACK}`;
+    ctx.fillStyle = INK;
+    ctx.fillText(shown, x, y + nameSize + gap + valueSize * 0.82);
+  }
+
+  ctx.restore();
+}
+
 function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const { style, set } = r;
   if (style.showLegend && set.withValues > 0) drawLegend(f, r);
   if (r.phase === 'outro' && style.tour.labelAll) drawAllLabels(f, r);
-  if (!style.showCallout || r.calloutAlpha <= 0 || r.activeId === null) return;
+  if (style.calloutStyle === 'none' || r.calloutAlpha <= 0 || r.activeId === null) return;
 
   const region = set.regions.find((x) => x.id === r.activeId);
   if (!region) return;
@@ -239,6 +332,18 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
   const name = region.name.toUpperCase();
   const rankText = style.showRank && region.rank ? `RANK #${region.rank} of ${set.withValues}` : '';
   const metricText = style.metric || '';
+
+  /*
+   * The lighter looks branch here, before any of the card's measuring and layering.
+   *
+   * They are not the card with pieces switched off — a box you have removed still leaves
+   * the padding, the shadow budget and the range bar's reserved row behind it, and the
+   * result reads as a card that failed to draw rather than as a deliberate choice.
+   */
+  if (style.calloutStyle !== 'card') {
+    drawLightReadout(f, r, { p, s, shown, name });
+    return;
+  }
 
   ctx.save();
 

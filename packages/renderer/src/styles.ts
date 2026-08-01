@@ -109,7 +109,7 @@ export interface RegionsStyle {
     labelAll: boolean;
     labelSize: number;
   };
-  showCallout: boolean;
+  calloutStyle: 'card' | 'plain' | 'pill' | 'none';
   calloutSize: number;
   showRank: boolean;
   showLegend: boolean;
