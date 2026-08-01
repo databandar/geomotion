@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useCanRedo, useCanUndo, useStore } from '../store';
 import { useRenderHost } from '../render/host';
 import { emptyProject, migrate } from '@geomotion/document';
-import { demoProject, indiaTourProject } from '../lib/fixtures';
+import { demoProject, indiaTourProject, worldTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
 import { cueFromFile } from '../lib/audio-import';
 import { cueFromLibrary, sfxUrl, SFX_GAIN, SFX_GROUPS, SFX_LIBRARY } from '../lib/sfx';
@@ -273,6 +273,15 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
               >
                 <strong>Region tour</strong>
                 <span>Indian states, highlighted one by one</span>
+              </li>
+              <li
+                onClick={() => {
+                  replaceProject(worldTourProject());
+                  setDemoOpen(false);
+                }}
+              >
+                <strong>World tour</strong>
+                <span>Every country coloured, nine of them visited</span>
               </li>
             </ul>
           )}

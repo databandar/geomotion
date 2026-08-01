@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Project } from '@geomotion/document';
 import { createLayer, emptyProject, layersOf, migrate, projectWith } from '@geomotion/document';
 import type { MarkerLayer } from '@geomotion/document';
-import { demoProject, indiaTourProject } from './fixtures';
+import { demoProject, indiaTourProject, worldTourProject } from './fixtures';
 import { loadLocal, saveLocal } from './persistence';
 
 /**
@@ -34,6 +34,7 @@ const FIXTURES: [string, () => Project][] = [
   ['empty', emptyProject],
   ['demo', demoProject],
   ['india tour', indiaTourProject],
+  ['world tour', worldTourProject],
 ];
 
 describe('save/load round trip', () => {

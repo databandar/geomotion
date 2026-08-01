@@ -3,7 +3,7 @@ import type { Layer, Project, RegionsLayer, TextLayer } from '@geomotion/documen
 import { createLayer, layersOf, projectWith } from '@geomotion/document';
 import { clearRegionCache } from '@geomotion/entities';
 import { cameraAt, clearPathCache, evaluate, tourPhases } from '@geomotion/evaluator';
-import { demoProject, indiaTourProject } from './fixtures';
+import { demoProject, indiaTourProject, worldTourProject } from './fixtures';
 
 /**
  * Evaluation against realistic compositions.
@@ -26,6 +26,7 @@ function fresh<T extends Project>(p: T): T {
 const PROJECTS: [string, () => Project][] = [
   ['demo (routes, markers, text)', demoProject],
   ['india tour (regions, clouds, shape, text)', indiaTourProject],
+  ['world tour (regions, clouds, text)', worldTourProject],
 ];
 
 describe('evaluate — determinism and purity', () => {

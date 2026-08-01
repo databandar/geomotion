@@ -1,6 +1,6 @@
 import { useStore } from '../store';
 import { layerAt, layersOf, migrate } from '@geomotion/document';
-import { demoProject, indiaTourProject } from './fixtures';
+import { demoProject, indiaTourProject, worldTourProject } from './fixtures';
 import type { RenderHost } from '../render/host';
 import { evaluate } from '@geomotion/evaluator';
 import { imagesReady } from '@geomotion/renderer';
@@ -22,7 +22,7 @@ export interface HeadlessApi {
    * resolves against a dev server — against a production build there are no sources to
    * import. Naming them here lets the same harness drive either.
    */
-  loadDemo(name: 'demo' | 'tour'): void;
+  loadDemo(name: 'demo' | 'tour' | 'world'): void;
   /** The names `loadDemo` accepts. */
   demos(): string[];
   /** Draw one exact frame at the given timeline position. */
@@ -81,11 +81,12 @@ export function installHeadlessApi(host: RenderHost) {
     },
 
     loadDemo(name) {
-      useStore.getState().replaceProject(name === 'tour' ? indiaTourProject() : demoProject());
+      const make = name === 'tour' ? indiaTourProject : name === 'world' ? worldTourProject : demoProject;
+      useStore.getState().replaceProject(make());
     },
 
     demos() {
-      return ['demo', 'tour'];
+      return ['demo', 'tour', 'world'];
     },
 
     renderFrameAt(t) {

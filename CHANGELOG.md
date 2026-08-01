@@ -7,6 +7,39 @@ name the section each change answers to.
 
 ## Unreleased
 
+### A world tour demo
+
+- **Demo → World tour.** 176 countries coloured by GDP per person, nine of them visited. It
+  exercises the region tour at the opposite end of its range from the India film, which is
+  where the interesting differences are.
+- **It tours nine of 169, not all of them.** India tours every region it colours; 169 countries
+  at 2.6 s each is seven minutes of video. `order: 'custom'` picks the stops as well as their
+  order, so everything gets a colour and a rank while the camera visits a chosen few — west to
+  east, so it makes one circuit rather than teleporting between adjacent ranks.
+- **Nothing here is invented.** Geometry *and* numbers are Natural Earth 1:110m (public
+  domain); the India fixture's anaemia figures are sample values by comparison. Spot-checked
+  against reality — US $65,298, Switzerland $81,994, Burundi $261.
+- **Tuning that the frames, not the code, revealed** — every one of these was found by
+  rendering the thing and looking at it:
+  - The colour scale is capped at $46,000. GDP per person is log-distributed, so on a linear
+    ramp to the true $114,703 maximum two-thirds of the world is one indistinguishable black.
+    The caption says the scale is capped so the legend cannot be misread as the maximum.
+  - `maxZoom` 5.5 and `padding` 0.14. The defaults framed India with the whole of Asia and half
+    of Africa in shot.
+  - Switzerland, not Norway: Natural Earth's Norway includes Svalbard, so framing its bounding
+    box puts the camera over Greenland.
+  - The opening titles carry a scrim, which India's do not need — that one opens over dark
+    satellite imagery, this one over the bright end of its own ramp.
+- **A filter bug caught before it shipped:** selecting countries by
+  `TYPE in ('Sovereign country', 'Country')` looked principled and silently dropped Kazakhstan,
+  Cuba and Israel, which Natural Earth files as `Sovereignty` and `Disputed`. It now excludes
+  what is actually being excluded — territories, and places under 100,000 people, where a
+  per-person figure is an artefact rather than a measurement.
+- `loadDemo('world')` joins `'demo'` and `'tour'`, so the render harness can drive it.
+- See [`docs/features/world-tour-demo.md`](docs/features/world-tour-demo.md), including the one
+  known limitation: a 360° world cannot fill a 16:9 frame, so the overview beats show a sliver
+  of the next world copy at the edges.
+
 ### A sound library, and a role that keeps it out of the way (§06)
 
 - **`+ Sound`** in the toolbar: eighteen CC0 sounds in four groups, previewable, placed at the
