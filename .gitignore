@@ -31,3 +31,8 @@ apps/pipeline/assets/*/
 docs/brand/render/*.mp4
 docs/brand/render/frames/
 docs/brand/render/vo/
+
+docs/brand/databandar-demo/*.mp4
+docs/brand/databandar-demo/audio.wav
+docs/brand/databandar-demo/frames/
+docs/brand/databandar-demo/vo/
