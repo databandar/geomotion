@@ -25,6 +25,15 @@ import { renderInPage } from './render.mjs';
 /** Keyframe every two seconds, so a draft is still seekable while reviewing. */
 const KEYFRAME_SECONDS = 2;
 
+/*
+ * What the draft fills the capture canvas with before drawing the map. The map canvas
+ * is transparent everywhere the projection draws nothing (space around a globe), and
+ * `VideoFrame` reads WebGL-drawn transparent pixels back as bright. Filling first makes
+ * the draft match the frame path, where the stage composites those pixels against its
+ * dark background.
+ */
+const CAPTURE_BACKGROUND = '#03060d';
+
 /**
  * Thrown when the browser cannot encode in-page, so the caller can fall back to
  * frames instead of failing a render over an optimisation.
@@ -46,7 +55,7 @@ export async function renderEncoded(project, outFile, opts = {}) {
     onProgress,
     run: async (page, { total, fps }) =>
       page.evaluate(
-        async (frames, framerate, keyEvery, wait) => {
+        async (frames, framerate, keyEvery, wait, captureBackground) => {
           if (typeof VideoEncoder === 'undefined') return { unsupported: 'this browser has no VideoEncoder' };
           const support = await VideoEncoder.isConfigSupported({
             codec: 'avc1.640028',
@@ -151,6 +160,8 @@ export async function renderEncoded(project, outFile, opts = {}) {
             // Two frames: one for MapLibre to paint, one for the compositor.
             await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+            ctx.fillStyle = captureBackground;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(map, 0, 0);
             if (overlay) ctx.drawImage(overlay, 0, 0, canvas.width, canvas.height);
 
@@ -176,6 +187,7 @@ export async function renderEncoded(project, outFile, opts = {}) {
         fps,
         KEYFRAME_SECONDS,
         waitForTiles,
+        CAPTURE_BACKGROUND,
       ),
   });
 

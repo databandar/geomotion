@@ -1,8 +1,9 @@
 # Map contexts
 
-**Status:** landed — basemap, terrain and layer visibility switch per story block; the
-camera default applies where a block is not keyframed. **Projection is carried in the
-document but not yet applied** — see below.
+**Status:** landed — basemap, terrain, projection and layer visibility switch per story
+block; the camera default applies where a block is not keyframed. **Projection is applied**
+for a whole-film globe, with a documented limitation when basemap *and* projection change
+mid-film — see below.
 
 **Governing sections:** v2 §04 (scene graph, map context), §10.
 
@@ -35,15 +36,22 @@ would make the timeline lie: the diamond says one thing, the map another.
 — it is this stretch of it that wants the layer gone, like a reference map during a
 close-up.
 
-## Projection: carried, not applied
+## Projection: applied, one sequence still crashes
 
-`MapContext.projection` is in the document and resolved, and deliberately **not** applied.
+`MapContext.projection` is in the document, resolved, and applied by `MapCanvas` in two
+places:
 
-MapLibre 5.24 throws from inside its own next frame when the projection changes after a
-`setStyle` — which is exactly what a story that switches basemap and then asks for the
-globe does. Isolated to that pair: a globe context alone is clean, a basemap switch alone
-is clean, the two in sequence throw
-`TypeError: Cannot read properties of undefined (reading 'signal')`.
+- **The `style.load` handler** re-applies the projection against the style that just
+  finished loading. This is the safe seat: applying there never rides a half-built style.
+- **The `projection` subscription** re-applies on a pure projection change.
+
+MapLibre 5.24 still throws from inside its own next frame when the projection changes
+*after* a `setStyle` — a story that switches basemap and then asks for the globe, where
+`style.load` has already set `mercator` against the old style and `setStyle` and
+`setProjection` land in the same frame, throws
+`TypeError: Cannot read properties of undefined (reading 'signal')`. Isolated to that
+pair: a globe context alone is clean, a basemap switch alone is clean, the two in
+sequence still throw.
 
 Three guards were tried and none held, because the throw is asynchronous and lands past
 where a caller's `try`/`catch` reaches:
@@ -53,7 +61,7 @@ where a caller's `try`/`catch` reaches:
 2. Wrapping the *read* of the current projection as well as the write.
 3. Deferring the whole thing to the map's own `idle` event.
 
-Shipping it would mean an uncaught error on an ordinary edit, and the CI render job
-rightly treats a page error as a failure. The field stays in the document so projects can
-carry it and nothing has to migrate when it works; applying it waits on a fix upstream or
-a crossfade of our own, which §07 says raster basemaps need for projection changes anyway.
+The line drawn: a globe tour — one basemap, one context, the whole film in `globe` — is
+exactly the case this supports. A mid-film basemap **and** projection swap is still the
+documented limitation; it waits on a fix upstream or a crossfade of our own, which §07
+says raster basemaps need for projection changes anyway.

@@ -98,7 +98,7 @@ export const mapContextType: NodeTypeDef = {
       optional: true,
       label: 'Projection',
       section: 'Map',
-      help: 'Carried in the document and not yet applied — see docs/features/map-contexts.md.',
+      help: 'Globe wraps the world into a sphere; mercator is the flat map. A mid-film switch after a basemap change still hits a MapLibre crash — see docs/features/map-contexts.md.',
       row: { kind: 'select', options: ['mercator', 'globe'] },
     },
     // A default view for blocks that are not keyframed; it is edited from the camera, not

@@ -3,7 +3,7 @@ import type { Layer, Project, RegionsLayer, TextLayer } from '@geomotion/documen
 import { createLayer, layersOf, projectWith } from '@geomotion/document';
 import { clearRegionCache } from '@geomotion/entities';
 import { cameraAt, clearPathCache, evaluate, tourPhases } from '@geomotion/evaluator';
-import { demoProject, indiaTourProject, worldTourProject } from './fixtures';
+import { demoProject, globeGdpTourProject, globeTourProject, indiaTourProject, paintedWorldProject, routeStoryProject, worldTourProject } from './fixtures';
 
 /**
  * Evaluation against realistic compositions.
@@ -27,6 +27,10 @@ const PROJECTS: [string, () => Project][] = [
   ['demo (routes, markers, text)', demoProject],
   ['india tour (regions, clouds, shape, text)', indiaTourProject],
   ['world tour (regions, clouds, text)', worldTourProject],
+  ['globe tour (globe, markers, text)', globeTourProject],
+  ['gdp globe (globe, regions, clouds, text)', globeGdpTourProject],
+  ['painted world pilot (globe, regions, clouds, text)', paintedWorldProject],
+  ['routes story pilot (globe, route, markers, text)', routeStoryProject],
 ];
 
 describe('evaluate — determinism and purity', () => {

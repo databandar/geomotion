@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #05060a;
+      }
+      body {
+        font-family: "IBM Plex Mono", monospace;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #05060a;
+        color: #f2ede1;
+      }
+
+      /* ---- design tokens ---- */
+      .disp {
+        font-family: "League Gothic", sans-serif;
+        font-weight: 400;
+        letter-spacing: 0.01em;
+      }
+      .mono {
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .accent {
+        color: #ffc53d;
+      }
+
+      /* ---- ambient glow (behind everything, pulses) ---- */
+      #glow {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 1800px;
+        height: 1800px;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, rgba(255, 173, 61, 0.20) 0%, rgba(255, 173, 61, 0.05) 38%, rgba(5, 6, 10, 0) 68%);
+        border-radius: 50%;
+      }
+
+      /* ---- income ladder rail (right edge, persistent decorative) ---- */
+      #ladder {
+        position: absolute;
+        right: 84px;
+        top: 200px;
+        height: 660px;
+        width: 40px;
+      }
+      #ladder-track {
+        position: absolute;
+        left: 16px;
+        top: 0;
+        width: 3px;
+        height: 660px;
+        background: rgba(242, 237, 225, 0.14);
+      }
+      #ladder-top,
+      #ladder-bot {
+        position: absolute;
+        left: 26px;
+        font-size: 22px;
+        color: #fff7ea;
+        letter-spacing: 0.05em;
+        background: rgba(5, 6, 10, 0.72);
+        padding: 2px 6px;
+        border-radius: 2px;
+      }
+      #ladder-top {
+        top: -8px;
+      }
+      #ladder-bot {
+        bottom: -8px;
+      }
+      #ladder-label {
+        position: absolute;
+        left: 48px;
+        top: 50%;
+        transform: translateY(-50%) rotate(90deg);
+        transform-origin: left center;
+        width: 660px;
+        font-size: 22px;
+        color: #f2ede1;
+        letter-spacing: 0.28em;
+        white-space: nowrap;
+      }
+      #ladder-marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 40px;
+        height: 40px;
+      }
+      #ladder-marker .dot {
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ffc53d;
+        box-shadow: 0 0 26px 6px rgba(255, 197, 61, 0.55);
+      }
+
+      /* ---- title card ---- */
+      #title-card {
+        position: absolute;
+        left: 150px;
+        top: 200px;
+        width: 1300px;
+        display: flex;
+        flex-direction: column;
+      }
+      #title-card .line {
+        display: flex;
+        gap: 30px;
+        font-size: 96px;
+        line-height: 1;
+        color: #f2ede1;
+      }
+      #title-card .line > span {
+        opacity: 0;
+      }
+      #title-card .line.income {
+        font-size: 250px;
+        line-height: 0.9;
+      }
+      #title-card .subtitle {
+        margin-top: 70px;
+        font-size: 40px;
+        color: rgba(242, 237, 225, 0.72);
+        letter-spacing: 0.06em;
+        opacity: 0;
+      }
+      #paint-sweep {
+        position: absolute;
+        left: 150px;
+        top: 1165px;
+        width: 900px;
+        height: 6px;
+        background: #ffc53d;
+        transform-origin: left center;
+        box-shadow: 0 0 30px 4px rgba(255, 197, 61, 0.6);
+      }
+
+      /* ---- rung callout cards ---- */
+      .rung-card {
+        position: absolute;
+        left: 150px;
+        bottom: 120px;
+        width: 720px;
+        color: #f2ede1;
+      }
+      .rung-card .panel {
+        position: absolute;
+        inset: -40px -56px -52px -56px;
+        background: linear-gradient(90deg, rgba(16, 18, 27, 0.94), rgba(16, 18, 27, 0.55));
+        border-left: 6px solid #ffc53d;
+        border-radius: 0 6px 6px 0;
+      }
+      .rung-card .rows {
+        position: relative;
+      }
+      .rung-card .rank-row {
+        display: flex;
+        align-items: baseline;
+        gap: 34px;
+      }
+      .rung-card .rank {
+        font-size: 150px;
+        line-height: 0.9;
+        color: #05060a;
+        text-shadow:
+          0 0 0 #000;
+      }
+      .rung-card .rank .num {
+        color: #ffc53d;
+      }
+      .rung-card .country {
+        font-size: 88px;
+        line-height: 0.95;
+      }
+      .rung-card .gdp {
+        margin-top: 30px;
+        font-size: 38px;
+        color: #f2ede1;
+        letter-spacing: 0.02em;
+      }
+      .rung-card .gdp .sym {
+        color: #ffc53d;
+      }
+      .rung-card .caption {
+        margin-top: 26px;
+        font-size: 32px;
+        color: rgba(242, 237, 225, 0.78);
+        line-height: 1.35;
+        max-width: 640px;
+      }
+      .rung-card .slug {
+        margin-top: 24px;
+        font-size: 22px;
+        color: #ffc53d;
+        letter-spacing: 0.26em;
+      }
+      .rung-card .anim {
+        opacity: 0;
+        display: block;
+      }
+
+      /* ---- outro ---- */
+      #outro {
+        position: absolute;
+        left: 150px;
+        top: 330px;
+        width: 1500px;
+      }
+      #outro .big {
+        font-size: 150px;
+        line-height: 0.96;
+        color: #f2ede1;
+        opacity: 0;
+      }
+      #outro .big .accent {
+        color: #ffc53d;
+      }
+      #outro .tease {
+        margin-top: 60px;
+        font-size: 42px;
+        color: rgba(242, 237, 225, 0.72);
+        letter-spacing: 0.05em;
+        opacity: 0;
+      }
+      #outro .tease .up {
+        color: #ffc53d;
+        letter-spacing: 0.14em;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-r7gy" id="root" data-composition-id="main" data-start="0" data-duration="29.5" data-width="1920" data-height="1080">
+      <video data-hf-id="hf-vd8y" id="plate" src="assets/plate.mp4" data-start="0" data-duration="29.5" data-track-index="0" muted playsinline></video>
+
+      <!-- ambient glow -->
+      <div data-hf-id="hf-27c6" id="glow"></div>
+
+      <!-- persistent ladder rail (decorative, no clip timing) -->
+      <div data-hf-id="hf-z7nm" id="ladder" aria-hidden="true">
+        <div data-hf-id="hf-4f2f" id="ladder-track"></div>
+        <div data-hf-id="hf-extn" id="ladder-top" class="disp">1</div>
+        <div data-hf-id="hf-75t4" id="ladder-bot" class="disp">169</div>
+        <div data-hf-id="hf-pior" id="ladder-label" class="mono" data-layout-allow-overlap="" data-layout-allow-overflow="">INCOME LADDER · WORLDS RICHEST TO POOREST</div>
+        <div data-hf-id="hf-tmq3" id="ladder-marker" data-layout-allow-overflow="">
+          <div data-hf-id="hf-lu65" class="dot"></div>
+        </div>
+      </div>
+
+      <!-- title card 0.5 - 6.6 -->
+      <section data-hf-id="hf-x7xc" id="title-card" class="clip" data-start="0.5" data-duration="6.1" data-track-index="1">
+        <div data-hf-id="hf-np12" class="line">
+          <span data-hf-id="hf-tm9p" id="tw1">THE</span>
+          <span data-hf-id="hf-jkr7" id="tw2">WORLD</span>
+          <span data-hf-id="hf-u2kx" id="tw3">PAINTED</span>
+          <span data-hf-id="hf-f5pa" id="tw4">BY</span>
+        </div>
+        <div data-hf-id="hf-izdj" class="line income">
+          <span data-hf-id="hf-v66y" id="inc" data-layout-allow-overlap="" data-layout-allow-overflow="">income</span>
+        </div>
+        <div data-hf-id="hf-p1c0" class="subtitle" id="sub">169 COUNTRIES · GDP PER PERSON</div>
+        <div data-hf-id="hf-qtgn" id="paint-sweep" data-layout-allow-overflow=""></div>
+      </section>
+
+      <!-- rung 1 Luxembourg 11.6 - 13.8 -->
+      <section data-hf-id="hf-3gz3" id="rung1" class="clip rung-card" data-start="11.6" data-duration="2.2" data-track-index="3">
+        <div data-hf-id="hf-owjm" class="panel"></div>
+        <div data-hf-id="hf-hnc7" class="rows">
+          <div data-hf-id="hf-tiv1" class="rank-row">
+            <div data-hf-id="hf-9a0m" class="rank disp"><span data-hf-id="hf-33oh" class="num anim" id="r1-rank">1</span></div>
+            <div data-hf-id="hf-dsw1" class="country disp anim" id="r1-country">LUXEMBOURG</div>
+          </div>
+          <div data-hf-id="hf-68l2" class="gdp mono anim" id="r1-gdp"><span data-hf-id="hf-agn6" class="sym">US$</span> 114,703 / year · GDP per person</div>
+          <div data-hf-id="hf-gid1" class="caption mono anim" id="r1-cap">the richest country on Earth is smaller than most cities</div>
+          <div data-hf-id="hf-300x" class="slug mono anim" id="r1-slug"># 1 OF 169</div>
+        </div>
+      </section>
+
+      <!-- rung 2 Switzerland 14.6 - 16.8 -->
+      <section data-hf-id="hf-z1qp" id="rung2" class="clip rung-card" data-start="14.6" data-duration="2.2" data-track-index="3">
+        <div data-hf-id="hf-gxly" class="panel"></div>
+        <div data-hf-id="hf-y39j" class="rows">
+          <div data-hf-id="hf-23td" class="rank-row">
+            <div data-hf-id="hf-4swq" class="rank disp"><span data-hf-id="hf-j4qj" class="num anim" id="r2-rank">2</span></div>
+            <div data-hf-id="hf-fjk3" class="country disp anim" id="r2-country">SWITZERLAND</div>
+          </div>
+          <div data-hf-id="hf-spj6" class="gdp mono anim" id="r2-gdp"><span data-hf-id="hf-2w4m" class="sym">US$</span> 81,994 / year · GDP per person</div>
+          <div data-hf-id="hf-iar6" class="caption mono anim" id="r2-cap">number two — banks, chocolate, watches</div>
+          <div data-hf-id="hf-x0jj" class="slug mono anim" id="r2-slug"># 2 OF 169</div>
+        </div>
+      </section>
+
+      <!-- rung 3 United States 17.6 - 19.8 -->
+      <section data-hf-id="hf-qs77" id="rung3" class="clip rung-card" data-start="17.6" data-duration="2.2" data-track-index="3">
+        <div data-hf-id="hf-hbwz" class="panel"></div>
+        <div data-hf-id="hf-xoyi" class="rows">
+          <div data-hf-id="hf-3aqg" class="rank-row">
+            <div data-hf-id="hf-577r" class="rank disp"><span data-hf-id="hf-ewtu" class="num anim" id="r3-rank">6</span></div>
+            <div data-hf-id="hf-fxhq" class="country disp anim" id="r3-country">UNITED STATES</div>
+          </div>
+          <div data-hf-id="hf-2ing" class="gdp mono anim" id="r3-gdp"><span data-hf-id="hf-3afn" class="sym">US$</span> 65,298 / year · GDP per person</div>
+          <div data-hf-id="hf-g281" class="caption mono anim" id="r3-cap">you'd bet on first. it's sixth.</div>
+          <div data-hf-id="hf-5czo" class="slug mono anim" id="r3-slug"># 6 OF 169</div>
+        </div>
+      </section>
+
+      <!-- rung 4 Burundi 20.6 - 22.8 -->
+      <section data-hf-id="hf-a386" id="rung4" class="clip rung-card" data-start="20.6" data-duration="2.2" data-track-index="3">
+        <div data-hf-id="hf-hq80" class="panel"></div>
+        <div data-hf-id="hf-xanh" class="rows">
+          <div data-hf-id="hf-2wff" class="rank-row">
+            <div data-hf-id="hf-5lis" class="rank disp"><span data-hf-id="hf-rxg9" class="num anim" id="r4-rank">169</span></div>
+            <div data-hf-id="hf-fnld" class="country disp anim" id="r4-country">BURUNDI</div>
+          </div>
+          <div data-hf-id="hf-ujxc" class="gdp mono anim" id="r4-gdp"><span data-hf-id="hf-3oqo" class="sym">US$</span> 261 / year · GDP per person</div>
+          <div data-hf-id="hf-8jwc" class="caption mono anim" id="r4-cap">the bottom of the scale — $261 a year</div>
+          <div data-hf-id="hf-hn5p" class="slug mono anim" id="r4-slug"># 169 OF 169</div>
+        </div>
+      </section>
+
+      <!-- outro 23.4 - 29.5 -->
+      <section data-hf-id="hf-3j6s" id="outro" class="clip" data-start="23.4" data-duration="6.1" data-track-index="5">
+        <div data-hf-id="hf-d878" class="big disp">ONE PLANET,<br data-hf-id="hf-x5px"><span data-hf-id="hf-xzvw" class="accent">VERY UNEQUAL.</span></div>
+        <div data-hf-id="hf-3bcr" class="tease mono">next week — the world, <span data-hf-id="hf-28i0" class="up">PAINTED BY LIFE EXPECTANCY</span></div>
+      </section>
+
+      <!-- voicebox narration (GeoMotion clone test), synced to beats -->
+      <audio data-hf-id="hf-bxce" id="vo-1" src="assets/vo-1.wav" data-start="1.0" data-duration="3.78" data-track-index="10" data-volume="1"></audio>
+      <audio data-hf-id="hf-txl0" id="vo-2" src="assets/vo-2.wav" data-start="11.6" data-duration="3.28" data-track-index="10" data-volume="1"></audio>
+      <audio data-hf-id="hf-86vv" id="vo-3" src="assets/vo-3.wav" data-start="14.9" data-duration="2.84" data-track-index="10" data-volume="1"></audio>
+      <audio data-hf-id="hf-j3i8" id="vo-4" src="assets/vo-4.wav" data-start="17.8" data-duration="1.88" data-track-index="10" data-volume="1"></audio>
+      <audio data-hf-id="hf-5u6a" id="vo-5" src="assets/vo-5.wav" data-start="20.6" data-duration="2.7" data-track-index="10" data-volume="1"></audio>
+      <audio data-hf-id="hf-80el" id="vo-6" src="assets/vo-6.wav" data-start="23.4" data-duration="2.41" data-track-index="10" data-volume="1"></audio>
+      <audio data-hf-id="hf-01t4" id="vo-7" src="assets/vo-7.wav" data-start="26.7" data-duration="2.42" data-track-index="10" data-volume="1"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const F = 1 / 60;
+
+      /* ---- ambient glow: bounded breathe ---- */
+      tl.to("#glow", { scale: 1.08, duration: 2.2, ease: "sine.inOut", yoyo: true, repeat: 6 }, 0);
+
+      /* ---- title card entrance (waterfall) 0.5-6.6 ---- */
+      tl.set("#tw1", { opacity: 1, y: 80 }, 0.7);
+      tl.to("#tw1", { y: 0, duration: 0.2, ease: "power4.out" }, 0.7);
+      let tt = 0.9;
+      tl.set("#tw2", { opacity: 1, y: 60 }, tt);
+      tl.to("#tw2", { y: 0, duration: 0.2, ease: "power4.out" }, tt);
+      tt += 0.2 - 2 * F;
+      tl.set("#tw3", { opacity: 1, y: 60 }, tt);
+      tl.to("#tw3", { y: 0, duration: 0.2, ease: "power4.out" }, tt);
+      tt += 0.2 - 2 * F;
+      tl.set("#tw4", { opacity: 1, y: 48 }, tt);
+      tl.to("#tw4", { y: 0, duration: 0.2, ease: "power4.out" }, tt);
+
+      /* income slams in accent */
+      tl.set("#inc", { opacity: 1, scale: 1.5, filter: "blur(16px)" }, 1.5);
+      tl.to("#inc", { scale: 1, filter: "blur(0px)", opacity: 1, duration: 0.55, ease: "power4.out" }, 1.5);
+
+      tl.set("#sub", { opacity: 1, y: 24 }, 2.2);
+      tl.to("#sub", { y: 0, duration: 0.35, ease: "power4.out" }, 2.2);
+
+      /* paint sweep draws across */
+      tl.fromTo("#paint-sweep", { scaleX: 0 }, { scaleX: 1, duration: 1.1, ease: "power2.out" }, 1.7);
+
+      /* ---- ladder marker ---- */
+      function markerY(rank) {
+        var top = 0,
+          bot = 660,
+          lo = 1,
+          hi = 169;
+        return top + ((rank - lo) / (hi - lo)) * (bot - top);
+      }
+      tl.fromTo("#ladder-marker", { x: -6, y: -20 + markerY(1) }, { x: -6, y: -20 + markerY(2), duration: 0.5, ease: "power3.out" }, 15.2);
+      tl.fromTo("#ladder-marker", { x: -6, y: -20 + markerY(2) }, { x: -6, y: -20 + markerY(6), duration: 0.5, ease: "power3.out" }, 18.2);
+      tl.fromTo("#ladder-marker", { x: -6, y: -20 + markerY(6) }, { x: -6, y: -20 + markerY(169), duration: 0.6, ease: "power3.out" }, 21.2);
+
+      /* ---- rung callouts (arrival: number slams, then rows rise) ---- */
+      function rung(id, cardId, at) {
+        const r = "#" + id + "-rank",
+          c = "#" + id + "-country",
+          g = "#" + id + "-gdp",
+          cap = "#" + id + "-cap",
+          slug = "#" + id + "-slug",
+          card = "#" + cardId;
+        /* rank number slams in accent */
+        tl.fromTo(r, { opacity: 0, scale: 2.4, rotate: -6 }, { opacity: 1, scale: 1, rotate: 0, duration: 0.5, ease: "back.out(2)" }, at);
+        /* country rides in from left */
+        tl.fromTo(c, { opacity: 0, x: -70 }, { opacity: 1, x: 0, duration: 0.5, ease: "expo.out" }, at + 0.06);
+        /* gdp / caption / slug rise */
+        tl.fromTo(g, { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.4, ease: "power4.out" }, at + 0.28);
+        tl.fromTo(cap, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power4.out" }, at + 0.4);
+        tl.fromTo(slug, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.35, ease: "power4.out" }, at + 0.52);
+        /* panel scales out from the accent edge */
+        tl.fromTo(card + " .panel", { scaleX: 0, transformOrigin: "left center" }, { scaleX: 1, duration: 0.45, ease: "power3.out" }, at - 0.04);
+      }
+      rung("r1", "rung1", 11.8);
+      rung("r2", "rung2", 14.8);
+      rung("r3", "rung3", 17.8);
+      rung("r4", "rung4", 20.8);
+
+      /* ---- outro ---- */
+      tl.fromTo("#outro .big", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.6, ease: "power4.out" }, 24.0);
+      tl.fromTo("#outro .tease", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: "power4.out" }, 26.9);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

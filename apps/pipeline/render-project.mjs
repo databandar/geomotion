@@ -49,6 +49,10 @@ const project = JSON.parse(await fs.readFile(path.resolve(file), 'utf8'));
 const draft = flag('draft');
 const slug = opt('slug', (project.name || 'project').toLowerCase().replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '') || 'project');
 
+// Format 6+ is a flat node store; older documents carry a `layers` list. The app's
+// `loadProject` migrates either, so the log just needs a count that survives both.
+const nodeCount = Array.isArray(project.layers) ? project.layers.length : Object.keys(project.nodes ?? {}).length;
+
 if (draft) {
   project.fps = 15;
   // Aspect ratio preserved: a draft that reframes the composition cannot be used to
@@ -109,7 +113,7 @@ if (audio) {
 step(1, 'Project');
 ok(
   `${project.width}×${project.height} @ ${project.fps}fps · ${project.duration.toFixed(1)}s · ` +
-    `${project.layers.length} layers · ${audio ? 'with narration' : 'silent'}`,
+    `${nodeCount} layers · ${audio ? 'with narration' : 'silent'}`,
 );
 
 /* -------------------------------------------------------------- build */

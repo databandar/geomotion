@@ -17,8 +17,42 @@ function reportSyncError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
   if (seenSyncErrors.has(msg)) return;
   seenSyncErrors.add(msg);
-  console.error('[geomotion] layer sync failed:', msg);
+  console.error('[geomotion] map failed:', msg);
 }
+
+/*
+ * Sky settings — a style-level property in MapLibre 5. The terrain sky follows the
+ * basemap (daylight overhead, midnight-blue over a dark map); the globe always gets
+ * space, whatever the basemap, because from orbit the planet is the bright thing and
+ * the sky behind it is black.
+ */
+const DARK_DAY_SKY = {
+  'sky-color': '#0b1b2b',
+  'horizon-color': '#1d3447',
+  'fog-color': '#0d1117',
+  'fog-ground-blend': 0.6,
+  'horizon-fog-blend': 0.4,
+  'sky-horizon-blend': 0.7,
+  'atmosphere-blend': 0.8,
+} as const;
+const LIGHT_DAY_SKY = {
+  'sky-color': '#8ec9ff',
+  'horizon-color': '#dceeff',
+  'fog-color': '#ffffff',
+  'fog-ground-blend': 0.6,
+  'horizon-fog-blend': 0.4,
+  'sky-horizon-blend': 0.7,
+  'atmosphere-blend': 0.8,
+} as const;
+const SPACE_SKY = {
+  'sky-color': '#03060d',
+  'horizon-color': '#16243e',
+  'fog-color': '#03060d',
+  'fog-ground-blend': 0.6,
+  'horizon-fog-blend': 0.4,
+  'sky-horizon-blend': 0.9,
+  'atmosphere-blend': 0.25,
+} as const;
 
 type DragTarget =
   | { kind: 'vertex'; layerId: string; index: number }
@@ -48,6 +82,8 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
    * while an offline export is driving frames explicitly.
    */
   const timeRef = useRef(useStore.getState().time);
+  /** What we last handed to `setProjection`; `null` means "not applied since the last style". */
+  const projectionRef = useRef<'mercator' | 'globe' | null>(null);
 
   /* ------------------------------------------------------------- create map */
   useEffect(() => {
@@ -77,6 +113,15 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     map.on('style.load', () => {
       resetSyncCache(map);
       applyTerrain(map);
+      /*
+       * A fresh style restarts at its own default projection (mercator), so forget what we
+       * last applied and re-establish it against the style that just landed. This is also
+       * the safe place for it: the known MapLibre crash (see the comment by the `projection`
+       * subscription below) is a projection change riding on a half-built style — applying
+       * here runs against the style that just finished loading, not the one still settling.
+       */
+      projectionRef.current = null;
+      applyProjection(map, resolveMapContext(useStore.getState().project, useStore.getState().time).projection);
       renderRef.current(true);
     });
     map.on('move', () => renderRef.current(false));
@@ -302,16 +347,22 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
   const basemap = useStore((s) => resolveMapContext(s.project, s.time).basemap);
   const terrain = useStore((s) => resolveMapContext(s.project, s.time).terrain);
   const exaggeration = useStore((s) => resolveMapContext(s.project, s.time).terrainExaggeration);
+  const projection = useStore((s) => resolveMapContext(s.project, s.time).projection);
   /*
-   * `projection` is resolved but deliberately not applied — see docs/features/map-contexts.md.
+   * `projection` is applied — the other context fields' effect does the same work.
    *
-   * MapLibre 5.24 throws from inside its own next frame when the projection changes after
-   * a `setStyle`, which is exactly what a story switching basemap and then asking for the
-   * globe does. Three guards were tried — `isStyleLoaded`, wrapping the read as well as
-   * the write, deferring to `idle` — and the throw is asynchronous in all of them, past
-   * where a caller's try/catch reaches. The field stays in the document so projects can
-   * carry it and nothing has to migrate later; applying it waits on a fix upstream or a
-   * crossfade of our own.
+   * The scar left in docs/features/map-contexts.md is real but narrower than it reads:
+   * MapLibre 5.24 throws from inside its own next frame when the projection changes *after*
+   * a basemap switch — a story that sets one basemap and then asks for the globe. Isolated
+   * to that pair: a globe project alone is clean, a basemap switch alone is clean, the two
+   * in sequence throw `TypeError: Cannot read properties of undefined (reading 'signal')`.
+   *
+   * The style.load handler is where the sequence can be made safe: it re-applies the
+   * projection against the style that just finished loading rather than one still being
+   * rebuilt, and the projection-only path below is the clean case. A story that swaps
+   * basemap *and* projection mid-film can still trip the upstream bug — that remains the
+   * documented limitation — but a globe tour, where the whole composition is one globe, is
+   * exactly the case this supports.
    */
 
   useEffect(() => {
@@ -328,6 +379,34 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     applyTerrain(map);
   }, [terrain, exaggeration]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    // The style.load handler owns the first application; before that there is no style
+    // to project onto, and setProjection throws "Style is not done loading".
+    if (!map || !map.isStyleLoaded()) return;
+    applyProjection(map, projection);
+    // The sky answers to the projection too — space behind a globe, daylight behind a
+    // flat map — so a projection change re-derives it as well.
+    applyTerrain(map);
+  }, [projection]);
+
+  /**
+   * `map.setProjection` in MapLibre 5 takes a projection spec (globe) or null (back to the
+   * style's default, mercator). Applying only when the value actually changed keeps a
+   * per-frame render from issuing the same call over and over.
+   */
+  function applyProjection(map: MLMap, projection: 'mercator' | 'globe') {
+    if (projectionRef.current === projection) return;
+    projectionRef.current = projection;
+    try {
+      map.setProjection(projection === 'globe' ? { type: 'globe' } : { type: 'mercator' });
+    } catch (err) {
+      // Same treatment as a layer sync failure: a projection the style cannot take is a
+      // real bug that used to vanish silently — report each distinct one once.
+      reportSyncError(err);
+    }
+  }
+
 
 
   function applyTerrain(map: MLMap) {
@@ -338,16 +417,14 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
       if (resolved.terrain) {
         if (!map.getSource('gm-dem')) map.addSource('gm-dem', TERRAIN_SOURCE);
         map.setTerrain({ source: 'gm-dem', exaggeration: resolved.terrainExaggeration });
-        // Sky is a style-level setting in MapLibre 5, not a layer.
-        map.setSky({
-          'sky-color': dark ? '#0b1b2b' : '#8ec9ff',
-          'horizon-color': dark ? '#1d3447' : '#dceeff',
-          'fog-color': dark ? '#0d1117' : '#ffffff',
-          'fog-ground-blend': 0.6,
-          'horizon-fog-blend': 0.4,
-          'sky-horizon-blend': 0.7,
-          'atmosphere-blend': 0.8,
-        });
+        // Sky is a style-level setting in MapLibre 5, not a layer. From space the sky is
+        // dark even over a light basemap — the planet is what is bright — so the globe
+        // always gets the dark space sky and only flat terrain keeps the daylight one.
+        map.setSky(resolved.projection === 'globe' ? SPACE_SKY : (dark ? DARK_DAY_SKY : LIGHT_DAY_SKY));
+      } else if (resolved.projection === 'globe') {
+        map.setTerrain(null);
+        // Black space around the planet instead of MapLibre's default light-blue haze.
+        map.setSky(SPACE_SKY);
       } else {
         map.setTerrain(null);
         map.setSky(undefined as never);

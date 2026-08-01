@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useCanRedo, useCanUndo, useStore } from '../store';
 import { useRenderHost } from '../render/host';
 import { emptyProject, migrate } from '@geomotion/document';
-import { demoProject, indiaTourProject, worldTourProject } from '../lib/fixtures';
+import { demoProject, globeGdpTourProject, globeTourProject, indiaTourProject, paintedWorldProject, routeStoryProject, worldTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
 import { cueFromFile } from '../lib/audio-import';
 import { cueFromLibrary, sfxUrl, SFX_GAIN, SFX_GROUPS, SFX_LIBRARY } from '../lib/sfx';
@@ -282,6 +282,42 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
               >
                 <strong>World tour</strong>
                 <span>Every country coloured, nine of them visited</span>
+              </li>
+              <li
+                onClick={() => {
+                  replaceProject(globeTourProject());
+                  setDemoOpen(false);
+                }}
+              >
+                <strong>Globe tour</strong>
+                <span>The planet as a sphere, four cities visited</span>
+              </li>
+              <li
+                onClick={() => {
+                  replaceProject(globeGdpTourProject());
+                  setDemoOpen(false);
+                }}
+              >
+                <strong>GDP per person — globe</strong>
+                <span>Every country coloured, six visited, on a sphere</span>
+              </li>
+              <li
+                onClick={() => {
+                  replaceProject(paintedWorldProject());
+                  setDemoOpen(false);
+                }}
+              >
+                <strong>Painted world</strong>
+                <span>Income ladder: Luxembourg → … → Burundi</span>
+              </li>
+              <li
+                onClick={() => {
+                  replaceProject(routeStoryProject());
+                  setDemoOpen(false);
+                }}
+              >
+                <strong>Long way home</strong>
+                <span>One flight, five cities, why routes curve</span>
               </li>
             </ul>
           )}
