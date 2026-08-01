@@ -228,6 +228,32 @@ describe('Inspector — an audio clip', () => {
     expect(cue().text).toBe('music');
   });
 
+  it('keeps a sound effect a sound effect when the role is read back', () => {
+    /*
+     * The reason this control is a three-way select and not a "music bed" toggle. A toggle
+     * has two states and the role has three, so an effect would show as "not music", and
+     * touching the control twice would land it on foreground — where it starts ducking the
+     * score under a fifth of a second of click.
+     */
+    withCue({ role: 'sfx' });
+    render(<Inspector />);
+    expect(control('Role')).toHaveValue('sfx');
+  });
+
+  it('turns the role off to foreground rather than to the string "voice"', async () => {
+    // 'voice' is the select's word for absent; writing it into the document would make a
+    // role nothing in gainCurve understands.
+    withCue({ role: 'music' });
+    render(<Inspector />);
+    await userEvent.selectOptions(control('Role'), 'voice');
+    expect(cue().role).toBeUndefined();
+
+    // Clearing is a delete rather than an assignment, so it is the half of the fix that
+    // could plausibly produce an inverse patch that does not restore anything.
+    useStore.getState().undo();
+    expect(cue().role).toBe('music');
+  });
+
   it('shows the clamped level, not a raw value the mixers would reject', () => {
     // envelopeOf caps gain; the inspector reads through it so what is shown is what
     // will be heard.

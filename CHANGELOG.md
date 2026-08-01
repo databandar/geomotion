@@ -7,6 +7,34 @@ name the section each change answers to.
 
 ## Unreleased
 
+### A sound library, and a role that keeps it out of the way (§06)
+
+- **`+ Sound`** in the toolbar: eighteen CC0 sounds in four groups, previewable, placed at the
+  playhead. A picked sound is **an ordinary audio cue** — it goes through the same
+  `cueFromFile` an imported file does, so it ripples, retimes, embeds and mixes through code
+  that already existed, and nothing downstream knows where it came from.
+- **`AudioCue.role` gained `'sfx'`.** A `music` bed used to duck under *anything* non-music.
+  A click is 0.1 s and the duck fade is 0.3 s either side, so ducking a score under one is
+  heard as the music pumping, not as room being made. An `sfx` clip is foreground like
+  narration but never causes a duck — only speech is worth making room for. No migration:
+  no existing document can hold the new value.
+- **The Inspector's "Music bed" toggle became a Role select.** Two states could not carry
+  three roles: an effect showed as "not music", and two clicks landed it on foreground, which
+  is the state that ducks the score under a click.
+- **A bug that uncovered:** the toggle could be turned on and never off. `assignChanged`
+  skipped every `undefined` in a patch, so no property could be cleared through it. Absent and
+  explicitly-undefined are distinguishable, so it now deletes on an explicit `undefined` —
+  and undo restores the deleted field.
+- **Licensing is checkable, not asserted.** Fifteen sounds are curated from Kenney's Interface
+  Sounds, whose own CC0 licence text ships beside them. The three transitions — `hush`,
+  `whoosh`, `rise` — were synthesised with ffmpeg, because that pack has no whooshes and a
+  hush under a clearing layer was the example that prompted this.
+- **Not built:** sounds triggered by events. "A hush when the cloud clears" is a behaviour
+  (§06) and needs an event model the document does not have. Inventing one to carry eighteen
+  ogg files would be the wrong thing first; when behaviours arrive they trigger these same
+  sounds and none of this changes.
+- See [`docs/features/sound-library.md`](docs/features/sound-library.md).
+
 ### Record a voice in the editor, and narrate in it (§00, §10)
 
 - **`● Record` in the toolbar.** Stop, and the take lands at the playhead as an ordinary audio

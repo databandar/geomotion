@@ -509,8 +509,12 @@ export interface AudioCue {
    * `music` clips duck out of the way whenever another clip is speaking over them.
    * Everything else is treated as foreground and never ducked. Absent means
    * foreground, so existing narration is unaffected.
+   *
+   * `sfx` is foreground like narration, but does not *cause* a duck. A click is two
+   * hundred milliseconds long; ducking a score under it and back would be a pump, not
+   * a clearing. Only speech is worth making room for. See docs/features/sound-library.md.
    */
-  role?: 'music' | undefined;
+  role?: 'music' | 'sfx' | undefined;
   /**
    * How far a music clip drops while something else plays, as a fraction of its own
    * level. 0.25 means a quarter, about -12 dB. Absent means the default.

@@ -247,13 +247,24 @@ function AudioInspector({ cue }: { cue: AudioCue }) {
       <Field label="Fade out">
         <Num value={env.fadeOut} onChange={(fadeOut) => set({ fadeOut }, 'fout')} step={0.1} min={0} suffix="s" />
       </Field>
+      {/*
+        * Three roles rather than a "music bed" toggle, because there are now three answers.
+        * A toggle could only say music-or-not, so turning it on and off again would quietly
+        * turn a sound effect into a foreground clip — one that ducks the score under a
+        * two-hundred-millisecond click.
+        */}
       <Field
-        label="Music bed"
-        hint="Drops out of the way whenever another clip is playing over it, and comes back after."
+        label="Role"
+        hint="A music bed drops out of the way while anything speaks. An effect never moves the bed — it is too short to make room for."
       >
-        <Toggle
-          value={cue.role === 'music'}
-          onChange={(on) => set({ role: on ? 'music' : undefined })}
+        <Select
+          value={cue.role ?? 'voice'}
+          onChange={(role) => set({ role: role === 'voice' ? undefined : role })}
+          options={[
+            { value: 'voice', label: 'Voice / foreground' },
+            { value: 'music', label: 'Music bed' },
+            { value: 'sfx', label: 'Sound effect' },
+          ]}
         />
       </Field>
       {cue.role === 'music' && (

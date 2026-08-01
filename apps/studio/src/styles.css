@@ -1547,6 +1547,89 @@ textarea.text-input.mono,
 }
 
 /*
+ * The sound library.
+ *
+ * Wider and scrolling because it holds eighteen entries in four groups, where the demo list
+ * holds two. The height cap is a viewport fraction rather than a pixel count so it cannot
+ * grow past the bottom of a short window and strand the last group.
+ */
+.sfx-list {
+  width: 288px;
+  max-height: min(62vh, 460px);
+  overflow-y: auto;
+}
+
+.sfx-group {
+  padding: 7px 9px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sfx-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 5px;
+}
+
+.sfx-row:hover {
+  background: var(--wash-sel);
+}
+
+/* Preview and place are separate targets: auditioning a sound must not also add it. */
+.sfx-play {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 5px;
+  padding: 0;
+  color: var(--dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sfx-play:hover {
+  color: var(--accent);
+  border-color: var(--line);
+}
+
+.sfx-pick {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 9px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.sfx-pick strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sfx-pick span {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.sfx-row:hover .sfx-pick strong {
+  color: var(--accent);
+}
+
+/*
  * The row-action popover. Shares `.menu`'s positioning with the toolbar's demo list but
  * not its metrics: this one is a short list of verbs, not a catalogue with descriptions.
  */

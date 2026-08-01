@@ -163,8 +163,10 @@ const DUCK_FADE = 0.3;
  * takes an expression built from it. Anything smarter would sound different in the
  * preview than in the file.
  *
- * Only `music` clips duck, and only under clips that are not music: two beds do not
- * fight each other, and narration is never pushed down by a bed.
+ * Only `music` clips duck, and only under speech: two beds do not fight each other,
+ * narration is never pushed down by a bed, and a sound effect does not move the score
+ * at all. A click is two hundred milliseconds long, so ducking under it and back would
+ * be heard as the music pumping rather than as room being made.
  */
 export function gainCurve(cue: AudioCue, others: AudioCue[] = []): GainPoint[] {
   const { gain, fadeIn, fadeOut } = envelopeOf(cue);
@@ -186,7 +188,7 @@ export function gainCurve(cue: AudioCue, others: AudioCue[] = []): GainPoint[] {
   const ramp = Math.max(0.01, cue.duckFade === undefined ? DUCK_FADE : Math.max(0, cue.duckFade));
 
   for (const other of others) {
-    if (other === cue || other.id === cue.id || other.role === 'music') continue;
+    if (other === cue || other.id === cue.id || other.role === 'music' || other.role === 'sfx') continue;
     if (!(other.d > 0)) continue;
 
     // In this clip's own time.

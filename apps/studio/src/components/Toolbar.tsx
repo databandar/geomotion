@@ -5,6 +5,7 @@ import { emptyProject, migrate } from '@geomotion/document';
 import { demoProject, indiaTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
 import { cueFromFile } from '../lib/audio-import';
+import { cueFromLibrary, sfxUrl, SFX_GAIN, SFX_GROUPS, SFX_LIBRARY } from '../lib/sfx';
 import { startRecording, type Recording } from '../lib/recorder';
 import Icon from './Icon';
 
@@ -30,6 +31,9 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
   const audioRef = useRef<HTMLInputElement>(null);
   const addAudioCue = useStore((s) => s.addAudioCue);
   const [recording, setRecording] = useState<Recording | null>(null);
+  const [sfxOpen, setSfxOpen] = useState(false);
+  // Held so a second preview cuts the first off, rather than the two overlapping.
+  const previewRef = useRef<HTMLAudioElement | null>(null);
   const autosaveError = useStore((s) => s.autosaveError);
   const [demoOpen, setDemoOpen] = useState(false);
   const playing = useStore((s) => s.playing);
@@ -137,6 +141,68 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
         >
           {recording ? '■ Stop' : '● Record'}
         </button>
+        {/*
+          * The sound library. A picked sound becomes an ordinary cue at the playhead, so it
+          * is dragged, trimmed and mixed like anything else — see lib/sfx.ts for why it is
+          * placed by hand rather than triggered by an event.
+          */}
+        <div className="menu">
+          <button
+            className="tb-btn"
+            onClick={() => setSfxOpen((v) => !v)}
+            title="Add a sound effect at the playhead"
+          >
+            + Sound <Icon name="chevron-down" size={12} />
+          </button>
+          {sfxOpen && (
+            <div className="menu-list sfx-list" onMouseLeave={() => setSfxOpen(false)}>
+              {SFX_GROUPS.map((group) => (
+                <div key={group}>
+                  <div className="sfx-group">{group}</div>
+                  {SFX_LIBRARY.filter((e) => e.group === group).map((entry) => (
+                    <div key={entry.id} className="sfx-row">
+                      {/*
+                        * Auditioning matters more here than anywhere else in the toolbar:
+                        * eighteen short sounds are not tellable apart by name, and placing
+                        * one to hear it means undoing it when it is wrong.
+                        */}
+                      <button
+                        className="sfx-play"
+                        title={`Preview ${entry.label}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          previewRef.current?.pause();
+                          const a = new Audio(sfxUrl(entry.id));
+                          // Previewed at the level it will actually be placed at, so the
+                          // audition is not louder than the result.
+                          a.volume = SFX_GAIN;
+                          previewRef.current = a;
+                          void a.play().catch(() => {});
+                        }}
+                      >
+                        <Icon name="play" size={10} />
+                      </button>
+                      <button
+                        className="sfx-pick"
+                        onClick={async () => {
+                          setSfxOpen(false);
+                          try {
+                            addAudioCue(await cueFromLibrary(entry, useStore.getState().time));
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : `could not add ${entry.label}`);
+                          }
+                        }}
+                      >
+                        <strong>{entry.label}</strong>
+                        <span>{entry.hint}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <input
           ref={audioRef}
           type="file"

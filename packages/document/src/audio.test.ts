@@ -319,6 +319,26 @@ describe('gainCurve', () => {
     expect(at(points, 19)).toBeCloseTo(0.5, 6);
   });
 
+  it('does not duck a bed under a sound effect', () => {
+    /*
+     * The reason `sfx` exists as a role at all. A click is a fifth of a second, so ducking
+     * the score under it and lifting it back would be heard as the music pumping — the
+     * fades either side are longer than the sound that triggered them. Only speech is
+     * worth making room for.
+     */
+    const click: AudioCue = { id: 'c', t: 8, d: 0.2, text: 'click', role: 'sfx', url: '/c.ogg' };
+    const points = gainCurve(music({ gain: 1 }), [click]);
+    expect(at(points, 8)).toBeCloseTo(1, 6);
+    expect(at(points, 8.1)).toBeCloseTo(1, 6);
+  });
+
+  it('still ducks under speech when an effect is playing too', () => {
+    // The effect is ignored, not the whole list: one sfx must not suppress a real duck.
+    const click: AudioCue = { id: 'c', t: 8, d: 0.2, text: 'click', role: 'sfx', url: '/c.ogg' };
+    const points = gainCurve(music({ gain: 1 }), [click, voice(8, 4)]);
+    expect(at(points, 9)).toBeCloseTo(0.25, 6);
+  });
+
   it('ducks a bed while a line plays over it, and lifts it after', () => {
     // The whole point of the feature.
     const points = gainCurve(music({ gain: 1 }), [voice(8, 4)]);

@@ -222,11 +222,23 @@ let saveTimer: number | undefined;
  * Assigning field by field lets Immer's own equality check do the work: an assignment
  * of an identical value marks nothing dirty, so a no-op edit produces no patches and
  * `patch` drops it.
+ *
+ * **An explicit `undefined` clears the field.** This used to be skipped along with absent
+ * keys, which made a property impossible to unset through here — the audio clip's "music
+ * bed" toggle could be turned on and never off, because off wrote `role: undefined` and
+ * nothing happened. The two are distinguishable: `Object.keys` lists a key that was written
+ * as `undefined` and omits one that was never written, so "leave it alone" is still just
+ * leaving it out. `exactOptionalPropertyTypes` does the rest — a property not declared
+ * `| undefined` cannot be handed one in the first place.
  */
 function assignChanged<T extends object>(target: T, patch: Partial<T>): void {
   for (const key of Object.keys(patch) as (keyof T)[]) {
     const next = patch[key];
-    if (next !== undefined && target[key] !== next) target[key] = next as T[keyof T];
+    if (next === undefined) {
+      if (key in target) delete target[key];
+    } else if (target[key] !== next) {
+      target[key] = next as T[keyof T];
+    }
   }
 }
 
