@@ -1,4 +1,6 @@
 import type { StyleSpecification } from 'maplibre-gl';
+import darkClean from './styles/dark-clean.json';
+import positronClean from './styles/positron-clean.json';
 
 export interface Basemap {
   id: string;
@@ -52,10 +54,31 @@ export const BASEMAPS: [Basemap, ...Basemap[]] = [
     style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     dark: true,
   },
+  /*
+   * Dark Matter with every symbol layer removed — no place names, no water names, no POI
+   * labels, nothing the basemap decided was worth naming. A default vector style ships ~30
+   * label layers because it's built to be a general-purpose map; a story that wants only the
+   * labels it deliberately added (a marker, a callout) is fighting that default on every
+   * frame otherwise. Filtered once from the upstream style.json and bundled as a static
+   * asset rather than filtered live in the browser, so a render is reproducible without
+   * depending on the map re-hiding the same 27 layers correctly on every load.
+   */
+  {
+    id: 'dark-clean',
+    name: 'Dark Matter — no labels',
+    style: darkClean as StyleSpecification,
+    dark: true,
+  },
   {
     id: 'positron',
     name: 'Positron (light)',
     style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    dark: false,
+  },
+  {
+    id: 'positron-clean',
+    name: 'Positron — no labels',
+    style: positronClean as StyleSpecification,
     dark: false,
   },
   {

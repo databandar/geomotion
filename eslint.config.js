@@ -161,6 +161,9 @@ export default tseslint.config(
       'apps/pipeline/out/**',
       // Plain .mjs node scripts, not part of the typed graph.
       'apps/pipeline/**/*.mjs',
+      // Same reasoning: one-off production tooling for a specific brand video, run directly
+      // with `node`, never imported by the workspace.
+      'docs/**/*.mjs',
     ],
   },
 

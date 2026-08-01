@@ -3,6 +3,11 @@
 The differentiation strategy in [`../databandar-differentiation.md`](../databandar-differentiation.md),
 produced as an actual video, not left as a recommendation.
 
+> **A full creative review superseded this cut.** [`v2/`](v2/) has the critique, a six-role
+> panel review, a redesigned storyboard/script/GeoMotion plan, a new Hyperframe cold open, a
+> label-free basemap, and the rebuilt video — see [`v2/CHANGELOG.md`](v2/CHANGELOG.md) for
+> exactly what changed and why. This file describes the cut that review is *of*.
+
 **Output:** `half-of-humanity.mp4` (gitignored — 9 MB, rebuild locally with the steps below).
 1080×1920, 30fps, 40.05s, H.264 + AAC.
 
