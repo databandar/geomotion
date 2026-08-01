@@ -383,6 +383,27 @@ textarea {
   background: none;
 }
 
+/*
+ * Recording is a mode, and a mode has to be visible from across the room — the failure it
+ * prevents is a live microphone nobody noticed. The pulse respects reduced-motion (§11).
+ */
+.tb-btn.recording {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.55);
+  background: rgba(255, 107, 107, 0.14);
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  50% {
+    background: rgba(255, 107, 107, 0.28);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tb-btn.recording {
+    animation: none;
+  }
+}
+
 .tb-btn:hover:not(:disabled) {
   background: var(--wash-hover);
 }

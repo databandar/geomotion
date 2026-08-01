@@ -7,6 +7,33 @@ name the section each change answers to.
 
 ## Unreleased
 
+### Record a voice in the editor, and narrate in it (§00, §10)
+
+- **`● Record` in the toolbar.** Stop, and the take lands at the playhead as an ordinary audio
+  cue — so it ripples, re-times, ducks and mixes exactly like an imported one, and nothing
+  downstream knows where it came from. §00's frozen-voice scar is this being a clip rather
+  than a bed.
+  - The container is negotiated, not assumed: Chrome and Firefox give WebM/Opus, Safari only
+    MP4/AAC, and `MediaRecorder` throws on an unsupported type rather than falling back.
+  - The microphone is released on stop *and* cancel.
+- **A script can narrate in a recorded voice.** `voiceSample` + `sampleText` in the `voice`
+  block switches Voicebox from a preset voice to a **cloned** one. `presetVoice` still works
+  and still needs no sample and no transcript.
+  - `sampleText` is required because the API requires it — it lines the audio up with phonemes
+    rather than guessing, and a wrong transcript makes a worse voice than a short sample.
+- **Two bugs this shape would have had**, both found by running it against a live Voicebox:
+  - Every cloned voice resolved to the same cached profile name, so a second sample would
+    silently reuse the first one's profile and speak in **the wrong voice**. The name carries
+    the sample's filename now.
+  - Generation defaulted to the Kokoro engine, which is **preset-only**, so a cloned profile
+    would fail with nothing explaining why. It follows the profile's own engine now.
+- **The first cloned generation is slow and the timeout did not know.** Measured: profile
+  created, sample uploaded, generation accepted, then `loading_model` past seven minutes while
+  Chatterbox fetched its weights. The budget is 600 s for a clone and 180 s for a preset, and
+  the message says why and what to do.
+- Cloning stays deliberate: a file on your own disk plus its transcript, not one click.
+- See [`docs/features/recorded-and-cloned-voice.md`](docs/features/recorded-and-cloned-voice.md).
+
 ### An uploaded image can have its background keyed out (§01, §02, §11)
 
 - **A flat background, flooded in from the border**, so a flag, a logo, a chart or a

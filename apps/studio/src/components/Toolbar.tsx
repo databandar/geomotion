@@ -5,6 +5,7 @@ import { emptyProject, migrate } from '@geomotion/document';
 import { demoProject, indiaTourProject } from '../lib/fixtures';
 import { downloadProject } from '../lib/persistence';
 import { cueFromFile } from '../lib/audio-import';
+import { startRecording, type Recording } from '../lib/recorder';
 import Icon from './Icon';
 
 interface Place {
@@ -28,6 +29,7 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLInputElement>(null);
   const addAudioCue = useStore((s) => s.addAudioCue);
+  const [recording, setRecording] = useState<Recording | null>(null);
   const autosaveError = useStore((s) => s.autosaveError);
   const [demoOpen, setDemoOpen] = useState(false);
   const playing = useStore((s) => s.playing);
@@ -104,6 +106,36 @@ export default function Toolbar({ onExport }: { onExport: () => void }) {
           title="Add an audio file — music or narration — at the playhead"
         >
           + Audio
+        </button>
+        {/*
+          * A recorded line lands as an ordinary audio cue, so it ripples, re-times and mixes
+          * like an imported one — §00's frozen-voice scar is exactly this being a clip rather
+          * than a bed.
+          */}
+        <button
+          className={'tb-btn' + (recording ? ' recording' : '')}
+          onClick={async () => {
+            if (recording) {
+              try {
+                const file = await recording.stop();
+                const at = useStore.getState().time;
+                addAudioCue(await cueFromFile(file, at));
+              } catch (err) {
+                alert(err instanceof Error ? err.message : 'Recording failed.');
+              } finally {
+                setRecording(null);
+              }
+              return;
+            }
+            try {
+              setRecording(await startRecording(`Take ${(useStore.getState().project.audio?.cues?.length ?? 0) + 1}`));
+            } catch (err) {
+              alert(err instanceof Error ? err.message : 'Could not start recording.');
+            }
+          }}
+          title={recording ? 'Stop recording and place it at the playhead' : 'Record narration from the microphone'}
+        >
+          {recording ? '■ Stop' : '● Record'}
         </button>
         <input
           ref={audioRef}

@@ -109,36 +109,104 @@ async function vbFetch(base, path, init) {
 
 /** Reuse a profile across runs so the history doesn't fill with duplicates. */
 async function voiceboxProfile(base, opts) {
-  const name = opts.profileName ?? `GeoMotion ${opts.language ?? 'hi'} ${opts.presetVoice ?? 'default'}`;
+  /*
+   * Two cloned voices from two different samples must not share a name, or the second run
+   * finds the first one's profile and quietly speaks in the wrong voice.
+   */
+  const voiceKey = opts.voiceSample ? `clone ${path.basename(opts.voiceSample)}` : (opts.presetVoice ?? 'default');
+  const name = opts.profileName ?? `GeoMotion ${opts.language ?? 'hi'} ${voiceKey}`;
   if (profileCache.has(name)) return profileCache.get(name);
 
   const existing = await (await vbFetch(base, '/profiles')).json();
   let profile = existing.find((p) => p.name === name);
 
   if (!profile) {
-    if (!opts.presetVoice) {
-      throw new Error(
-        'voicebox needs a presetVoice — e.g. "hf_alpha" for Hindi female. ' +
-          `List them with: curl ${base}/profiles/presets/${opts.vbEngine ?? 'kokoro'}`,
-      );
+    /*
+     * Two ways to get a voice, and the script says which by what it supplies.
+     *
+     * A `voiceSample` clones: Voicebox is a cloning API first (its own words), and a cloned
+     * profile is one POST plus one sample upload. A `presetVoice` picks a shipped voice and
+     * needs no sample, no consent question and no reference text.
+     */
+    if (opts.voiceSample) {
+      profile = await voiceboxCloned(base, name, opts);
+    } else {
+      if (!opts.presetVoice) {
+        throw new Error(
+          'voicebox needs a presetVoice — e.g. "hf_alpha" for Hindi female — or a voiceSample to clone. ' +
+            `List presets with: curl ${base}/profiles/presets/${opts.vbEngine ?? 'kokoro'}`,
+        );
+      }
+      profile = await (
+        await vbFetch(base, '/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            language: opts.language ?? 'hi',
+            voice_type: 'preset',
+            preset_engine: opts.vbEngine ?? 'kokoro',
+            preset_voice_id: opts.presetVoice,
+            default_engine: opts.vbEngine ?? 'kokoro',
+          }),
+        })
+      ).json();
     }
-    profile = await (
-      await vbFetch(base, '/profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          language: opts.language ?? 'hi',
-          voice_type: 'preset',
-          preset_engine: opts.vbEngine ?? 'kokoro',
-          preset_voice_id: opts.presetVoice,
-          default_engine: opts.vbEngine ?? 'kokoro',
-        }),
-      })
-    ).json();
   }
 
   profileCache.set(name, profile);
+  return profile;
+}
+
+
+/**
+ * A cloned profile, built from a recording you own.
+ *
+ * Voicebox wants the sample *and the words that were said in it* — `reference_text` is
+ * required by the API, not optional politeness. It is what lets the engine line the audio up
+ * with phonemes rather than guessing, and a wrong transcript makes a worse voice than a short
+ * sample does.
+ *
+ * **Consent is a real constraint, not a disclaimer.** Cloning your own voice is ordinary;
+ * cloning someone else's recording is not something this pipeline should make frictionless.
+ * The script has to name a file on your own disk and type out what it says — deliberate
+ * enough that nobody does it by accident, and the same bar Voicebox itself sets.
+ */
+async function voiceboxCloned(base, name, opts) {
+  const sample = path.resolve(opts.voiceSample);
+  if (!opts.sampleText) {
+    throw new Error(
+      'a cloned voice needs `sampleText` — the exact words spoken in voiceSample. ' +
+        'Voicebox requires it, and an inaccurate transcript makes a worse voice than a short sample.',
+    );
+  }
+
+  let bytes;
+  try {
+    bytes = await fs.readFile(sample);
+  } catch {
+    throw new Error(`voiceSample not found: ${sample}`);
+  }
+
+  const engine = opts.vbEngine ?? 'chatterbox';
+  const profile = await (
+    await vbFetch(base, '/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        language: opts.language ?? 'en',
+        voice_type: 'cloned',
+        default_engine: engine,
+      }),
+    })
+  ).json();
+
+  const form = new FormData();
+  form.append('file', new Blob([bytes]), path.basename(sample));
+  form.append('reference_text', opts.sampleText);
+  await vbFetch(base, `/profiles/${profile.id}/samples`, { method: 'POST', body: form });
+
   return profile;
 }
 
@@ -167,18 +235,39 @@ async function voiceboxEngine(text, outWav, opts) {
         profile_id: profile.id,
         text,
         language: opts.language ?? 'hi',
-        engine: opts.vbEngine ?? 'kokoro',
+        /*
+         * The profile's own engine, not a default. Kokoro is preset-only, so asking it to
+         * speak a cloned profile is a request that cannot be honoured — and the failure would
+         * arrive as a generation error rather than as anything explaining why.
+         */
+        engine: opts.vbEngine ?? profile.default_engine ?? 'kokoro',
         ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
         ...(opts.extra ?? {}),
       }),
     })
   ).json();
 
-  const deadline = Date.now() + (opts.timeoutMs ?? 180000);
+  /*
+   * A cloned voice gets ten minutes, a preset three.
+   *
+   * Measured: the first generation on a cloned profile sits in `loading_model` for minutes
+   * while Chatterbox fetches and loads its weights, where Kokoro's presets are already
+   * resident. Three minutes is generous for a preset and simply wrong for a first clone —
+   * the run would fail on the one call that was always going to be slowest.
+   */
+  const budget = opts.timeoutMs ?? (opts.voiceSample ? 600000 : 180000);
+  const deadline = Date.now() + budget;
   let state = gen;
   while (state && state.status !== 'completed') {
     if (state.status === 'failed') throw new Error(`Voicebox generation failed: ${state.error ?? 'no reason given'}`);
-    if (Date.now() > deadline) throw new Error(`Voicebox still ${state.status} after ${(opts.timeoutMs ?? 180000) / 1000}s`);
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Voicebox still ${state.status} after ${budget / 1000}s` +
+          (state.status === 'loading_model'
+            ? ' — a cloned voice downloads its model the first time. Leave Voicebox open and run again; the second run is fast.'
+            : ''),
+      );
+    }
     await new Promise((r) => setTimeout(r, 1200));
     state = await voiceboxStatus(base, gen.id);
   }
