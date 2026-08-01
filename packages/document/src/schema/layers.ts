@@ -111,39 +111,67 @@ export const routeType: NodeTypeDef = {
       coords: [],
       curve: 'geodesic',
       color: nextColor(),
-      width: 3.5,
-      opacity: 1,
+      width: staticTrack(3.5),
+      opacity: staticTrack(1),
       dashed: false,
       glow: true,
       progress: windowTrack(Math.max(0, at), Math.max(0, at) + 4, 'easeInOutCubic'),
-      marker: { enabled: true, icon: 'dot', color: '#ffffff', size: 6, rotate: true },
-      follow: { enabled: false, zoom: 9, pitch: 55, faceHeading: true },
+      marker: { enabled: true, icon: 'dot', color: '#ffffff', size: staticTrack(6), rotate: true },
+      follow: { enabled: false, zoom: staticTrack(9), pitch: staticTrack(55), faceHeading: true },
     }) as Layer,
+  /*
+   * The last two conversions needed grouped sub-objects, which is why `marker` and `follow`
+   * were `custom` until now: a row addresses `marker.size` by path and writes the whole
+   * object back around it, so the evaluator still reads the structure it expects.
+   *
+   * Drift corrected: the panel drew Shape/Colour/Width/Opacity/Glow/Dashed in one "Line
+   * style" section rather than the separate "Shape" and "Style" headings declared here, and
+   * scrubbed width in 0.1 steps not 0.5.
+   */
+  sections: {
+    'Camera follow': 'While the route draws, the camera rides the leading point and ignores keyframes.',
+  },
   props: [
     // Points are placed on the map, not typed — the canvas is the editor for a coordinate.
-    { prop: 'coords', label: 'Points', custom: true, row: { kind: 'text' } },
+    { prop: 'coords', label: 'Points', section: 'Route', custom: true, row: { kind: 'text' } },
     {
       prop: 'curve',
-      label: 'Curve',
-      section: 'Shape',
-      help: 'Geodesic follows the great circle; arc bows the line; straight is a rhumb line.',
-      row: { kind: 'select', options: ['geodesic', 'straight', 'arc'] },
+      label: 'Shape',
+      section: 'Line style',
+      help: 'How the line is drawn between your points',
+      row: { kind: 'select', options: [
+        { value: 'geodesic', label: 'Geodesic (great circle)' },
+        { value: 'arc', label: 'Arc (flight path)' },
+        { value: 'straight', label: 'Straight' },
+      ] },
     },
-    { prop: 'color', label: 'Colour', section: 'Style', row: { kind: 'color' } },
-    { prop: 'width', label: 'Width', section: 'Style', row: { kind: 'number', min: 0.5, max: 20, step: 0.5, precision: 1, slider: true } },
-    { prop: 'opacity', label: 'Opacity', section: 'Style', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 2, slider: true } },
-    { prop: 'dashed', label: 'Dashed', section: 'Style', row: { kind: 'toggle' } },
-    { prop: 'glow', label: 'Glow', section: 'Style', row: { kind: 'toggle' } },
+    { prop: 'color', label: 'Colour', section: 'Line style', row: { kind: 'color' } },
+    { prop: 'width', label: 'Width', section: 'Line style', row: { kind: 'track', min: 0.5, max: 20, step: 0.1, precision: 1 } },
+    { prop: 'opacity', label: 'Opacity', section: 'Line style', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
+    { prop: 'glow', label: 'Glow', section: 'Line style', row: { kind: 'toggle' } },
+    { prop: 'dashed', label: 'Dashed', section: 'Line style', row: { kind: 'toggle' } },
     {
       prop: 'progress',
-      label: 'Drawn',
+      label: 'Reveal',
       section: 'Reveal',
       help: 'How much of the line is drawn, 0 to 1. Keyframe it to draw the route on.',
-      row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 },
+      row: { kind: 'window', maxFrom: 'duration' },
     },
-    // Nested objects: one row each would flatten a structure the evaluator reads as a whole.
-    { prop: 'marker', label: 'Travelling marker', custom: true, row: { kind: 'toggle' } },
-    { prop: 'follow', label: 'Camera follow', custom: true, row: { kind: 'toggle' } },
+    /*
+     * `marker.icon` stays bespoke: picking "none" also clears `marker.enabled`, and a row
+     * that writes one field cannot write two. The rest of the object is ordinary rows.
+     */
+    { prop: 'marker.icon', label: 'Icon', section: 'Travelling marker', custom: true, row: { kind: 'select', options: ['dot', 'plane', 'car', 'pin', 'none'] } },
+    // Derived from the icon, never shown; it must carry the same section or it breaks the
+    // run and the panel grows a second "Travelling marker" heading.
+    { prop: 'marker.enabled', label: 'Marker on', section: 'Travelling marker', custom: true, row: { kind: 'toggle' } },
+    { prop: 'marker.color', label: 'Colour', section: 'Travelling marker', row: { kind: 'color' } },
+    { prop: 'marker.size', label: 'Size', section: 'Travelling marker', row: { kind: 'track', min: 2, max: 40, step: 0.5, precision: 1 } },
+    { prop: 'marker.rotate', label: 'Face travel', section: 'Travelling marker', row: { kind: 'toggle' } },
+    { prop: 'follow.enabled', label: 'Enabled', section: 'Camera follow', row: { kind: 'toggle' } },
+    { prop: 'follow.zoom', label: 'Zoom', section: 'Camera follow', when: { prop: 'follow.enabled', equals: true }, row: { kind: 'track', min: 0, max: 20, step: 0.1, precision: 1 } },
+    { prop: 'follow.pitch', label: 'Pitch', section: 'Camera follow', when: { prop: 'follow.enabled', equals: true }, row: { kind: 'track', min: 0, max: 85, step: 1, precision: 0 } },
+    { prop: 'follow.faceHeading', label: 'Face heading', section: 'Camera follow', when: { prop: 'follow.enabled', equals: true }, row: { kind: 'toggle' } },
     ...TIMING,
   ],
 };
@@ -160,31 +188,40 @@ export const markerType: NodeTypeDef = {
       color: nextColor(),
       size: staticTrack(8),
       label: 'Label',
-      labelSize: 14,
+      labelSize: staticTrack(14),
       labelColor: '#ffffff',
-      labelOffset: 16,
+      labelOffset: staticTrack(16),
       halo: true,
       behaviours: {
         scale: [{ id: createId(), type: 'pop', enabled: true }],
         ring: [{ id: createId(), type: 'pulse', enabled: false }],
       },
     }) as Layer,
+  /*
+   * Three more disagreements, one of them functional: the panel let a label sit **above**
+   * the dot (offset -80 to 80) where this table floored it at 0, sized a label to 120px
+   * where this said 48, and kept Halo with the marker's style rather than with its label.
+   * A floor of 0 would have quietly removed a placement people had already used.
+   */
+  sections: { Behaviours: 'Rules applied over each property, in order.' },
   props: [
-    { prop: 'coord', label: 'Position', custom: true, row: { kind: 'text' } },
+    // A [lng, lat] pair with "use map centre" and "go to" beside it — not two number rows.
+    { prop: 'coord', label: 'Position', section: 'Marker', custom: true, row: { kind: 'text' } },
     { prop: 'color', label: 'Colour', section: 'Style', row: { kind: 'color' } },
     { prop: 'size', label: 'Size', section: 'Style', row: { kind: 'track', min: 2, max: 40, step: 0.5, precision: 1 } },
+    { prop: 'halo', label: 'Halo', section: 'Style', help: 'A dark outline, so the label reads over imagery.', row: { kind: 'toggle' } },
+    // The stack is a document sub-structure, listed and toggled in order (§06).
+    { prop: 'behaviours', label: 'Behaviours', section: 'Behaviours', custom: true, row: { kind: 'toggle' } },
     { prop: 'label', label: 'Text', section: 'Label', row: { kind: 'text' } },
-    { prop: 'labelSize', label: 'Size', section: 'Label', row: { kind: 'number', min: 8, max: 48, step: 1, precision: 0, slider: true } },
+    { prop: 'labelSize', label: 'Size', section: 'Label', row: { kind: 'track', min: 8, max: 120, step: 1, precision: 0 } },
     { prop: 'labelColor', label: 'Colour', section: 'Label', row: { kind: 'color' } },
     {
       prop: 'labelOffset',
       label: 'Offset',
       section: 'Label',
       help: 'How far the label sits from the dot, in 1080p pixels.',
-      row: { kind: 'number', min: 0, max: 60, step: 1, precision: 0, unit: 'px', slider: true },
+      row: { kind: 'track', min: -80, max: 80, step: 1, precision: 0, unit: 'px' },
     },
-    { prop: 'halo', label: 'Halo', section: 'Label', help: 'A dark outline, so the label reads over imagery.', row: { kind: 'toggle' } },
-    { prop: 'behaviours', label: 'Behaviours', custom: true, row: { kind: 'toggle' } },
     ...TIMING,
   ],
 };
@@ -198,39 +235,31 @@ export const textType: NodeTypeDef = {
       type: 'text',
       name: 'Text',
       text: 'Your title here',
-      x: 0.5,
-      y: 0.16,
-      size: 44,
+      x: staticTrack(0.5),
+      y: staticTrack(0.16),
+      size: staticTrack(44),
       color: '#ffffff',
       weight: 700,
       align: 'center',
       background: false,
       backgroundColor: '#000000aa',
-      letterSpacing: 0,
+      letterSpacing: staticTrack(0),
       anim: 'slideUp',
       fade: 0.5,
     }) as Layer,
+  /*
+   * Sections, order and steps below are the shipped panel's. Four rows disagreed with what
+   * this table declared: `x`/`y` scrubbed in 0.001 steps not 0.01, `anim` sat with the
+   * content rather than under a "Reveal" heading that never appeared, and Style's order was
+   * Size · Weight · Colour · Tracking · Align, not the order listed here.
+   */
+  sections: { Text: 'Drag the text directly on the canvas to reposition it.' },
   props: [
-    { prop: 'text', label: 'Content', row: { kind: 'text', multiline: true } },
-    {
-      prop: 'x',
-      label: 'X',
-      section: 'Position',
-      help: 'Fraction of the frame width, so a project reframes without moving its titles.',
-      row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 3, slider: true },
-    },
-    { prop: 'y', label: 'Y', section: 'Position', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 3, slider: true } },
-    { prop: 'size', label: 'Size', section: 'Style', help: 'In 1080p pixels — scales with the output resolution.', row: { kind: 'number', min: 8, max: 160, step: 1, precision: 0, slider: true } },
-    { prop: 'color', label: 'Colour', section: 'Style', row: { kind: 'color' } },
-    { prop: 'weight', label: 'Weight', section: 'Style', row: { kind: 'select', options: ['300', '400', '500', '600', '700', '800', '900'] } },
-    { prop: 'align', label: 'Align', section: 'Style', row: { kind: 'select', options: ['left', 'center', 'right'] } },
-    { prop: 'letterSpacing', label: 'Tracking', section: 'Style', row: { kind: 'number', min: -4, max: 24, step: 0.5, precision: 1, slider: true } },
-    { prop: 'background', label: 'Backing', section: 'Style', row: { kind: 'toggle' } },
-    { prop: 'backgroundColor', label: 'Backing colour', section: 'Style', row: { kind: 'color' } },
+    { prop: 'text', label: 'Content', section: 'Text', row: { kind: 'text', multiline: true } },
     {
       prop: 'anim',
       label: 'Animation',
-      section: 'Reveal',
+      section: 'Text',
       row: {
         kind: 'select',
         options: [
@@ -242,6 +271,22 @@ export const textType: NodeTypeDef = {
         ],
       },
     },
+    { prop: 'size', label: 'Size', section: 'Style', help: 'In 1080p pixels — scales automatically with the output resolution', row: { kind: 'track', min: 8, max: 160, step: 1, precision: 0 } },
+    // Stored as a number; the panel wrote parseInt on the way out and so must the generator.
+    { prop: 'weight', label: 'Weight', section: 'Style', row: { kind: 'select', numeric: true, options: ['300', '400', '500', '600', '700', '800', '900'] } },
+    { prop: 'color', label: 'Colour', section: 'Style', row: { kind: 'color' } },
+    { prop: 'letterSpacing', label: 'Tracking', section: 'Style', row: { kind: 'track', min: -4, max: 24, step: 0.5, precision: 1 } },
+    { prop: 'align', label: 'Align', section: 'Style', row: { kind: 'select', options: ['left', 'center', 'right'] } },
+    { prop: 'background', label: 'Backing', section: 'Style', row: { kind: 'toggle' } },
+    { prop: 'backgroundColor', label: 'Backing colour', section: 'Style', when: { prop: 'background', equals: true }, row: { kind: 'color' } },
+    {
+      prop: 'x',
+      label: 'X',
+      section: 'Position',
+      help: 'Fraction of the frame width, so a project reframes without moving its titles.',
+      row: { kind: 'track', min: 0, max: 1, step: 0.001, precision: 3 },
+    },
+    { prop: 'y', label: 'Y', section: 'Position', row: { kind: 'track', min: 0, max: 1, step: 0.001, precision: 3 } },
     ...TIMING,
   ],
 };
@@ -256,22 +301,29 @@ export const shapeType: NodeTypeDef = {
       name: 'Shape',
       geojson: '',
       fillColor: nextColor(),
-      fillOpacity: 0.25,
+      fillOpacity: staticTrack(0.25),
       lineColor: '#ffffff',
-      lineWidth: 2,
+      lineWidth: staticTrack(2),
       traceOutline: false,
       extrude: false,
-      extrudeHeight: 20000,
+      extrudeHeight: staticTrack(20000),
     }) as Layer,
+  /*
+   * The shipped panel put trace, extrude and height under Style rather than under "Reveal"
+   * and "3D" headings that never existed, allowed a 16px outline where this table said 12,
+   * and hid Height until Extrude was on. All four corrected here.
+   */
+  sections: { GeoJSON: 'Paste a Feature, FeatureCollection or bare geometry — polygons, lines, anything.' },
   props: [
-    { prop: 'geojson', label: 'GeoJSON', row: { kind: 'text', multiline: true, mono: true, placeholder: 'Paste a Feature, FeatureCollection or geometry' } },
+    // A textarea with a file loader beside it, drawn full-width without a field label.
+    { prop: 'geojson', label: 'GeoJSON', section: 'GeoJSON', custom: true, row: { kind: 'text', multiline: true, mono: true } },
     { prop: 'fillColor', label: 'Fill', section: 'Style', row: { kind: 'color' } },
-    { prop: 'fillOpacity', label: 'Fill opacity', section: 'Style', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 2, slider: true } },
+    { prop: 'fillOpacity', label: 'Fill opacity', section: 'Style', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
     { prop: 'lineColor', label: 'Outline', section: 'Style', row: { kind: 'color' } },
-    { prop: 'lineWidth', label: 'Outline width', section: 'Style', row: { kind: 'number', min: 0, max: 12, step: 0.5, precision: 1, slider: true } },
-    { prop: 'traceOutline', label: 'Trace outline', section: 'Reveal', help: 'The outline draws on across the layer’s visible window.', row: { kind: 'toggle' } },
-    { prop: 'extrude', label: 'Extrude 3D', section: '3D', row: { kind: 'toggle' } },
-    { prop: 'extrudeHeight', label: 'Height', section: '3D', row: { kind: 'number', min: 0, max: 500000, step: 1000, precision: 0, unit: 'm' } },
+    { prop: 'lineWidth', label: 'Outline width', section: 'Style', row: { kind: 'track', min: 0, max: 16, step: 0.5, precision: 1 } },
+    { prop: 'traceOutline', label: 'Trace outline', section: 'Style', help: 'Draw the outline on over the first 2 seconds', row: { kind: 'toggle' } },
+    { prop: 'extrude', label: 'Extrude 3D', section: 'Style', row: { kind: 'toggle' } },
+    { prop: 'extrudeHeight', label: 'Height', section: 'Style', when: { prop: 'extrude', equals: true }, row: { kind: 'track', min: 0, max: 500000, step: 1000, precision: 0, unit: 'm' } },
     ...TIMING,
   ],
 };
@@ -299,17 +351,17 @@ export const regionsType: NodeTypeDef = {
       autoDomain: true,
       min: 0,
       max: 100,
-      fillOpacity: 0.82,
+      fillOpacity: staticTrack(0.82),
       noDataColor: '#4b5563',
       borderColor: '#ffffff',
-      borderWidth: 0.6,
+      borderWidth: staticTrack(0.6),
       highlightColor: '#ffffff',
-      highlightWidth: 3.5,
+      highlightWidth: staticTrack(3.5),
       traceBorder: true,
       borderCasing: true,
       tour: defaultTour(),
       showCallout: true,
-      calloutSize: 100,
+      calloutSize: staticTrack(100),
       showRank: true,
       showLegend: true,
       legendTitle: '',
@@ -336,12 +388,12 @@ export const regionsType: NodeTypeDef = {
     { prop: 'autoDomain', label: 'Auto domain', section: 'Colour', row: { kind: 'toggle' } },
     { prop: 'min', label: 'Min', section: 'Colour', row: { kind: 'number', step: 1, precision: 2 } },
     { prop: 'max', label: 'Max', section: 'Colour', row: { kind: 'number', step: 1, precision: 2 } },
-    { prop: 'fillOpacity', label: 'Fill opacity', section: 'Colour', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 2, slider: true } },
+    { prop: 'fillOpacity', label: 'Fill opacity', section: 'Colour', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
     { prop: 'noDataColor', label: 'No data', section: 'Colour', row: { kind: 'color' } },
     { prop: 'borderColor', label: 'Border', section: 'Borders', row: { kind: 'color' } },
-    { prop: 'borderWidth', label: 'Border width', section: 'Borders', row: { kind: 'number', min: 0, max: 6, step: 0.1, precision: 1 } },
+    { prop: 'borderWidth', label: 'Border width', section: 'Borders', row: { kind: 'track', min: 0, max: 6, step: 0.1, precision: 1 } },
     { prop: 'highlightColor', label: 'Highlight', section: 'Borders', row: { kind: 'color' } },
-    { prop: 'highlightWidth', label: 'Highlight width', section: 'Borders', row: { kind: 'number', min: 0, max: 12, step: 0.5, precision: 1 } },
+    { prop: 'highlightWidth', label: 'Highlight width', section: 'Borders', row: { kind: 'track', min: 0, max: 12, step: 0.5, precision: 1 } },
     { prop: 'traceBorder', label: 'Trace border', section: 'Borders', row: { kind: 'toggle' } },
     {
       prop: 'borderCasing',
@@ -351,7 +403,7 @@ export const regionsType: NodeTypeDef = {
       row: { kind: 'toggle' },
     },
     { prop: 'showCallout', label: 'Callout', section: 'Readouts', row: { kind: 'toggle' } },
-    { prop: 'calloutSize', label: 'Callout size', section: 'Readouts', row: { kind: 'number', min: 50, max: 200, step: 5, precision: 0, unit: '%' } },
+    { prop: 'calloutSize', label: 'Callout size', section: 'Readouts', row: { kind: 'track', min: 50, max: 200, step: 5, precision: 0, unit: '%' } },
     { prop: 'showRank', label: 'Rank', section: 'Readouts', row: { kind: 'toggle' } },
     { prop: 'showLegend', label: 'Legend', section: 'Readouts', row: { kind: 'toggle' } },
     { prop: 'legendTitle', label: 'Legend title', section: 'Readouts', row: { kind: 'text' } },
@@ -369,27 +421,38 @@ export const cloudsType: NodeTypeDef = {
       ...layerBase(at),
       type: 'clouds',
       name: 'Clouds',
-      coverage: 0.85,
-      scale: 1.15,
-      speed: 14,
-      direction: 75,
+      coverage: staticTrack(0.85),
+      scale: staticTrack(1.15),
+      speed: staticTrack(14),
+      direction: staticTrack(75),
       color: '#eef3f8',
-      opacity: 1,
+      opacity: staticTrack(1),
       clear: windowTrack(Math.max(0, at) + 1.6, Math.max(0, at) + 4.6, 'easeInOutCubic'),
     }) as Layer,
+  /*
+   * Ranges below are the ones the hand-written panel shipped, not the ones this table used
+   * to declare. Four disagreed (coverage 1 vs 1.4, scale 0.2–4 vs 0.3–3, speed 100 vs 120,
+   * and `clear` described as a plain track when the panel drew a window). The panel is what
+   * users have been scrubbing and what existing projects were authored against, so the panel
+   * wins and this table is corrected — see docs/features/generated-panels.md.
+   */
+  sections: {
+    Clouds: 'Drifting cover for an opening shot. Sits over the map, under your titles.',
+    Clearing: 'The cloud parts from the centre outward to reveal the map.',
+  },
   props: [
-    { prop: 'coverage', label: 'Coverage', section: 'Style', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 2, slider: true } },
-    { prop: 'scale', label: 'Formation size', section: 'Style', help: 'Bigger means larger, softer formations.', row: { kind: 'number', min: 0.2, max: 4, step: 0.05, precision: 2, slider: true } },
-    { prop: 'speed', label: 'Speed', section: 'Style', row: { kind: 'number', min: 0, max: 100, step: 1, precision: 0, unit: 'px/s', slider: true } },
-    { prop: 'direction', label: 'Direction', section: 'Style', row: { kind: 'number', min: 0, max: 360, step: 1, precision: 0, unit: '°', slider: true } },
-    { prop: 'color', label: 'Colour', section: 'Style', row: { kind: 'color' } },
-    { prop: 'opacity', label: 'Opacity', section: 'Style', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 2, slider: true } },
+    { prop: 'coverage', label: 'Coverage', section: 'Clouds', row: { kind: 'track', min: 0, max: 1.4, step: 0.01, precision: 2 } },
+    { prop: 'scale', label: 'Formation size', section: 'Clouds', help: 'Bigger means larger, softer formations.', row: { kind: 'track', min: 0.3, max: 3, step: 0.05, precision: 2 } },
+    { prop: 'color', label: 'Colour', section: 'Clouds', row: { kind: 'color' } },
+    { prop: 'opacity', label: 'Opacity', section: 'Clouds', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
+    { prop: 'speed', label: 'Speed', section: 'Drift', row: { kind: 'track', min: 0, max: 120, step: 1, precision: 0, unit: 'px/s' } },
+    { prop: 'direction', label: 'Direction', section: 'Drift', row: { kind: 'track', min: 0, max: 360, step: 1, precision: 0, unit: '°' } },
     {
       prop: 'clear',
-      label: 'Cleared',
-      section: 'Reveal',
+      label: 'Clearing',
+      section: 'Clearing',
       help: 'How far the cloud has parted outward from the centre, 0 to 1.',
-      row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 },
+      row: { kind: 'window', maxFrom: 'duration', switchable: true },
     },
     ...TIMING,
   ],
@@ -404,37 +467,58 @@ export const imageType: NodeTypeDef = {
       type: 'image',
       name: 'Image',
       src: '',
-      x: 0.82,
-      y: 0.22,
-      width: 0.28,
+      x: staticTrack(0.82),
+      y: staticTrack(0.22),
+      width: staticTrack(0.28),
       anchor: 'center',
-      opacity: 1,
-      radius: 14,
+      opacity: staticTrack(1),
+      radius: staticTrack(14),
       border: true,
       borderColor: '#ffffff',
       shadow: true,
       anim: 'kenBurns',
       caption: '',
     }) as Layer,
+  /*
+   * As with clouds, the shipped panel is the authority where the two disagreed: `width`
+   * floored at 0.05 not 0.02, `x`/`y` scrubbed in 0.005 steps not 0.01, the first animation
+   * read "Slow push in" not "Ken Burns", and `caption` sat with the image rather than under
+   * Style. Corrected here rather than in the generator.
+   */
   props: [
-    // A file picker, not a text field.
+    // The file picker and its embedded-size readout; a text field cannot open a file (§5.8).
     { prop: 'src', label: 'Source', custom: true, row: { kind: 'text' } },
-    { prop: 'x', label: 'X', section: 'Position', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 3, slider: true } },
-    { prop: 'y', label: 'Y', section: 'Position', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 3, slider: true } },
-    { prop: 'width', label: 'Width', section: 'Position', help: 'Fraction of the frame width; height follows the image.', row: { kind: 'number', min: 0.02, max: 1, step: 0.01, precision: 3, slider: true } },
+    { prop: 'caption', label: 'Caption', section: 'Image', row: { kind: 'text' } },
+    {
+      prop: 'anim',
+      label: 'Animation',
+      section: 'Image',
+      row: { kind: 'select', options: [{ value: 'kenBurns', label: 'Slow push in' }, { value: 'fade', label: 'Fade' }, { value: 'slideUp', label: 'Slide up' }, { value: 'none', label: 'None' }] },
+    },
+    { prop: 'x', label: 'X', section: 'Placement', row: { kind: 'track', min: 0, max: 1, step: 0.005, precision: 3 } },
+    { prop: 'y', label: 'Y', section: 'Placement', row: { kind: 'track', min: 0, max: 1, step: 0.005, precision: 3 } },
+    { prop: 'width', label: 'Width', section: 'Placement', help: 'Fraction of the frame width; height follows the image', row: { kind: 'track', min: 0.05, max: 1, step: 0.005, precision: 3 } },
     {
       prop: 'anchor',
       label: 'Anchor',
-      section: 'Position',
-      row: { kind: 'select', options: ['center', 'topLeft', 'topRight', 'bottomLeft', 'bottomRight'] },
+      section: 'Placement',
+      row: {
+        kind: 'select',
+        options: [
+          { value: 'center', label: 'Centre' },
+          { value: 'topLeft', label: 'Top left' },
+          { value: 'topRight', label: 'Top right' },
+          { value: 'bottomLeft', label: 'Bottom left' },
+          { value: 'bottomRight', label: 'Bottom right' },
+        ],
+      },
     },
-    { prop: 'opacity', label: 'Opacity', section: 'Style', row: { kind: 'number', min: 0, max: 1, step: 0.01, precision: 2, slider: true } },
-    { prop: 'radius', label: 'Corner radius', section: 'Style', row: { kind: 'number', min: 0, max: 60, step: 1, precision: 0, unit: 'px', slider: true } },
+    { prop: 'opacity', label: 'Opacity', section: 'Style', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
+    { prop: 'radius', label: 'Corner radius', section: 'Style', row: { kind: 'track', min: 0, max: 60, step: 1, precision: 0, unit: 'px' } },
     { prop: 'border', label: 'Border', section: 'Style', row: { kind: 'toggle' } },
-    { prop: 'borderColor', label: 'Border colour', section: 'Style', row: { kind: 'color' } },
+    // A border colour with no border is a control for nothing — the panel hid it, so does this.
+    { prop: 'borderColor', label: 'Border colour', section: 'Style', when: { prop: 'border', equals: true }, row: { kind: 'color' } },
     { prop: 'shadow', label: 'Shadow', section: 'Style', row: { kind: 'toggle' } },
-    { prop: 'caption', label: 'Caption', section: 'Style', row: { kind: 'text' } },
-    { prop: 'anim', label: 'Animation', section: 'Reveal', row: { kind: 'select', options: [{ value: 'kenBurns', label: 'Ken Burns' }, { value: 'fade', label: 'Fade' }, { value: 'slideUp', label: 'Slide up' }, { value: 'none', label: 'None' }] } },
     ...TIMING,
   ],
 };

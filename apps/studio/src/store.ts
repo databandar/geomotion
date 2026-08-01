@@ -291,6 +291,30 @@ function ensureCamera(p: Project) {
   return p.nodes[cam.id] as typeof cam;
 }
 
+/**
+ * The object a dotted property lives on, and the key on it.
+ *
+ * Track actions take a property *path*, because since format 9 a track can sit inside a
+ * grouped object — route's `marker.size`, `follow.zoom`. Writing `layer['marker.size']`
+ * instead would put a literal dotted key beside the real object: the write appears to
+ * succeed, undo records it, and nothing on screen ever changes.
+ */
+function trackHome(
+  layer: Record<string, unknown>,
+  path: string,
+): { owner: Record<string, unknown>; key: string } | null {
+  const parts = path.split('.');
+  const key = parts.pop();
+  if (!key) return null;
+  let owner: Record<string, unknown> = layer;
+  for (const part of parts) {
+    const next = owner[part];
+    if (next === null || typeof next !== 'object') return null;
+    owner = next as Record<string, unknown>;
+  }
+  return { owner, key };
+}
+
 export const useStore = create<State>((set, get) => ({
   project: loadLocal() ?? demoProject(),
   time: 0,
@@ -468,9 +492,10 @@ export const useStore = create<State>((set, get) => ({
     const time = get().time;
     get().patch((p) => {
       const layer = editable(p, id) as Record<string, unknown> | undefined;
-      const track = layer?.[prop];
-      if (!isTrack(track)) return;
-      layer![prop] = withValueAt(track as Track<number>, time, value, 'linear');
+      const home = layer ? trackHome(layer, prop) : null;
+      const track = home?.owner[home.key];
+      if (!home || !isTrack(track)) return;
+      home.owner[home.key] = withValueAt(track as Track<number>, time, value, 'linear');
     }, historyKey ? `${id}:${prop}:${historyKey}` : undefined);
   },
 
@@ -478,11 +503,12 @@ export const useStore = create<State>((set, get) => ({
     const time = get().time;
     get().patch((p) => {
       const layer = editable(p, id) as Record<string, unknown> | undefined;
-      const track = layer?.[prop];
-      if (!isTrack(track)) return;
+      const home = layer ? trackHome(layer, prop) : null;
+      const track = home?.owner[home.key];
+      if (!home || !isTrack(track)) return;
       const t = track as Track<number>;
       // Seeded with what is on screen, so switching modes never moves the picture.
-      layer![prop] = t.kind === 'keyframed' ? staticTrack(valueNow) : toKeyframed(t, time, valueNow, 'linear');
+      home.owner[home.key] = t.kind === 'keyframed' ? staticTrack(valueNow) : toKeyframed(t, time, valueNow, 'linear');
     });
   },
 
@@ -539,8 +565,9 @@ export const useStore = create<State>((set, get) => ({
   setLayerWindow: (id, prop, from, to, easing) => {
     get().patch((p) => {
       const layer = editable(p, id) as Record<string, unknown> | undefined;
-      if (!layer || !isTrack(layer[prop])) return;
-      layer[prop] = windowTrack(Math.max(0, from), Math.max(0, to), easing);
+      const home = layer ? trackHome(layer, prop) : null;
+      if (!home || !isTrack(home.owner[home.key])) return;
+      home.owner[home.key] = windowTrack(Math.max(0, from), Math.max(0, to), easing);
     }, `${id}:${prop}:window`);
   },
 

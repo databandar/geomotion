@@ -10,7 +10,7 @@ import { evalTrack } from '@geomotion/animation';
 import { drawOverlay, scaleFor } from '@geomotion/renderer';
 import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
 import { waitForIdle, type RenderHost } from '../render/host';
-import type { LngLat, MarkerLayer, RouteLayer, TextLayer } from '@geomotion/document';
+import type { LngLat, MarkerLayer, RouteLayer } from '@geomotion/document';
 
 const seenSyncErrors = new Set<string>();
 function reportSyncError(err: unknown) {
@@ -228,9 +228,11 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     } else if (layer.type === 'text') {
       const t = scene.texts.find((x) => x.style.id === layer.id);
       if (t) {
-        const size = layer.size * frame.scale;
-        const x = layer.x * frame.width;
-        const y = layer.y * frame.height;
+        // The evaluated style, not the document: the selection box has to sit on the title
+        // as drawn, which for a keyframed size or position is not where it rests.
+        const size = t.style.size * frame.scale;
+        const x = t.style.x * frame.width;
+        const y = t.style.y * frame.height;
         ctx.strokeStyle = 'rgba(76,194,255,0.9)';
         ctx.setLineDash([4, 3]);
         ctx.lineWidth = 1;
@@ -484,9 +486,11 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     } else if (layer.type === 'text') {
       const stage = stageRef.current;
       if (stage) {
-        const x = layer.x * stage.clientWidth;
-        const y = layer.y * stage.clientHeight;
-        const size = layer.size * scaleFor(stage.clientHeight);
+        // As with the marker above: hit what is on screen now, not where it rests.
+        const now = timeRef.current;
+        const x = evalTrack(layer.x, now, { fallback: 0.5 }) * stage.clientWidth;
+        const y = evalTrack(layer.y, now, { fallback: 0.16 }) * stage.clientHeight;
+        const size = evalTrack(layer.size, now, { fallback: 44 }) * scaleFor(stage.clientHeight);
         if (Math.abs(pt.x - x) < 90 && pt.y > y - size && pt.y < y + size * 0.4)
           target = { kind: 'text', layerId: layer.id, dx: pt.x - x, dy: pt.y - y };
       }
@@ -521,14 +525,14 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
         s.updateLayer<MarkerLayer>(current.id, { coord: [ll.lng, ll.lat] }, 'drag-marker');
       } else if (t.kind === 'text' && current.type === 'text') {
         const stage = stageRef.current!;
-        s.updateLayer<TextLayer>(
-          current.id,
-          {
-            x: Math.max(0, Math.min(1, (px - t.dx) / stage.clientWidth)),
-            y: Math.max(0, Math.min(1, (py - t.dy) / stage.clientHeight)),
-          },
-          'drag-text',
-        );
+        /*
+         * Written through the track, not over it. `setLayerTrack` replaces the value of a
+         * static track and sets a key at the playhead on a keyframed one — so a title that
+         * has been animated stays animated when you nudge it, instead of being flattened
+         * back to a constant by the drag.
+         */
+        s.setLayerTrack(current.id, 'x', Math.max(0, Math.min(1, (px - t.dx) / stage.clientWidth)), 'drag-text');
+        s.setLayerTrack(current.id, 'y', Math.max(0, Math.min(1, (py - t.dy) / stage.clientHeight)), 'drag-text');
       }
     };
 

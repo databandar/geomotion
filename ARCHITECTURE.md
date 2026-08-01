@@ -68,9 +68,12 @@ lists — `layersOf` (a depth-first walk, §6.5's z-order), `camerasOf`, `childr
 derived and memoised, never stored. `group` is the first node type with children, inheriting
 visibility, lock and opacity to its subtree. See
 [`docs/features/node-store.md`](docs/features/node-store.md) and
-[`docs/features/groups.md`](docs/features/groups.md). Still to come on top of it: scene and
-map-context node types, `space` on the node, transform inheritance, and
-`props: Record<string, Track>`.
+[`docs/features/groups.md`](docs/features/groups.md). **Every declared number is a track** as
+of format 9 — twenty-eight properties across the seven layer types, resolved by one
+registry-driven pass, see
+[`docs/features/every-property-a-track.md`](docs/features/every-property-a-track.md). Still to
+come on top of it: `space` on the node, transform inheritance, a scene node type, non-numeric
+tracks, and gathering the named fields into `props: Record<string, Track>`.
 
 ### Every property is a track
 

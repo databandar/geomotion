@@ -3,8 +3,8 @@
 **Design-doc section:** ENGINEERING_GUIDE §3.4 (schema), §11 (schema-driven inspectors),
 ARCHITECTURE §15 (plugins get an inspector for free) ·
 **Owner package(s):** `@geomotion/document`, `apps/studio` ·
-**Status:** shipped — foundation and first consumers; the seven layer panels are not yet
-generated (see *Future extensions*)
+**Status:** shipped — foundation and first consumers. Six of the seven layer panels are
+generated as of [[generated-panels]]; regions remains.
 
 ## Problem
 
@@ -102,9 +102,11 @@ order. It draws:
 - **the group** — its opacity row is now generated rather than hand-written;
 - **any node type with no hand-written panel** — a plugin's, or one from a newer build.
 
-The seven layer types keep their panels. Their metadata is written, aligned to the labels and
-ranges those panels actually use, and tested — but each panel also carries behaviour the row
-language cannot yet express: a bound that depends on the composition's duration, a colour
+The seven layer types keep their panels. Their metadata is written and tested — though *not*,
+as this file claimed until [[generated-panels]] measured it, aligned to the ranges those
+panels actually use: twenty rows disagreed, one of them functional, and the coverage test
+could not see it because a hand-typed range has nothing to be compared against. Each panel
+also carries behaviour the row language could not express at the time: a bound that depends on the composition's duration, a colour
 field that appears only when a backing is switched on, a "use map centre" button beside a
 coordinate. Converting them is a milestone of its own; doing it in the same change as the
 registry would make a regression in either impossible to attribute.
@@ -162,10 +164,9 @@ registry along with everything else.
 
 ## Future extensions
 
-- **Convert the seven panels**, one type per change, smallest first (clouds, image, text,
-  shape, marker), leaving route and regions — whose panels are half data-import flow — last.
-  Each conversion needs the row language to grow: dynamic bounds, a `when` predicate for
-  conditional rows, and grouped sub-objects (`marker.icon`, `follow.zoom`).
+- ~~**Convert the seven panels**~~ — six done in [[generated-panels]]. The row language grew
+  `when`, `maxFrom`, a `window` row kind, `numeric` selects, grouped sub-objects (dotted
+  `prop` paths) and section notes. Regions remains, as its own change.
 - **Zod at the plugin boundary**, with the ADR.
 - **Move the row components to a `ui` package** (§2 names one); they are in `apps/studio`
   today because that is where they already were.

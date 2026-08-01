@@ -1,19 +1,16 @@
 import { useState } from 'react';
 import { useStore, useSelectedCue, useSelectedGroup, useSelectedKeyframe, useSelectedLayer } from '../store';
-import { envelopeOf, staticTrack, windowOf } from '@geomotion/document';
-import type { Track } from '@geomotion/document';
+import { envelopeOf, windowOf } from '@geomotion/document';
 import { childrenOf, nodeTypeDef } from '@geomotion/document';
 import type {
   AudioCue,
   GroupNode,
-  CloudsLayer,
   ImageLayer,
   MarkerLayer,
   RegionsLayer,
   RegionTour,
   RouteLayer,
   ShapeLayer,
-  TextLayer,
 } from '@geomotion/document';
 import { INDIA_STATES, matchNames, regionSet } from '@geomotion/entities';
 import { tourDuration } from '@geomotion/evaluator';
@@ -43,7 +40,7 @@ const LAYER_ICON = {
 const kindOf = (type: string) => nodeTypeDef(type)?.kind ?? 'Layer';
 
 /** Which layer types this build draws a hand-written panel for. */
-const HAS_PANEL = new Set(['route', 'marker', 'text', 'shape', 'regions', 'clouds', 'image']);
+const HAS_PANEL = new Set(['regions']);
 
 /** The banner a locked layer shows, with the one control that still works on it. */
 function LockedNotice({ id }: { id: string }) {
@@ -128,14 +125,35 @@ export default function Inspector() {
           * plugin registered. Its metadata is all the editor needs to show it, which is the
           * whole argument for keeping the description in the document package (§3.4).
           */}
-        {layer && !HAS_PANEL.has(layer.type) && <SchemaRows node={layer} />}
-        {layer?.type === 'route' && <RouteInspector layer={layer} />}
-        {layer?.type === 'marker' && <MarkerInspector layer={layer} />}
-        {layer?.type === 'text' && <TextInspector layer={layer} />}
-        {layer?.type === 'shape' && <ShapeInspector layer={layer} />}
+        {layer && !HAS_PANEL.has(layer.type) && (
+          <SchemaRows
+            node={layer}
+            {...(layer.type === 'image'
+              ? { blocks: { Image: { before: <ImageSource layer={layer} /> } } }
+              : {})}
+            {...(layer.type === 'shape'
+              ? { blocks: { GeoJSON: { before: <ShapeSource layer={layer} /> } } }
+              : {})}
+            {...(layer.type === 'marker'
+              ? {
+                  blocks: {
+                    Marker: { head: <MarkerPlace />, before: <MarkerPosition layer={layer} /> },
+                    Behaviours: { before: <MarkerBehaviours layer={layer} /> },
+                  },
+                }
+              : {})}
+            {...(layer.type === 'route'
+              ? {
+                  blocks: {
+                    Route: { head: <RouteAddPoints />, before: <RoutePoints layer={layer} /> },
+                    Reveal: { after: <RouteSpeed layer={layer} /> },
+                    'Travelling marker': { before: <RouteMarkerIcon layer={layer} /> },
+                  },
+                }
+              : {})}
+          />
+        )}
         {layer?.type === 'regions' && <RegionsInspector layer={layer} />}
-        {layer?.type === 'clouds' && <CloudsInspector layer={layer} />}
-        {layer?.type === 'image' && <ImageInspector layer={layer} />}
         {layer && <TimingInspector />}
       </fieldset>
       {!layer && !group && !kf && !cue && (
@@ -362,12 +380,27 @@ function KeyframeInspector() {
 
 /* ----------------------------------------------------------------- route */
 
-function RouteInspector({ layer }: { layer: RouteLayer }) {
-  const host = useRenderHost();
-  const update = useStore((s) => s.updateLayer);
+/** "Add points" — a map-click mode, so it acts on the section rather than a field. */
+function RouteAddPoints() {
   const setTool = useStore((s) => s.setTool);
   const tool = useStore((s) => s.tool);
-  const duration = useStore((s) => s.project.duration);
+  return (
+    <button className={'mini' + (tool === 'route' ? ' primary' : '')} onClick={() => setTool(tool === 'route' ? 'select' : 'route')}>
+      {tool === 'route' ? 'Done' : 'Add points'}
+    </button>
+  );
+}
+
+/**
+ * The point list: an ordered, editable, removable set of coordinates with its own stats and
+ * two map actions. `coords` is declared `custom: true` — the canvas is the real editor for
+ * a coordinate, and this is its typed fallback.
+ */
+function RoutePoints({ layer }: { layer: RouteLayer }) {
+  const host = useRenderHost();
+  const update = useStore((s) => s.updateLayer);
+  const tool = useStore((s) => s.tool);
+  const set = (patch: Partial<RouteLayer>, key?: string) => update<RouteLayer>(layer.id, patch, key);
 
   const path = measure(buildPath(layer.coords, layer.curve));
   const km = path.length / 1000;
@@ -375,512 +408,197 @@ function RouteInspector({ layer }: { layer: RouteLayer }) {
   const lastCoord = layer.coords[layer.coords.length - 1];
   const straight = firstCoord && lastCoord ? haversine(firstCoord, lastCoord) / 1000 : 0;
 
-  const set = (patch: Partial<RouteLayer>, key?: string) => update<RouteLayer>(layer.id, patch, key);
-
   return (
     <>
-      <Section
-        title="Route"
-        right={
-          <button className={'mini' + (tool === 'route' ? ' primary' : '')} onClick={() => setTool(tool === 'route' ? 'select' : 'route')}>
-            {tool === 'route' ? 'Done' : 'Add points'}
-          </button>
+      {tool === 'route' && <p className="hint">Click the map to append points. Drag the numbered handles to adjust.</p>}
+      <div className="stat-row">
+        <span>{layer.coords.length} points</span>
+        <span>{km >= 1 ? km.toFixed(0) : km.toFixed(2)} km</span>
+        {straight > 0 && <span className="dim">direct {straight.toFixed(0)} km</span>}
+      </div>
+      <div className="point-list">
+        {layer.coords.map((c, i) => (
+          <div className="point" key={i}>
+            <span className="idx">{i + 1}</span>
+            <Num
+              value={c[0]}
+              precision={4}
+              step={0.01}
+              onChange={(v) => {
+                const coords = layer.coords.slice();
+                coords[i] = [v, c[1]];
+                set({ coords });
+              }}
+            />
+            <Num
+              value={c[1]}
+              precision={4}
+              step={0.01}
+              onChange={(v) => {
+                const coords = layer.coords.slice();
+                coords[i] = [c[0], v];
+                set({ coords });
+              }}
+            />
+            <button
+              className="mini danger"
+              onClick={() => set({ coords: layer.coords.filter((_, j) => j !== i) })}
+              title="Remove point"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {layer.coords.length === 0 && <p className="hint">No points yet — hit “Add points” and click the map.</p>}
+      </div>
+      <div className="row-buttons">
+        <button
+          className="mini"
+          onClick={() => {
+            const c = host?.map.getCenter();
+            if (c) set({ coords: [...layer.coords, [c.lng, c.lat]] });
+          }}
+        >
+          Add map centre
+        </button>
+        <button
+          className="mini"
+          disabled={layer.coords.length < 2}
+          onClick={() => {
+            const map = host?.map;
+            if (!map || layer.coords.length < 2) return;
+            const b = layer.coords.reduce<[number, number, number, number]>(
+              (acc, c) => [Math.min(acc[0], c[0]), Math.min(acc[1], c[1]), Math.max(acc[2], c[0]), Math.max(acc[3], c[1])],
+              [180, 90, -180, -90],
+            );
+            map.fitBounds(
+              [
+                [b[0], b[1]],
+                [b[2], b[3]],
+              ],
+              { padding: 80, duration: 600 },
+            );
+          }}
+        >
+          Frame route
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** How fast the route travels, derived from the reveal window above it. */
+function RouteSpeed({ layer }: { layer: RouteLayer }) {
+  const path = measure(buildPath(layer.coords, layer.curve));
+  const km = path.length / 1000;
+  const w = windowOf(layer.progress);
+  if (!w || path.length === 0 || w.to <= w.from) return null;
+  return (
+    <p className="hint">
+      ≈ {(km / (w.to - w.from)).toFixed(0)} km/s of travel over {(w.to - w.from).toFixed(1)}s
+    </p>
+  );
+}
+
+/**
+ * The travelling marker's icon. Bespoke because picking "none" also clears
+ * `marker.enabled` — one control writing two fields, which a row cannot express.
+ */
+function RouteMarkerIcon({ layer }: { layer: RouteLayer }) {
+  const update = useStore((s) => s.updateLayer);
+  return (
+    <Field label="Icon">
+      <Select
+        value={layer.marker.icon}
+        onChange={(icon) =>
+          update<RouteLayer>(layer.id, { marker: { ...layer.marker, icon, enabled: icon !== 'none' } })
         }
-      >
-        {tool === 'route' && <p className="hint">Click the map to append points. Drag the numbered handles to adjust.</p>}
-        <div className="stat-row">
-          <span>{layer.coords.length} points</span>
-          <span>{km >= 1 ? km.toFixed(0) : km.toFixed(2)} km</span>
-          {straight > 0 && <span className="dim">direct {straight.toFixed(0)} km</span>}
-        </div>
-        <div className="point-list">
-          {layer.coords.map((c, i) => (
-            <div className="point" key={i}>
-              <span className="idx">{i + 1}</span>
-              <Num
-                value={c[0]}
-                precision={4}
-                step={0.01}
-                onChange={(v) => {
-                  const coords = layer.coords.slice();
-                  coords[i] = [v, c[1]];
-                  set({ coords });
-                }}
-              />
-              <Num
-                value={c[1]}
-                precision={4}
-                step={0.01}
-                onChange={(v) => {
-                  const coords = layer.coords.slice();
-                  coords[i] = [c[0], v];
-                  set({ coords });
-                }}
-              />
-              <button
-                className="mini danger"
-                onClick={() => set({ coords: layer.coords.filter((_, j) => j !== i) })}
-                title="Remove point"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          {layer.coords.length === 0 && <p className="hint">No points yet — hit “Add points” and click the map.</p>}
-        </div>
-        <div className="row-buttons">
-          <button
-            className="mini"
-            onClick={() => {
-              const c = host?.map.getCenter();
-              if (c) set({ coords: [...layer.coords, [c.lng, c.lat]] });
-            }}
-          >
-            Add map centre
-          </button>
-          <button
-            className="mini"
-            disabled={layer.coords.length < 2}
-            onClick={() => {
-              const map = host?.map;
-              if (!map || layer.coords.length < 2) return;
-              const b = layer.coords.reduce<[number, number, number, number]>(
-                (acc, c) => [Math.min(acc[0], c[0]), Math.min(acc[1], c[1]), Math.max(acc[2], c[0]), Math.max(acc[3], c[1])],
-                [180, 90, -180, -90],
-              );
-              map.fitBounds(
-                [
-                  [b[0], b[1]],
-                  [b[2], b[3]],
-                ],
-                { padding: 80, duration: 600 },
-              );
-            }}
-          >
-            Frame route
-          </button>
-        </div>
-      </Section>
-
-      <Section title="Line style">
-        <Field label="Shape" hint="How the line is drawn between your points">
-          <Select
-            value={layer.curve}
-            onChange={(curve) => set({ curve })}
-            options={[
-              { value: 'geodesic', label: 'Geodesic (great circle)' },
-              { value: 'arc', label: 'Arc (flight path)' },
-              { value: 'straight', label: 'Straight' },
-            ]}
-          />
-        </Field>
-        <Field label="Colour">
-          <Color value={layer.color} onChange={(color) => set({ color })} />
-        </Field>
-        <Field label="Width">
-          <Slider value={layer.width} onChange={(width) => set({ width }, 'width')} min={0.5} max={20} step={0.1} precision={1} />
-        </Field>
-        <Field label="Opacity">
-          <Slider value={layer.opacity} onChange={(opacity) => set({ opacity }, 'opacity')} min={0} max={1} />
-        </Field>
-        <Field label="Glow">
-          <Toggle value={layer.glow} onChange={(glow) => set({ glow })} />
-        </Field>
-        <Field label="Dashed">
-          <Toggle value={layer.dashed} onChange={(dashed) => set({ dashed })} />
-        </Field>
-      </Section>
-
-      <Section title="Reveal">
-        <TrackWindow label="Reveal" layerId={layer.id} prop="progress" track={layer.progress} max={duration} />
-        {(() => {
-          const w = windowOf(layer.progress);
-          if (!w || path.length === 0 || w.to <= w.from) return null;
-          return (
-            <p className="hint">
-              ≈ {(km / (w.to - w.from)).toFixed(0)} km/s of travel over {(w.to - w.from).toFixed(1)}s
-            </p>
-          );
-        })()}
-      </Section>
-
-      <Section title="Travelling marker">
-        <Field label="Icon">
-          <Select
-            value={layer.marker.icon}
-            onChange={(icon) => set({ marker: { ...layer.marker, icon, enabled: icon !== 'none' } })}
-            options={['dot', 'plane', 'car', 'pin', 'none']}
-          />
-        </Field>
-        <Field label="Colour">
-          <Color value={layer.marker.color} onChange={(color) => set({ marker: { ...layer.marker, color } })} />
-        </Field>
-        <Field label="Size">
-          <Slider
-            value={layer.marker.size}
-            onChange={(size) => set({ marker: { ...layer.marker, size } }, 'msize')}
-            min={2}
-            max={40}
-            step={0.5}
-            precision={1}
-          />
-        </Field>
-        <Field label="Face travel">
-          <Toggle value={layer.marker.rotate} onChange={(rotate) => set({ marker: { ...layer.marker, rotate } })} />
-        </Field>
-      </Section>
-
-      <Section title="Camera follow">
-        <p className="hint">While the route draws, the camera rides the leading point and ignores keyframes.</p>
-        <Field label="Enabled">
-          <Toggle value={layer.follow.enabled} onChange={(enabled) => set({ follow: { ...layer.follow, enabled } })} />
-        </Field>
-        {layer.follow.enabled && (
-          <>
-            <Field label="Zoom">
-              <Slider
-                value={layer.follow.zoom}
-                onChange={(zoom) => set({ follow: { ...layer.follow, zoom } }, 'fzoom')}
-                min={0}
-                max={20}
-                step={0.1}
-                precision={1}
-              />
-            </Field>
-            <Field label="Pitch">
-              <Slider
-                value={layer.follow.pitch}
-                onChange={(pitch) => set({ follow: { ...layer.follow, pitch } }, 'fpitch')}
-                min={0}
-                max={85}
-                step={1}
-                precision={0}
-              />
-            </Field>
-            <Field label="Face heading">
-              <Toggle
-                value={layer.follow.faceHeading}
-                onChange={(faceHeading) => set({ follow: { ...layer.follow, faceHeading } })}
-              />
-            </Field>
-          </>
-        )}
-      </Section>
-    </>
+        options={['dot', 'plane', 'car', 'pin', 'none']}
+      />
+    </Field>
   );
 }
 
-/* ---------------------------------------------------------------- marker */
-
 /**
- * A number driven by a property track.
- *
- * Reads at the playhead, so the slider shows what is actually on screen rather than a
- * resting value that may be nothing like it. Writing goes through the store, which knows
- * whether to change a static value or set a key — the control does not, and should not.
- *
- * This is the shape every tracked property will use. It exists once rather than per
- * field so that adding a track to a property is a two-line change at the call site, which
- * is what has to be true before the eighteen bespoke tween fields can be folded in.
+ * The marker's position: a [lng, lat] pair, not two independent numbers, with the two map
+ * actions that make placing one bearable. `coord` is declared `custom: true`.
  */
-/**
- * Start / End / Easing over a track that happens to be a plain two-key ramp.
- *
- * The controls people already know, kept — but the model underneath is now general, so
- * the same property can also be given a pause, a reversal, or a different curve per
- * segment by working on the timeline. §06's progressive disclosure, applied to a track:
- * the simple skin stays the front door.
- *
- * Once the track stops being a simple window the fields step aside rather than flatten
- * it. A Start box that quietly threw away a third keyframe would undo deliberate work
- * and give no sign it had.
- */
-function TrackWindow({
-  label,
-  layerId,
-  prop,
-  track,
-  max,
-}: {
-  label: string;
-  layerId: string;
-  prop: string;
-  track: Track<number>;
-  max: number;
-}) {
-  const setWindow = useStore((s) => s.setLayerWindow);
-  const w = windowOf(track);
-
-  if (!w) {
-    return (
-      <p className="hint">
-        {label} is keyframed beyond a simple window — edit its keys on the timeline.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <Field label="Start">
-        <Num
-          value={w.from}
-          onChange={(from) => setWindow(layerId, prop, from, w.to, w.easing)}
-          step={0.1}
-          min={0}
-          max={max}
-          suffix="s"
-        />
-      </Field>
-      <Field label="End">
-        <Num
-          value={w.to}
-          onChange={(to) => setWindow(layerId, prop, w.from, to, w.easing)}
-          step={0.1}
-          min={0}
-          max={max}
-          suffix="s"
-        />
-      </Field>
-      <Field label="Easing">
-        <Select
-          value={w.easing}
-          onChange={(easing) => setWindow(layerId, prop, w.from, w.to, easing)}
-          options={EASING_NAMES}
-        />
-      </Field>
-    </>
-  );
-}
-
-
-
-function MarkerInspector({ layer }: { layer: MarkerLayer }) {
+function MarkerPosition({ layer }: { layer: MarkerLayer }) {
   const host = useRenderHost();
   const update = useStore((s) => s.updateLayer);
-  const setTool = useStore((s) => s.setTool);
-  const tool = useStore((s) => s.tool);
   const set = (patch: Partial<MarkerLayer>, key?: string) => update<MarkerLayer>(layer.id, patch, key);
 
   return (
     <>
-      <Section
-        title="Marker"
-        right={
-          <button className={'mini' + (tool === 'marker' ? ' primary' : '')} onClick={() => setTool(tool === 'marker' ? 'select' : 'marker')}>
-            {tool === 'marker' ? 'Click map…' : 'Place'}
-          </button>
-        }
-      >
-        <Field label="Longitude">
-          <Num value={layer.coord[0]} onChange={(v) => set({ coord: [v, layer.coord[1]] })} step={0.001} precision={5} />
-        </Field>
-        <Field label="Latitude">
-          <Num value={layer.coord[1]} onChange={(v) => set({ coord: [layer.coord[0], v] })} step={0.001} precision={5} />
-        </Field>
-        <div className="row-buttons">
-          <button
-            className="mini"
-            onClick={() => {
-              const c = host?.map.getCenter();
-              if (c) set({ coord: [c.lng, c.lat] });
-            }}
-          >
-            Use map centre
-          </button>
-          <button className="mini" onClick={() => host?.map.flyTo({ center: layer.coord, duration: 700 })}>
-            Go to
-          </button>
-        </div>
-      </Section>
+      <Field label="Longitude">
+        <Num value={layer.coord[0]} onChange={(v) => set({ coord: [v, layer.coord[1]] })} step={0.001} precision={5} />
+      </Field>
+      <Field label="Latitude">
+        <Num value={layer.coord[1]} onChange={(v) => set({ coord: [layer.coord[0], v] })} step={0.001} precision={5} />
+      </Field>
+      <div className="row-buttons">
+        <button
+          className="mini"
+          onClick={() => {
+            const c = host?.map.getCenter();
+            if (c) set({ coord: [c.lng, c.lat] });
+          }}
+        >
+          Use map centre
+        </button>
+        <button className="mini" onClick={() => host?.map.flyTo({ center: layer.coord, duration: 700 })}>
+          Go to
+        </button>
+      </div>
+    </>
+  );
+}
 
-      <Section title="Style">
-        <Field label="Colour">
-          <Color value={layer.color} onChange={(color) => set({ color })} />
-        </Field>
-        <TrackedNumber
-          label="Size"
-          layerId={layer.id}
-          prop="size"
-          track={layer.size}
-          min={2}
-          max={40}
-          step={0.5}
-          precision={1}
-        />
-        <Field label="Halo">
-          <Toggle value={layer.halo} onChange={(halo) => set({ halo })} />
-        </Field>
-      </Section>
+/** The "place it by clicking the map" mode, which acts on the section rather than a field. */
+function MarkerPlace() {
+  const setTool = useStore((s) => s.setTool);
+  const tool = useStore((s) => s.tool);
+  return (
+    <button className={'mini' + (tool === 'marker' ? ' primary' : '')} onClick={() => setTool(tool === 'marker' ? 'select' : 'marker')}>
+      {tool === 'marker' ? 'Click map…' : 'Place'}
+    </button>
+  );
+}
 
-      <Section title="Behaviours">
-        {/*
-          * §06 shows the stack as an ordered list you can toggle. Listing every
-          * behaviour rather than only the enabled ones is deliberate: a switch you
-          * cannot see is a feature nobody finds.
-          */}
-        <p className="hint">Rules applied over each property, in order.</p>
-        {Object.entries(layer.behaviours).map(([prop, stack]) =>
-          stack.map((b) => (
-            <Field key={b.id} label={BEHAVIOUR_LABELS[b.type] ?? b.type} hint={`Modifies ${prop}`}>
-              <Toggle
-                value={b.enabled}
-                onChange={(enabled) =>
-                  set({
-                    behaviours: {
-                      ...layer.behaviours,
-                      [prop]: stack.map((x) => (x.id === b.id ? { ...x, enabled } : x)),
-                    },
-                  })
-                }
-              />
-            </Field>
-          )),
-        )}
-      </Section>
+/**
+ * The behaviour stack (§06) — an ordered list you can toggle.
+ *
+ * Listing every behaviour rather than only the enabled ones is deliberate: a switch you
+ * cannot see is a feature nobody finds. A document sub-structure, so not a row.
+ */
+function MarkerBehaviours({ layer }: { layer: MarkerLayer }) {
+  const update = useStore((s) => s.updateLayer);
+  const set = (patch: Partial<MarkerLayer>, key?: string) => update<MarkerLayer>(layer.id, patch, key);
 
-      <Section title="Label">
-        <Field label="Text">
-          <Text value={layer.label} onChange={(label) => set({ label })} />
-        </Field>
-        <Field label="Size">
-          <Slider value={layer.labelSize} onChange={(labelSize) => set({ labelSize }, 'lsize')} min={8} max={120} step={1} precision={0} />
-        </Field>
-        <Field label="Colour">
-          <Color value={layer.labelColor} onChange={(labelColor) => set({ labelColor })} />
-        </Field>
-        <Field label="Offset">
-          <Slider value={layer.labelOffset} onChange={(labelOffset) => set({ labelOffset }, 'loff')} min={-80} max={80} step={1} precision={0} />
-        </Field>
-      </Section>
+  return (
+    <>
+      {Object.entries(layer.behaviours).map(([prop, stack]) =>
+        stack.map((b) => (
+          <Field key={b.id} label={BEHAVIOUR_LABELS[b.type] ?? b.type} hint={`Modifies ${prop}`}>
+            <Toggle
+              value={b.enabled}
+              onChange={(enabled) =>
+                set({
+                  behaviours: {
+                    ...layer.behaviours,
+                    [prop]: stack.map((x) => (x.id === b.id ? { ...x, enabled } : x)),
+                  },
+                })
+              }
+            />
+          </Field>
+        )),
+      )}
     </>
   );
 }
 
 /* ------------------------------------------------------------------ text */
-
-function TextInspector({ layer }: { layer: TextLayer }) {
-  const update = useStore((s) => s.updateLayer);
-  const set = (patch: Partial<TextLayer>, key?: string) => update<TextLayer>(layer.id, patch, key);
-
-  return (
-    <>
-      <Section title="Text">
-        <p className="hint">Drag the text directly on the canvas to reposition it.</p>
-        <Field label="Content">
-          <Text value={layer.text} onChange={(text) => set({ text })} multiline />
-        </Field>
-        <Field label="Animation">
-          <Select
-            value={layer.anim}
-            onChange={(anim) => set({ anim })}
-            options={[
-              { value: 'fade', label: 'Fade' },
-              { value: 'slideUp', label: 'Slide up' },
-              { value: 'typewriter', label: 'Typewriter' },
-              { value: 'wipe', label: 'Wipe' },
-              { value: 'none', label: 'None' },
-            ]}
-          />
-        </Field>
-      </Section>
-
-      <Section title="Style">
-        <Field label="Size" hint="In 1080p pixels — scales automatically with the output resolution">
-          <Slider value={layer.size} onChange={(size) => set({ size }, 'size')} min={8} max={160} step={1} precision={0} />
-        </Field>
-        <Field label="Weight">
-          <Select
-            value={String(layer.weight)}
-            onChange={(w) => set({ weight: parseInt(w, 10) })}
-            options={['300', '400', '500', '600', '700', '800', '900']}
-          />
-        </Field>
-        <Field label="Colour">
-          <Color value={layer.color} onChange={(color) => set({ color })} />
-        </Field>
-        <Field label="Tracking">
-          <Slider value={layer.letterSpacing} onChange={(letterSpacing) => set({ letterSpacing }, 'ls')} min={-4} max={24} step={0.5} precision={1} />
-        </Field>
-        <Field label="Align">
-          <Select value={layer.align} onChange={(align) => set({ align })} options={['left', 'center', 'right']} />
-        </Field>
-        <Field label="Backing">
-          <Toggle value={layer.background} onChange={(background) => set({ background })} />
-        </Field>
-        {layer.background && (
-          <Field label="Backing colour">
-            <Color value={layer.backgroundColor} onChange={(backgroundColor) => set({ backgroundColor })} />
-          </Field>
-        )}
-      </Section>
-
-      <Section title="Position">
-        <Field label="X">
-          <Slider value={layer.x} onChange={(x) => set({ x }, 'x')} min={0} max={1} step={0.001} precision={3} />
-        </Field>
-        <Field label="Y">
-          <Slider value={layer.y} onChange={(y) => set({ y }, 'y')} min={0} max={1} step={0.001} precision={3} />
-        </Field>
-      </Section>
-    </>
-  );
-}
-
-/* ----------------------------------------------------------------- shape */
-
-function ShapeInspector({ layer }: { layer: ShapeLayer }) {
-  const update = useStore((s) => s.updateLayer);
-  const set = (patch: Partial<ShapeLayer>, key?: string) => update<ShapeLayer>(layer.id, patch, key);
-
-  return (
-    <>
-      <Section title="GeoJSON">
-        <p className="hint">Paste a Feature, FeatureCollection or bare geometry — polygons, lines, anything.</p>
-        <Text value={layer.geojson} onChange={(geojson) => set({ geojson })} multiline mono placeholder='{"type":"Polygon","coordinates":[[…]]}' />
-        <div className="row-buttons">
-          <button
-            className="mini"
-            onClick={async () => {
-              const [handle] = await (
-                window as unknown as { showOpenFilePicker?: (o: unknown) => Promise<FileSystemFileHandle[]> }
-              ).showOpenFilePicker?.({ types: [{ accept: { 'application/geo+json': ['.json', '.geojson'] } }] }) ?? [];
-              if (!handle) return;
-              const file = await handle.getFile();
-              set({ geojson: await file.text() });
-            }}
-          >
-            Load file…
-          </button>
-        </div>
-      </Section>
-      <Section title="Style">
-        <Field label="Fill">
-          <Color value={layer.fillColor} onChange={(fillColor) => set({ fillColor })} />
-        </Field>
-        <Field label="Fill opacity">
-          <Slider value={layer.fillOpacity} onChange={(fillOpacity) => set({ fillOpacity }, 'fo')} min={0} max={1} />
-        </Field>
-        <Field label="Outline">
-          <Color value={layer.lineColor} onChange={(lineColor) => set({ lineColor })} />
-        </Field>
-        <Field label="Outline width">
-          <Slider value={layer.lineWidth} onChange={(lineWidth) => set({ lineWidth }, 'lw')} min={0} max={16} step={0.5} precision={1} />
-        </Field>
-        <Field label="Trace outline" hint="Draw the outline on over the first 2 seconds">
-          <Toggle value={layer.traceOutline} onChange={(traceOutline) => set({ traceOutline })} />
-        </Field>
-        <Field label="Extrude 3D">
-          <Toggle value={layer.extrude} onChange={(extrude) => set({ extrude })} />
-        </Field>
-        {layer.extrude && (
-          <Field label="Height">
-            <Num value={layer.extrudeHeight} onChange={(extrudeHeight) => set({ extrudeHeight })} step={1000} suffix="m" />
-          </Field>
-        )}
-      </Section>
-    </>
-  );
-}
 
 /* --------------------------------------------------------------- regions */
 
@@ -1108,9 +826,7 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
             {layer.unit ? ' ' + layer.unit : ''}
           </p>
         )}
-        <Field label="Fill opacity">
-          <Slider value={layer.fillOpacity} onChange={(fillOpacity) => apply({ fillOpacity }, 'fo')} min={0} max={1} />
-        </Field>
+        <TrackedNumber label="Fill opacity" layerId={layer.id} prop="fillOpacity" track={layer.fillOpacity} min={0} max={1} />
         <Field label="Dim others" hint="How far unvisited regions fade back">
           <Slider value={layer.tour.dimOthers} onChange={(dimOthers) => applyTour({ dimOthers }, 'dim')} min={0} max={0.9} />
         </Field>
@@ -1123,15 +839,11 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
         <Field label="Base colour">
           <Color value={layer.borderColor} onChange={(borderColor) => apply({ borderColor })} />
         </Field>
-        <Field label="Base width">
-          <Slider value={layer.borderWidth} onChange={(borderWidth) => apply({ borderWidth }, 'bw')} min={0} max={4} step={0.1} precision={1} />
-        </Field>
+        <TrackedNumber label="Base width" layerId={layer.id} prop="borderWidth" track={layer.borderWidth} min={0} max={4} step={0.1} precision={1} />
         <Field label="Highlight">
           <Color value={layer.highlightColor} onChange={(highlightColor) => apply({ highlightColor })} />
         </Field>
-        <Field label="Highlight width">
-          <Slider value={layer.highlightWidth} onChange={(highlightWidth) => apply({ highlightWidth }, 'hw')} min={0.5} max={12} step={0.5} precision={1} />
-        </Field>
+        <TrackedNumber label="Highlight width" layerId={layer.id} prop="highlightWidth" track={layer.highlightWidth} min={0.5} max={12} step={0.5} precision={1} />
         <Field label="Trace on" hint="Draw the highlighted border rather than flashing it">
           <Toggle value={layer.traceBorder} onChange={(traceBorder) => apply({ traceBorder })} />
         </Field>
@@ -1263,9 +975,7 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
         </Field>
         {layer.showCallout && (
           <>
-            <Field label="Card size">
-              <Slider value={layer.calloutSize} onChange={(calloutSize) => apply({ calloutSize }, 'cs')} min={50} max={180} step={1} precision={0} />
-            </Field>
+            <TrackedNumber label="Card size" layerId={layer.id} prop="calloutSize" track={layer.calloutSize} min={50} max={180} step={1} precision={0} />
             <Field label="Show rank">
               <Toggle value={layer.showRank} onChange={(showRank) => apply({ showRank })} />
             </Field>
@@ -1284,69 +994,57 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
   );
 }
 
-/* ---------------------------------------------------------------- clouds */
+/* ------------------------------------------------------------ shape source */
 
-function CloudsInspector({ layer }: { layer: CloudsLayer }) {
+/**
+ * Shape's GeoJSON: a full-width mono textarea with a file loader beside it, drawn without a
+ * field label because the value is a document, not a setting. `custom: true` on `geojson`
+ * records that; it renders into the generated GeoJSON section through a slot.
+ */
+function ShapeSource({ layer }: { layer: ShapeLayer }) {
   const update = useStore((s) => s.updateLayer);
-  const setWindow = useStore((s) => s.setLayerWindow);
-  const duration = useStore((s) => s.project.duration);
-  const set = (p: Partial<CloudsLayer>, key?: string) => update<CloudsLayer>(layer.id, p, key);
+  const set = (patch: Partial<ShapeLayer>, key?: string) => update<ShapeLayer>(layer.id, patch, key);
 
   return (
     <>
-      <Section title="Clouds">
-        <p className="hint">Drifting cover for an opening shot. Sits over the map, under your titles.</p>
-        <Field label="Coverage">
-          <Slider value={layer.coverage} onChange={(coverage) => set({ coverage }, 'cov')} min={0} max={1.4} />
-        </Field>
-        <Field label="Formation size">
-          <Slider value={layer.scale} onChange={(scale) => set({ scale }, 'sc')} min={0.3} max={3} step={0.05} />
-        </Field>
-        <Field label="Colour">
-          <Color value={layer.color} onChange={(color) => set({ color })} />
-        </Field>
-        <Field label="Opacity">
-          <Slider value={layer.opacity} onChange={(opacity) => set({ opacity }, 'op')} min={0} max={1} />
-        </Field>
-      </Section>
-
-      <Section title="Drift">
-        <Field label="Speed">
-          <Slider value={layer.speed} onChange={(speed) => set({ speed }, 'sp')} min={0} max={120} step={1} precision={0} />
-        </Field>
-        <Field label="Direction">
-          <Slider value={layer.direction} onChange={(direction) => set({ direction }, 'dir')} min={0} max={360} step={1} precision={0} />
-        </Field>
-      </Section>
-
-      <Section title="Clearing">
-        <p className="hint">The cloud parts from the centre outward to reveal the map.</p>
-        <Field label="Enabled">
-          {/*
-            * "Enabled" is now derived rather than stored: a cloud that never clears is a
-            * flat-zero track. Turning it on restores a window over the layer's span,
-            * which is what the boolean used to imply and what the defaults gave.
-            */}
-          <Toggle
-            value={layer.clear.kind !== 'static'}
-            onChange={(on) =>
-              on
-                ? setWindow(layer.id, 'clear', layer.in + 1.6, layer.in + 4.6, 'easeInOutCubic')
-                : set({ clear: staticTrack(0) })
-            }
-          />
-        </Field>
-        {layer.clear.kind !== 'static' && (
-          <TrackWindow label="Clearing" layerId={layer.id} prop="clear" track={layer.clear} max={duration} />
-        )}
-      </Section>
+      <Text
+        value={layer.geojson}
+        onChange={(geojson) => set({ geojson })}
+        multiline
+        mono
+        placeholder='{"type":"Polygon","coordinates":[[…]]}'
+      />
+      <div className="row-buttons">
+        <button
+          className="mini"
+          onClick={async () => {
+            const [handle] = await (
+              window as unknown as { showOpenFilePicker?: (o: unknown) => Promise<FileSystemFileHandle[]> }
+            ).showOpenFilePicker?.({ types: [{ accept: { 'application/geo+json': ['.json', '.geojson'] } }] }) ?? [];
+            if (!handle) return;
+            const file = await handle.getFile();
+            set({ geojson: await file.text() });
+          }}
+        >
+          Load file…
+        </button>
+      </div>
     </>
   );
 }
 
-/* ----------------------------------------------------------------- image */
+/* ----------------------------------------------------------- image source */
 
-function ImageInspector({ layer }: { layer: ImageLayer }) {
+/**
+ * The one part of the image panel a generated row cannot be: a text field cannot open a
+ * file, and the readout has to say "embedded, 42 KB" rather than print a data URL.
+ *
+ * §5.8 allows exactly this — "write a custom editor only when the default genuinely cannot
+ * work" — and `src` is declared `custom: true` so the coverage test records the decision
+ * rather than inferring it from a missing row. It renders into the generated Image section
+ * through `SchemaRows`' slot, so the panel keeps one heading instead of growing a second.
+ */
+function ImageSource({ layer }: { layer: ImageLayer }) {
   const update = useStore((s) => s.updateLayer);
   const set = (p: Partial<ImageLayer>, key?: string) => update<ImageLayer>(layer.id, p, key);
 
@@ -1368,86 +1066,24 @@ function ImageInspector({ layer }: { layer: ImageLayer }) {
 
   return (
     <>
-      <Section title="Image">
-        <div className="row-buttons">
-          <button className="mini primary" onClick={pickFile}>
-            Choose file…
+      <div className="row-buttons">
+        <button className="mini primary" onClick={pickFile}>
+          Choose file…
+        </button>
+        {layer.src && (
+          <button className="mini danger" onClick={() => set({ src: '' })}>
+            Clear
           </button>
-          {layer.src && (
-            <button className="mini danger" onClick={() => set({ src: '' })}>
-              Clear
-            </button>
-          )}
-        </div>
-        <p className="hint">
-          {isData
-            ? 'Embedded in the project file.'
-            : 'A file you pick is embedded as a data URL, so the project stays self-contained. A URL is fetched instead — it must allow cross-origin reads or the export will drop it.'}
-        </p>
-        <Field label="Source">
-          <Text value={isData ? `(embedded, ${Math.round(layer.src.length / 1366)} KB)` : layer.src} onChange={(src) => set({ src })} />
-        </Field>
-        <Field label="Caption">
-          <Text value={layer.caption} onChange={(caption) => set({ caption })} />
-        </Field>
-        <Field label="Animation">
-          <Select
-            value={layer.anim}
-            onChange={(anim) => set({ anim })}
-            options={[
-              { value: 'kenBurns', label: 'Slow push in' },
-              { value: 'fade', label: 'Fade' },
-              { value: 'slideUp', label: 'Slide up' },
-              { value: 'none', label: 'None' },
-            ]}
-          />
-        </Field>
-      </Section>
-
-      <Section title="Placement">
-        <Field label="X">
-          <Slider value={layer.x} onChange={(x) => set({ x }, 'x')} min={0} max={1} step={0.005} precision={3} />
-        </Field>
-        <Field label="Y">
-          <Slider value={layer.y} onChange={(y) => set({ y }, 'y')} min={0} max={1} step={0.005} precision={3} />
-        </Field>
-        <Field label="Width" hint="Fraction of the frame width; height follows the image">
-          <Slider value={layer.width} onChange={(width) => set({ width }, 'w')} min={0.05} max={1} step={0.005} precision={3} />
-        </Field>
-        <Field label="Anchor">
-          <Select
-            value={layer.anchor}
-            onChange={(anchor) => set({ anchor })}
-            options={[
-              { value: 'center', label: 'Centre' },
-              { value: 'topLeft', label: 'Top left' },
-              { value: 'topRight', label: 'Top right' },
-              { value: 'bottomLeft', label: 'Bottom left' },
-              { value: 'bottomRight', label: 'Bottom right' },
-            ]}
-          />
-        </Field>
-      </Section>
-
-      <Section title="Style">
-        <Field label="Opacity">
-          <Slider value={layer.opacity} onChange={(opacity) => set({ opacity }, 'op')} min={0} max={1} />
-        </Field>
-        <Field label="Corner radius">
-          <Slider value={layer.radius} onChange={(radius) => set({ radius }, 'r')} min={0} max={60} step={1} precision={0} />
-        </Field>
-        <Field label="Border">
-          <Toggle value={layer.border} onChange={(border) => set({ border })} />
-        </Field>
-        {layer.border && (
-          <Field label="Border colour">
-            <Color value={layer.borderColor} onChange={(borderColor) => set({ borderColor })} />
-          </Field>
         )}
-        <Field label="Shadow">
-          <Toggle value={layer.shadow} onChange={(shadow) => set({ shadow })} />
-        </Field>
-      </Section>
+      </div>
+      <p className="hint">
+        {isData
+          ? 'Embedded in the project file.'
+          : 'A file you pick is embedded as a data URL, so the project stays self-contained. A URL is fetched instead — it must allow cross-origin reads or the export will drop it.'}
+      </p>
+      <Field label="Source">
+        <Text value={isData ? `(embedded, ${Math.round(layer.src.length / 1366)} KB)` : layer.src} onChange={(src) => set({ src })} />
+      </Field>
     </>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createNode, nodeTypeDef, nodeTypes, propsOf, registerNodeType } from './index.ts';
+import { createNode, nodeTypeDef, nodeTypes, propsOf, registerNodeType, valueAtPath } from './index.ts';
 import { createLayer, migrate } from '../project.ts';
 import { layersOf } from '../nodes.ts';
 import type { Layer } from '../types.ts';
@@ -25,9 +25,34 @@ describe('every registered type', () => {
 
   it.each(types.map((t) => t.type))('%s describes every field it constructs', (type) => {
     const node = createNode(type, 0) as unknown as Record<string, unknown>;
-    const described = new Set(propsOf(type).map((m) => m.prop));
+    // A dotted declaration (`marker.size`) describes the object it reaches into.
+    const described = new Set(propsOf(type).map((m) => m.prop.split('.')[0]));
     const missing = Object.keys(node).filter((key) => !described.has(key));
     expect(missing, `${type} has undescribed properties`).toEqual([]);
+  });
+
+  it.each(types.map((t) => t.type))('%s describes every field of a grouped object too', (type) => {
+    /*
+     * Coverage follows a row into a nested object. Route's marker and follow were `custom`
+     * as whole objects until they became grouped rows — which meant a field added to either
+     * was described by nothing and shown by nothing, silently. Now that a row addresses
+     * `marker.size` by path, the same rule that covers the layer covers its sub-objects.
+     */
+    const node = createNode(type, 0) as unknown as Record<string, unknown>;
+    const groups = new Map<string, Set<string>>();
+    for (const meta of propsOf(type)) {
+      const [head, ...rest] = meta.prop.split('.');
+      if (!head || rest.length === 0) continue;
+      if (!groups.has(head)) groups.set(head, new Set());
+      groups.get(head)!.add(rest.join('.'));
+    }
+
+    for (const [group, described] of groups) {
+      const value = node[group];
+      if (value === null || typeof value !== 'object') continue;
+      const missing = Object.keys(value).filter((key) => !described.has(key));
+      expect(missing, `${type}.${group} has undescribed fields`).toEqual([]);
+    }
   });
 
   it.each(types.map((t) => t.type))('%s describes nothing it does not have', (type) => {
@@ -39,7 +64,7 @@ describe('every registered type', () => {
       // with a map context's basemap ("the project's own"). Everything else must be there.
       .filter((m) => !m.optional)
       .map((m) => m.prop)
-      .filter((prop) => !(prop in node));
+      .filter((prop) => valueAtPath(node, prop) === undefined);
     expect(stray, `${type} describes properties it does not have`).toEqual([]);
   });
 
@@ -72,7 +97,7 @@ describe('the registry as the source of defaults', () => {
   it('fills a loaded layer from the type that owns it', () => {
     const p = migrate({ layers: [{ type: 'clouds', id: 'c', in: 0 }] });
     const clouds = layersOf(p)[0] as Extract<Layer, { type: 'clouds' }>;
-    expect(clouds.coverage).toBe(0.85);
+    expect(clouds.coverage).toMatchObject({ kind: 'static', value: 0.85 });
     expect(clouds.clear.kind).toBe('keyframed');
   });
 

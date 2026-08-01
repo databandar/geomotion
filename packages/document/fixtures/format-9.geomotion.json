@@ -1,0 +1,278 @@
+{
+  "format": 9,
+  "name": "Format 1 — frozen",
+  "duration": 12,
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "basemap": "dark",
+  "terrain": false,
+  "terrainExaggeration": 1.4,
+  "background": "#0d1117",
+  "story": [
+    {
+      "id": "b1",
+      "t": 0,
+      "d": 6,
+      "say": "The whole country.",
+      "nodes": [
+        "m1"
+      ],
+      "context": "ctx-overview"
+    }
+  ],
+  "nodes": {
+    "an90d9hf": {
+      "id": "an90d9hf",
+      "type": "camera",
+      "name": "Camera",
+      "tracks": {
+        "center": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": [
+                139.7,
+                35.68
+              ],
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": [
+                -122.4,
+                37.77
+              ],
+              "easing": "easeInOutCubic"
+            }
+          ]
+        },
+        "zoom": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": 5,
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": 4,
+              "easing": "easeInOutCubic",
+              "dip": 1.5
+            }
+          ]
+        },
+        "bearing": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": 20,
+              "easing": "easeInOutCubic"
+            }
+          ]
+        },
+        "pitch": {
+          "kind": "keyframed",
+          "keys": [
+            {
+              "id": "k1",
+              "t": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "id": "k2",
+              "t": 6,
+              "value": 30,
+              "easing": "easeInOutCubic"
+            }
+          ]
+        }
+      },
+      "behaviours": {},
+      "parentId": null,
+      "order": "V"
+    },
+    "m1": {
+      "id": "m1",
+      "visible": true,
+      "in": 0,
+      "out": 12,
+      "fade": 0.5,
+      "type": "marker",
+      "name": "Tokyo",
+      "coord": [
+        139.7,
+        35.68
+      ],
+      "color": "#ffbd2e",
+      "size": {
+        "kind": "static",
+        "value": 14
+      },
+      "label": "Tokyo",
+      "labelSize": {
+        "kind": "static",
+        "value": 16
+      },
+      "labelColor": "#ffffff",
+      "labelOffset": {
+        "kind": "static",
+        "value": 16
+      },
+      "halo": true,
+      "behaviours": {
+        "scale": [
+          {
+            "id": "xevczzx0",
+            "type": "pop",
+            "enabled": true
+          }
+        ],
+        "ring": [
+          {
+            "id": "chp3stgj",
+            "type": "pulse",
+            "enabled": false
+          }
+        ]
+      },
+      "parentId": null,
+      "order": "k"
+    },
+    "t1": {
+      "id": "t1",
+      "visible": true,
+      "in": 0,
+      "out": 6,
+      "fade": 0.5,
+      "type": "text",
+      "name": "Title",
+      "text": "Format one",
+      "x": {
+        "kind": "static",
+        "value": 0.5
+      },
+      "y": {
+        "kind": "static",
+        "value": 0.16
+      },
+      "size": {
+        "kind": "static",
+        "value": 44
+      },
+      "color": "#ffffff",
+      "weight": 700,
+      "align": "center",
+      "background": false,
+      "backgroundColor": "#000000aa",
+      "letterSpacing": {
+        "kind": "static",
+        "value": 0
+      },
+      "anim": "slideUp",
+      "parentId": null,
+      "order": "s"
+    },
+    "ctx-overview": {
+      "id": "ctx-overview",
+      "name": "Overview",
+      "basemap": "satellite-labels",
+      "terrain": true,
+      "hidden": [
+        "t1"
+      ],
+      "type": "mapContext",
+      "parentId": null,
+      "order": "w",
+      "visible": true,
+      "behaviours": {}
+    },
+    "r1": {
+      "id": "r1",
+      "type": "route",
+      "name": "Flight",
+      "parentId": null,
+      "order": "x",
+      "visible": true,
+      "in": 0,
+      "out": 10,
+      "fade": 0.4,
+      "coords": [
+        [
+          72.8,
+          19.1
+        ],
+        [
+          77.2,
+          28.6
+        ]
+      ],
+      "curve": "geodesic",
+      "color": "#4cc2ff",
+      "width": {
+        "kind": "static",
+        "value": 3.5
+      },
+      "opacity": {
+        "kind": "static",
+        "value": 1
+      },
+      "dashed": false,
+      "glow": true,
+      "progress": {
+        "kind": "keyframed",
+        "keys": [
+          {
+            "id": "k1",
+            "t": 1,
+            "value": 0,
+            "easing": "easeInOutCubic"
+          },
+          {
+            "id": "k2",
+            "t": 9,
+            "value": 1,
+            "easing": "easeInOutCubic"
+          }
+        ]
+      },
+      "marker": {
+        "enabled": true,
+        "icon": "plane",
+        "color": "#ffffff",
+        "size": {
+          "kind": "static",
+          "value": 9
+        },
+        "rotate": true
+      },
+      "follow": {
+        "enabled": false,
+        "zoom": {
+          "kind": "static",
+          "value": 9
+        },
+        "pitch": {
+          "kind": "static",
+          "value": 55
+        },
+        "faceHeading": true
+      }
+    }
+  }
+}

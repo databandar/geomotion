@@ -80,8 +80,8 @@ Effects.
 
 **A transform.** §04 says nodes inherit transforms from their parents, and they will — but
 layers today have no shared transform to inherit (a route has `coords`, a marker a `coord`,
-a text `x`/`y`). Transform inheritance arrives with the property-track milestone that gives
-every node one. Opacity is the part of inheritance that *is* expressible now, so it is the
+a text `x`/`y`). That milestone landed — [[every-property-a-track]], format 9 — so transform
+inheritance is now unblocked and is the next step rather than a dependency. Opacity is the part of inheritance that *is* expressible now, so it is the
 part that ships.
 
 ### Ordering and z-order

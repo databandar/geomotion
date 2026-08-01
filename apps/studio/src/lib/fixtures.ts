@@ -1,5 +1,5 @@
 import { createId } from '@geomotion/core';
-import { cameraFromShots, createLayer, defaultTour, keyframe, projectWith, windowTrack } from '@geomotion/document';
+import { cameraFromShots, createLayer, defaultTour, keyframe, projectWith, staticTrack, windowTrack } from '@geomotion/document';
 import type { Layer, LngLat, Project, RegionsLayer } from '@geomotion/document';
 import indiaStates from '../data/india-states-official.json';
 import anemia from '../data/india-anemia-sample.json';
@@ -25,10 +25,10 @@ export function demoProject(): Project {
     name: 'SFO → HND',
     curve: 'arc',
     color: '#4cc2ff',
-    width: 3.5,
+    width: staticTrack(3.5),
     out: 15,
     progress: windowTrack(3, 9.5, 'easeInOutCubic'),
-    marker: { enabled: true, icon: 'plane', color: '#ffffff', size: 9, rotate: true },
+    marker: { enabled: true, icon: 'plane', color: '#ffffff', size: staticTrack(9), rotate: true },
   } as Partial<Layer>) as Extract<Layer, { type: 'route' }>;
   route.coords = [SF, TOKYO];
 
@@ -61,18 +61,18 @@ export function demoProject(): Project {
   const title = createLayer('text', 0.3, {
     name: 'Title',
     text: 'SAN FRANCISCO → TOKYO',
-    size: 40,
-    letterSpacing: 4,
-    y: 0.13,
+    size: staticTrack(40),
+    letterSpacing: staticTrack(4),
+    y: staticTrack(0.13),
     out: 4.5,
   } as Partial<Layer>);
 
   const stat = createLayer('text', 5.2, {
     name: 'Distance',
     text: '8,270 km · 10h 45m',
-    size: 26,
+    size: staticTrack(26),
     weight: 500,
-    y: 0.86,
+    y: staticTrack(0.86),
     anim: 'fade',
     out: 9.2,
   } as Partial<Layer>);
@@ -112,10 +112,10 @@ export function indiaTourProject(): Project {
   // Clouds open the film and part to reveal the country.
   const clouds = createLayer('clouds', 0, {
     name: 'Cloud cover',
-    coverage: 1,
-    scale: 1.25,
-    speed: 16,
-    direction: 65,
+    coverage: staticTrack(1),
+    scale: staticTrack(1.25),
+    speed: staticTrack(16),
+    direction: staticTrack(65),
     out: start + intro * 0.6,
     fade: 0.8,
     clear: windowTrack(1.8, 5.4, 'easeInOutCubic'),
@@ -126,9 +126,9 @@ export function indiaTourProject(): Project {
     name: 'India outline',
     geojson: JSON.stringify(indiaOutline),
     fillColor: '#4cc2ff',
-    fillOpacity: 0.12,
+    fillOpacity: staticTrack(0.12),
     lineColor: '#7dd3fc',
-    lineWidth: 3,
+    lineWidth: staticTrack(3),
     traceOutline: true,
     out: start + intro + 1.2,
     fade: 0.8,
@@ -157,7 +157,7 @@ export function indiaTourProject(): Project {
     },
     // Imagery is busy, so the state borders need a bit more weight than they
     // would over a flat vector basemap.
-    borderWidth: 1.2,
+    borderWidth: staticTrack(1.2),
     borderCasing: true,
     out: duration,
     fade: 0.6,
@@ -170,9 +170,9 @@ export function indiaTourProject(): Project {
   const title = createLayer('text', 0.4, {
     name: 'Title',
     text: 'ANAEMIA IN INDIA',
-    size: 54,
-    letterSpacing: 5,
-    y: 0.44,
+    size: staticTrack(54),
+    letterSpacing: staticTrack(5),
+    y: staticTrack(0.44),
     out: start + intro * 0.75,
     fade: 0.7,
   } as Partial<Layer>);
@@ -180,9 +180,9 @@ export function indiaTourProject(): Project {
   const subtitle = createLayer('text', 1.1, {
     name: 'Subtitle',
     text: 'Women aged 15–49, by state',
-    size: 24,
+    size: staticTrack(24),
     weight: 400,
-    y: 0.52,
+    y: staticTrack(0.52),
     anim: 'fade',
     out: start + intro * 0.75,
     fade: 0.7,
@@ -191,13 +191,13 @@ export function indiaTourProject(): Project {
   const caption = createLayer('text', 0, {
     name: 'Data caption',
     text: 'Sample values — replace with your own source',
-    size: 15,
+    size: staticTrack(15),
     weight: 400,
     align: 'right',
     // Top-right: the legend owns the bottom-left and the burnt-in
     // attribution owns the bottom-right.
-    x: 0.985,
-    y: 0.06,
+    x: staticTrack(0.985),
+    y: staticTrack(0.06),
     anim: 'none',
     out: duration,
     fade: 0.4,

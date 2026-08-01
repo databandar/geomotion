@@ -24,16 +24,27 @@ function withMarker(): MarkerLayer {
 }
 
 const marker = () => layersOf(useStore.getState().project)[0] as MarkerLayer;
-const pip = () => screen.getByRole('button', { name: /Fixed value|Animated/ });
-const diamond = () => screen.queryByRole('button', { name: /keyframe here/ });
+
 /**
- * The tracked field's own slider.
+ * The marker's own Size field — the one these tests drive.
  *
- * A marker has two fields called "Size" — its own and its label's — so the role alone is
- * ambiguous. The tracked one is the only field carrying a pip, which is exactly what
- * `.field-with-slot` marks.
+ * Scoped by section rather than by "the only field with a pip", which is what this file
+ * used to rely on. Since format 9 every declared number is a track, so a marker carries
+ * three pips (`size`, `labelSize`, `labelOffset`) and "the tracked one" no longer names
+ * anything (docs/features/every-property-a-track.md).
  */
-const slider = () => document.querySelector('.field-with-slot input') as HTMLInputElement;
+function sizeField(): HTMLElement {
+  const label = screen
+    .getAllByText('Size', { selector: '.field-label' })
+    .find((el) => el.closest('.section')?.querySelector('.section-toggle')?.textContent?.trim() === 'Style');
+  const field = label?.closest('.field-with-slot');
+  if (!field) throw new Error('no tracked Size field in the Style section');
+  return field as HTMLElement;
+}
+
+const pip = () => sizeField().querySelector('.pip-dot') as HTMLElement;
+const diamond = () => sizeField().querySelector('.pip-key') as HTMLElement | null;
+const slider = () => sizeField().querySelector('input') as HTMLInputElement;
 /**
  * Move the playhead and let React catch up.
  *
@@ -249,8 +260,9 @@ describe('the timeline shows a row per animated property', () => {
 });
 
 describe('the fx toggle', () => {
-  const fx = () =>
-    screen.getByRole('button', { name: /Drive this with an expression|Back to a fixed value/ });
+  // Scoped to the marker's own Size, for the same reason as the pip above: every declared
+  // number is a track since format 9, so the fx toggle is no longer unique on the panel.
+  const fx = () => sizeField().querySelector('.pip-fx') as HTMLElement;
   const field = () => screen.getByRole('textbox', { name: /size expression/i });
 
   it('turns the property into an expression seeded with the value on screen', async () => {

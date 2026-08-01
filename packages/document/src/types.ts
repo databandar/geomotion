@@ -149,8 +149,8 @@ export interface RouteLayer extends LayerBase {
   /** how intermediate geometry is built between the points you clicked */
   curve: 'geodesic' | 'straight' | 'arc';
   color: string;
-  width: number;
-  opacity: number;
+  width: Track<number>;
+  opacity: Track<number>;
   dashed: boolean;
   glow: boolean;
   /**
@@ -166,14 +166,14 @@ export interface RouteLayer extends LayerBase {
     enabled: boolean;
     icon: RouteIcon;
     color: string;
-    size: number;
+    size: Track<number>;
     rotate: boolean;
   };
   /** camera rides the head of the route while it draws */
   follow: {
     enabled: boolean;
-    zoom: number;
-    pitch: number;
+    zoom: Track<number>;
+    pitch: Track<number>;
     /** 0 = keep map bearing, 1 = face direction of travel */
     faceHeading: boolean;
   };
@@ -192,9 +192,9 @@ export interface MarkerLayer extends LayerBase {
    */
   size: Track<number>;
   label: string;
-  labelSize: number;
+  labelSize: Track<number>;
   labelColor: string;
-  labelOffset: number;
+  labelOffset: Track<number>;
   halo: boolean;
   /**
    * Rules over this marker's properties, keyed by the one each modifies (§06).
@@ -212,15 +212,15 @@ export interface TextLayer extends LayerBase {
   type: 'text';
   text: string;
   /** normalised screen position, 0..1 */
-  x: number;
-  y: number;
-  size: number;
+  x: Track<number>;
+  y: Track<number>;
+  size: Track<number>;
   color: string;
   weight: number;
   align: 'left' | 'center' | 'right';
   background: boolean;
   backgroundColor: string;
-  letterSpacing: number;
+  letterSpacing: Track<number>;
   anim: 'none' | 'fade' | 'slideUp' | 'typewriter' | 'wipe';
 }
 
@@ -229,13 +229,13 @@ export interface ShapeLayer extends LayerBase {
   /** raw GeoJSON (Feature / FeatureCollection / Geometry) as text */
   geojson: string;
   fillColor: string;
-  fillOpacity: number;
+  fillOpacity: Track<number>;
   lineColor: string;
-  lineWidth: number;
+  lineWidth: Track<number>;
   /** outline draws on progressively across the layer's visible window */
   traceOutline: boolean;
   extrude: boolean;
-  extrudeHeight: number;
+  extrudeHeight: Track<number>;
 }
 
 export type RegionOrder = 'geojson' | 'valueDesc' | 'valueAsc' | 'alpha' | 'custom';
@@ -274,14 +274,14 @@ export interface RegionsLayer extends LayerBase {
   autoDomain: boolean;
   min: number;
   max: number;
-  fillOpacity: number;
+  fillOpacity: Track<number>;
   noDataColor: string;
 
   /* borders */
   borderColor: string;
-  borderWidth: number;
+  borderWidth: Track<number>;
   highlightColor: string;
-  highlightWidth: number;
+  highlightWidth: Track<number>;
   traceBorder: boolean;
   /** dark casing under the base borders — the only way they read over satellite imagery */
   borderCasing: boolean;
@@ -291,7 +291,7 @@ export interface RegionsLayer extends LayerBase {
 
   /* readouts */
   showCallout: boolean;
-  calloutSize: number;
+  calloutSize: Track<number>;
   showRank: boolean;
   showLegend: boolean;
   legendTitle: string;
@@ -367,15 +367,15 @@ export interface RegionTour {
 export interface CloudsLayer extends LayerBase {
   type: 'clouds';
   /** 0..1 density */
-  coverage: number;
+  coverage: Track<number>;
   /** texture zoom; bigger = larger, softer formations */
-  scale: number;
+  scale: Track<number>;
   /** drift in 1080p px per second */
-  speed: number;
+  speed: Track<number>;
   /** drift heading, degrees */
-  direction: number;
+  direction: Track<number>;
   color: string;
-  opacity: number;
+  opacity: Track<number>;
   /**
    * How far the cloud has cleared outward from the centre, 0..1.
    *
@@ -391,14 +391,14 @@ export interface ImageLayer extends LayerBase {
   /** data: URL, http(s) URL, or a path the page can reach */
   src: string;
   /** normalised anchor position in the frame */
-  x: number;
-  y: number;
+  x: Track<number>;
+  y: Track<number>;
   /** width as a fraction of the frame width; height follows the image aspect */
-  width: number;
+  width: Track<number>;
   anchor: 'center' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
-  opacity: number;
+  opacity: Track<number>;
   /** corner rounding in 1080p px */
-  radius: number;
+  radius: Track<number>;
   border: boolean;
   borderColor: string;
   shadow: boolean;

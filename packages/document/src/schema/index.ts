@@ -18,12 +18,19 @@ registerNodeType(cameraType);
 export { defaultTour, layerBase, LAYER_TYPES } from './layers.ts';
 export { createGroup, createMapContext, cameraType, groupType, mapContextType } from './containers.ts';
 export {
+  conditionHolds,
   createNode,
   nodeTypeDef,
   nodeTypes,
   propsOf,
   registerNodeType,
+  patchAtPath,
+  trackFallbacksOf,
+  trackPropsOf,
+  valueAtPath,
+  type BoundFrom,
   type NodeTypeDef,
   type PropertyMeta,
   type PropertyRow,
+  type RowCondition,
 } from './meta.ts';

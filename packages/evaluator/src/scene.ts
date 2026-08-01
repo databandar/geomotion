@@ -18,6 +18,7 @@ import type { EasingName } from '@geomotion/document';
 import { buildPath, headingAt, measure, pointAt, sliceAt, type MeasuredPath } from '@geomotion/geometry';
 import { fitBounds, regionAtStop, regionSet, type RegionSet } from '@geomotion/entities';
 import { getBasemap } from '@geomotion/map';
+import { resolveTracks } from './resolve.ts';
 
 const DEFAULT_CAMERA: CameraState = {
   center: [0, 20],
@@ -317,7 +318,13 @@ function evaluateRegions(layer: RegionsLayer, project: Project, time: number, al
   const move = Math.max(0, Math.min(layer.tour.moveTime, hold * 0.6));
   const settled = Math.max(0, local - move);
   const render: RegionsRender = {
-    style: layer,
+    /*
+     * No `facts` here, deliberately. `factsFor` derives the bindable facts *from* the
+     * evaluated region layers, so a region layer binding to them would be circular. Its own
+     * tracks still resolve — static, keyframed and expression all work; only `bound` falls
+     * back, which is the honest answer to "bind this to itself".
+     */
+    style: resolveTracks(layer, time),
     set,
     alpha,
     phase,
@@ -488,7 +495,8 @@ export function evaluate(project: Project, time: number): Scene {
       const drawn = alpha > 0 ? sliceAt(path, progress) : [];
       const head = path.coords.length >= 2 && progress > 0 ? pointAt(path, progress) : null;
       const heading = path.coords.length >= 2 ? headingAt(path, progress) : 0;
-      routes.push({ style: layer, alpha, progress, drawn, head, heading });
+      const style = resolveTracks(layer, time, { facts });
+      routes.push({ style, alpha, progress, drawn, head, heading });
 
       /*
        * The camera follows while the line is still being drawn. With a window that was
@@ -504,8 +512,9 @@ export function evaluate(project: Project, time: number): Scene {
           kind: 'follow',
           camera: {
             center: head as LngLat,
-            zoom: layer.follow.zoom,
-            pitch: layer.follow.pitch,
+            // From the resolved style, so a keyframed follow-zoom actually moves the camera.
+            zoom: style.follow.zoom,
+            pitch: style.follow.pitch,
             bearing: layer.follow.faceHeading ? heading : cameraAt(project, time).bearing,
           },
         });
@@ -538,7 +547,7 @@ export function evaluate(project: Project, time: number): Scene {
        * and it is why `style` is now a built object rather than the layer passed through.
        */
       markers.push({
-        style: { ...layer, size: evalTrack(layer.size, time, { facts, fallback: 8 }), pulse: ringPhase > 0 },
+        style: { ...resolveTracks(layer, time, { facts }), pulse: ringPhase > 0 },
         alpha,
         scale,
         pulse: ringPhase,
@@ -547,7 +556,7 @@ export function evaluate(project: Project, time: number): Scene {
       const span = Math.max(0.0001, layer.fade || 0.5);
       const entering = clamp01((time - layer.in) / span);
       texts.push({
-        style: layer,
+        style: resolveTracks(layer, time, { facts }),
         alpha,
         offsetY: layer.anim === 'slideUp' ? (1 - ease('easeOut', entering)) * 26 : 0,
         reveal: layer.anim === 'typewriter' ? clamp01((time - layer.in) / Math.max(0.2, layer.fade * 3)) : 1,
@@ -557,7 +566,7 @@ export function evaluate(project: Project, time: number): Scene {
       const trace = layer.traceOutline
         ? ease('easeInOutCubic', invLerp(layer.in, Math.min(layer.out, layer.in + 2), time))
         : 1;
-      shapes.push({ style: layer, alpha, trace });
+      shapes.push({ style: resolveTracks(layer, time, { facts }), alpha, trace });
     } else if (layer.type === 'regions') {
       const { render, camera } = evaluateRegions(layer, project, time, alpha);
       regions.push(render);
@@ -567,7 +576,7 @@ export function evaluate(project: Project, time: number): Scene {
       const through = clamp01((time - layer.in) / span);
       const entering = clamp01((time - layer.in) / Math.max(0.0001, layer.fade || 0.5));
       images.push({
-        style: layer,
+        style: resolveTracks(layer, time, { facts }),
         alpha,
         offsetY: layer.anim === 'slideUp' ? (1 - ease('easeOut', entering)) * 40 : 0,
         // A still that never moves reads as a freeze; 4% over the shot is enough.
@@ -576,7 +585,7 @@ export function evaluate(project: Project, time: number): Scene {
     } else {
 
       clouds.push({
-        style: layer,
+        style: resolveTracks(layer, time, { facts }),
         alpha,
         // Drift is absolute time, so scrubbing lands on the same frame every time.
         drift: time,

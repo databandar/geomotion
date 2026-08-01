@@ -96,7 +96,9 @@ describe('migrate', () => {
     const route = layersOf(p)[0] as Extract<Layer, { type: 'route' }>;
     expect(route.marker).toBeTypeOf('object');
     expect(route.follow).toBeTypeOf('object');
-    expect(typeof route.marker.size).toBe('number');
+    // A track, since format 9 — and a nested one, which is the path the migration and the
+    // resolver both walk deepest (docs/features/every-property-a-track.md).
+    expect(route.marker.size).toMatchObject({ kind: 'static', value: 6 });
   });
 
   it('does not mutate the input it was handed', () => {
@@ -321,7 +323,8 @@ describe('migrate — a file with fields of the wrong type', () => {
       camera: [],
     } as never))[0] as { marker: Record<string, unknown> };
     expect(route.marker.enabled).toBe(true); // the default, not the string
-    expect(route.marker.size).toBe(20); // kept
+    // Kept, and lifted into a track by the format-9 step rather than discarded.
+    expect(route.marker.size).toMatchObject({ kind: 'static', value: 20 });
   });
 
   it('keeps a null-defaulted field, which has no type to check against', () => {

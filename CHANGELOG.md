@@ -7,6 +7,122 @@ name the section each change answers to.
 
 ## Unreleased
 
+### The document model — M3.1, every declared number is a track (§04, §06, §18 Phase 1)
+
+- **§04's "every property is a track" was true of the machinery and false of the document.**
+  All four track kinds evaluated, behaviours applied over them, the source pip retargeted a
+  property between kinds — wired to **three** of the 89 properties the registry declares. The
+  other 86 were bare values the evaluator handed to the renderer untouched, so they could
+  never be keyframed, bound to a fact, or driven by an expression.
+- **Twenty-eight properties convert**, across all seven layer types — a title's size and
+  position, a cloud's coverage and drift, a route's width and its travelling marker, a
+  region's fill and borders. **Format 8 → 9**, with a frozen fixture.
+  - The migration **reads the registry** rather than a list of its own, so it cannot convert a
+    property the inspector still shows as a plain number, nor miss one it shows as a track.
+  - Timing (`in`/`out`/`fade`) and formatting (`decimals`) stay plain: they are not properties
+    of a layer's appearance, and animating them means nothing.
+- **One resolution pass replaces twenty-eight special cases.** The evaluator used to hand the
+  renderer the document node and spell out the one or two tracked properties by hand. It now
+  calls `resolveTracks(node, time, { facts })` — registry-driven, so a node type from a plugin
+  or a newer document resolves by the same rule. That extends §15's "for free" from the
+  inspector to evaluation.
+  - **The fallback is the type's own default**, not zero. Zero is a real and wrong value for
+    `scale`, `opacity` and `size`: a broken binding would render as a genuine low rather than
+    as a failure.
+  - **`Resolved<T>`** makes the renderer's blindness a type. Handing it an unresolved track is
+    now a compile error, which is what made converting twenty-eight properties in one change
+    safe rather than hopeful.
+- **The inspector needed no hand-written change** for six of the seven panels, because M2.7
+  generated them from the same registry. Flipping a row from `number` to `track` swapped a
+  slider for a tracked one with its source pip. Regions still draws its own panel, so its four
+  rows were the only manual work — the last argument for finishing that conversion.
+- **Golden frames all ten byte-identical, max Δ0**, and a v1 document rendered end-to-end
+  through all nine migrations. A static track evaluates to the number it replaced, so any
+  movement would have been a bug in the migration or the resolver.
+- 51 new tests (1,057 → 1,108), including coverage asserted *over the registry* rather than a
+  list, so a property added tomorrow is covered without anyone remembering.
+- **Found on the way:** every track store action wrote at the **top level**, so a dotted
+  `marker.size` created a literal key with a dot in it beside the real object — the write
+  appeared to succeed, undo recorded it, and nothing on screen ever changed. Only a round-trip
+  test on a *nested* property found it. All three actions resolve the owner first now.
+  - A tracked field carries a source pip, so a test helper querying `input, …, button` began
+    returning the pip and editing nothing; and a suite that found its subject as "the only
+    field with a pip" stopped naming anything, which is the milestone working.
+  - A cached `typecheck` task reported success over stale input and hid a missing module-scope
+    function. The runtime test caught it — a green typecheck is not proof on its own.
+
+### The editor — M2.7, six of the seven layer panels are generated (§3.4, §11, §15)
+
+- **Six hand-written panels are gone.** Clouds, image, text, shape, marker and route are
+  drawn from their property metadata, like the group and like any node type a plugin
+  registers. `Inspector.tsx` goes 1,551 → 1,194 lines and stops being the place a layer's
+  ranges are decided. Regions keeps its panel — see the last bullet.
+- **The two descriptions had already drifted, and nothing could see it.** M2.4 registered the
+  metadata and left the panels hand-written on purpose; this change measured the cost.
+  **Twenty rows disagreed** across the six, and **the panel won every one** — those are the
+  numbers users have been scrubbing and existing projects were authored against.
+  - **One was functional.** A marker's label offset ran `-80 … 80` in the panel — a label
+    above the dot — and the declaration floored it at 0. Generating from the declaration
+    without checking would have quietly removed a placement people had already used.
+  - The rest were ranges, steps, section headings that never existed, and one option label
+    ("Ken Burns" declared, "Slow push in" shown). The full table is in the feature doc.
+  - The coverage test could not have caught it: it asserts a slider's bounds are *defined*,
+    which is all a test can do while the number the user scrubs is typed somewhere else.
+    Generating the row is what makes the assertion mean something.
+- **The row language grew only what the conversions needed**, one addition per panel that
+  could not otherwise be drawn:
+  - **`when`** — a row drawn only when a sibling says so, which is what `{layer.border && …}`
+    was. **Declarative**, not a predicate function, because §15 sends a plugin's node type
+    across a worker boundary and a function does not survive being structured-cloned. `prop`
+    takes a dotted path, so a row can depend on a track's *kind* (`clear.kind`).
+  - **`window`** — a track edited as start/end/easing, with an optional (`switchable`) enable
+    toggle. Two panels drew this by hand, so it was never one control's quirk. `TrackWindow`
+    moves out of `Inspector.tsx` into a module the generator can reach.
+  - **`maxFrom: 'duration'`** — a bound the registry cannot know when the declaration is
+    evaluated at module load. The same idiom as `optionsFrom`: the metadata names the source,
+    the app resolves it, and it crosses the plugin boundary intact.
+  - **Grouped sub-objects** — a `prop` may be a dotted path. Route's `marker` and `follow`
+    are objects the evaluator reads whole, so a row on `marker.size` writes
+    `{ marker: { …marker, size } }` back around it. Writing `{ size }` would put a stray
+    field on the layer and draw identically, which is why both were `custom` until now.
+  - **`numeric` on a select** — `<select>` yields a string and text's `weight` is stored as a
+    number; the hand-written panel called `parseInt` on the way out.
+  - Plus **section notes** — the sentence several panels opened a section with, which the
+    generator previously had nowhere to read and would have silently dropped.
+- **What cannot be a row stays hand-written**, declared `custom: true` so the decision is on
+  the record, and rendered *inside* its generated section through one `blocks` mechanism with
+  three positions — a control in the heading, an editor before the rows, a readout after them.
+  Every surviving panel needed exactly those three: image's file picker, shape's GeoJSON
+  editor, marker's coordinate pair, behaviour stack and "Place" mode, route's point list, its
+  km/s readout, and its icon select — the last because picking "none" also clears
+  `marker.enabled`, and a row that writes one field cannot write two.
+- **No document change**: no new field, no format bump, no migration. Golden frames all ten
+  byte-identical, max Δ0 — which is the real check on a like-for-like conversion.
+- **The drift guard, finally writable.** Every non-custom row a generated type declares must
+  now actually appear — the check this milestone wanted and could not write while a panel
+  typed its own ranges. Coverage also follows a dotted row into its object, so a field added
+  to `marker` or `follow` can no longer be described by nothing and shown by nothing.
+- 51 new tests (996 → 1047).
+- **Regions is deliberately not converted.** Its panel is 401 lines over seven sections and is
+  mostly not rows — a boundary loader, a paste importer with its own parser, a live
+  per-region value table, a ramp preview, a tri-state anchor over `boolean | null`, and a
+  derived stop list that seeks the playhead. Every block would need the same derived
+  `regionSet`, so it is a restructuring of that panel rather than a transcription, and it is
+  the type the golden tours exercise. Its own change — which is what "one type per change"
+  was for.
+- **Found on the way:**
+  - The first `maxFrom` test asserted a `max` attribute on the DOM. `Num` clamps on commit and
+    never writes one, so it failed against a bound that worked — and had it passed, it would
+    have passed against no bound at all. It now types past the end and asserts the clamp.
+  - Declaring route's `progress` as a window **added an enable toggle its panel never had**.
+    Hence `switchable`: a cloud that never parts is a legitimate cloud, a route that never
+    reveals is just invisible.
+  - A `custom` property with no `section` splits its section in two — route grew a second,
+    empty "Travelling marker" heading before `marker.enabled` was given one.
+  - A section whose properties are *all* custom was not built at all, leaving shape's GeoJSON
+    editor nowhere to render. Sections are now grouped over every declared property and only
+    then filtered.
+
 ### The document model — M2.6, the map context becomes a node (§04)
 
 - **A map context is a node, and things can belong to it.** `project.contexts[]` is gone; a

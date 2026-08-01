@@ -23,11 +23,18 @@ export {
   defaultTour,
   nodeTypeDef,
   nodeTypes,
+  conditionHolds,
   propsOf,
+  patchAtPath,
+  trackFallbacksOf,
+  trackPropsOf,
+  valueAtPath,
   registerNodeType,
+  type BoundFrom,
   type NodeTypeDef,
   type PropertyMeta,
   type PropertyRow,
+  type RowCondition,
 } from './schema/index.ts';
 export {
   cameraFromShots,
@@ -105,6 +112,7 @@ export {
   type BehaviourStacks,
   type BehaviourType,
   type Keyframe,
+  type Resolved,
   type Track,
 } from './track.ts';
 export { CURRENT_FORMAT, formatOf, runMigrations } from './migrations/index.ts';

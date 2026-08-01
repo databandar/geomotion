@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createLayer, emptyProject, type Layer, layersOf, type LayerType, projectWith } from '@geomotion/document';
+import { createLayer, emptyProject, type Layer, layersOf, type LayerType, projectWith, restValue, staticTrack } from '@geomotion/document';
 import Inspector from './Inspector';
 import { useStore } from '../store';
 
@@ -15,6 +15,10 @@ import { useStore } from '../store';
  * What is checked is the round trip, because that is what silently breaks: the value
  * shown comes from the document, and editing the control writes back to the same
  * field. A control wired to the wrong field still renders perfectly.
+ *
+ * Numeric fields read through `restValue` since format 9: they are tracks now, and the round
+ * trip being tested is the same one — the control writes to the property it is labelled with
+ * (docs/features/every-property-a-track.md).
  */
 
 function withLayer(type: LayerType, patch: Partial<Layer> = {}) {
@@ -33,7 +37,13 @@ function control(label: string, within?: string): HTMLElement {
   const spans = screen.getAllByText(label, { selector: '.field-label' });
   const span = within ? spans.find((s) => s.closest('.section')?.textContent?.includes(within)) : spans[0];
   if (!span) throw new Error(`no field labelled "${label}"`);
-  const el = span.parentElement?.querySelector('input, select, textarea, button');
+  /*
+   * Inputs before buttons. A tracked property's field carries a source pip in its header —
+   * a button — and since format 9 most numeric fields are tracked, so a plain
+   * `querySelector('input, …, button')` returns the pip and the test edits nothing.
+   */
+  const field = span.parentElement;
+  const el = field?.querySelector('input, select, textarea') ?? field?.querySelector('button');
   if (!el) throw new Error(`field "${label}" has no control`);
   return el as HTMLElement;
 }
@@ -93,7 +103,7 @@ describe('values round-trip through the document', () => {
     render(<Inspector />);
     fireEvent.change(control('Size', 'Label'), { target: { value: '22' } });
     const marker = current() as Extract<Layer, { type: 'marker' }>;
-    expect(marker.labelSize).toBe(22);
+    expect(restValue(marker.labelSize)).toBe(22);
     expect(marker.labelColor).toBe('#abcdef');
   });
 
@@ -104,7 +114,7 @@ describe('values round-trip through the document', () => {
     const before = (current() as Extract<Layer, { type: 'route' }>).marker;
     fireEvent.change(control('Size', 'Travelling marker'), { target: { value: '14' } });
     const after = (current() as Extract<Layer, { type: 'route' }>).marker;
-    expect(after.size).toBe(14);
+    expect(restValue(after.size)).toBe(14);
     expect(after.icon).toBe(before.icon);
     expect(after.color).toBe(before.color);
   });
@@ -113,21 +123,21 @@ describe('values round-trip through the document', () => {
     withLayer('shape');
     render(<Inspector />);
     fireEvent.change(control('Fill opacity'), { target: { value: '0.4' } });
-    expect((current() as Extract<Layer, { type: 'shape' }>).fillOpacity).toBeCloseTo(0.4, 6);
+    expect(restValue((current() as Extract<Layer, { type: 'shape' }>).fillOpacity)).toBeCloseTo(0.4, 6);
   });
 
   it('clouds coverage', async () => {
     withLayer('clouds');
     render(<Inspector />);
     fireEvent.change(control('Coverage'), { target: { value: '0.8' } });
-    expect((current() as Extract<Layer, { type: 'clouds' }>).coverage).toBeCloseTo(0.8, 6);
+    expect(restValue((current() as Extract<Layer, { type: 'clouds' }>).coverage)).toBeCloseTo(0.8, 6);
   });
 
   it('image width', async () => {
     withLayer('image');
     render(<Inspector />);
     fireEvent.change(control('Width'), { target: { value: '0.65' } });
-    expect((current() as Extract<Layer, { type: 'image' }>).width).toBeCloseTo(0.65, 6);
+    expect(restValue((current() as Extract<Layer, { type: 'image' }>).width)).toBeCloseTo(0.65, 6);
   });
 
   it('the shared timing fields, which every layer has', async () => {
@@ -140,11 +150,11 @@ describe('values round-trip through the document', () => {
   });
 
   it('renaming a layer leaves everything else alone', async () => {
-    withLayer('shape', { fillOpacity: 0.33 } as Partial<Layer>);
+    withLayer('shape', { fillOpacity: staticTrack(0.33) } as Partial<Layer>);
     render(<Inspector />);
     await userEvent.clear(control('Name', 'Timing'));
     await userEvent.type(control('Name', 'Timing'), 'Coastline');
     expect(current().name).toBe('Coastline');
-    expect((current() as Extract<Layer, { type: 'shape' }>).fillOpacity).toBeCloseTo(0.33, 6);
+    expect(restValue((current() as Extract<Layer, { type: 'shape' }>).fillOpacity)).toBeCloseTo(0.33, 6);
   });
 });

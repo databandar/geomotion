@@ -65,6 +65,25 @@ export type Track<T> =
 export const staticTrack = <T>(value: T): Track<T> => ({ kind: 'static', value });
 
 /**
+ * A node with every track replaced by the value it evaluates to at one instant.
+ *
+ * This is what the renderer is handed and what §14 means by "document-blind": it receives a
+ * `RenderScene` of plain data and cannot reach a `Track`, because a track is a function of
+ * time and the renderer has no clock.
+ *
+ * Expressed as a type rather than trusted to convention so that handing an unresolved node
+ * to the renderer is a compile error. That is the safety net for converting twenty-eight
+ * properties in one change: a property that becomes a track and is *not* resolved would
+ * otherwise draw as `NaN` at one layer, at one time, and nothing would say why.
+ *
+ * One level deep is enough today; route's nested `marker` and `follow` are resolved through
+ * their dotted paths and land back as plain objects.
+ */
+export type Resolved<T> = {
+  [K in keyof T]: T[K] extends Track<infer V> ? V : T[K] extends object ? Resolved<T[K]> : T[K];
+};
+
+/**
  * A keyframed track, sorted by time.
  *
  * Sorting on construction rather than on read: evaluation runs once per property per
@@ -229,11 +248,21 @@ export function withKeyMoved<T>(track: Track<T>, keyId: string, time: number): T
 }
 
 /**
- * The names of an object's tracked properties.
+ * The names of an object's tracked properties, **by looking at the instance**.
  *
- * Derived by looking, rather than declared in a list that would drift the first time a
- * property became tracked and nobody updated it. The timeline and the inspector both ask
- * this question, and they must not be able to disagree.
+ * Derived rather than declared, so it answers for a node this build has never seen — one a
+ * plugin made, or one from a newer document — where the registry has nothing to say. The
+ * timeline uses it to decide which keyframe rows a layer expands into.
+ *
+ * Distinct from `trackPropsOf(type)` in the registry, which answers the *declaration*: what
+ * this kind of node is supposed to store as a track, including nested paths like
+ * `marker.size`. The two answer different questions and are both right:
+ *
+ * - this one is per-instance, top-level only, and cannot be wrong about what is there;
+ * - that one is per-type, reaches into grouped objects, and is what the evaluator resolves
+ *   and the inspector offers to keyframe.
+ *
+ * Where they overlap they agree, because a fresh node is built from the same declaration.
  */
 export function trackedProps(node: object): string[] {
   return Object.entries(node)

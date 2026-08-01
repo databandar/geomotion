@@ -22,3 +22,4 @@ export {
   type CameraState,
   type Scene,
 } from './scene.ts';
+export { resolveTracks } from './resolve.ts';
