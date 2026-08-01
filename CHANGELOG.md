@@ -7,6 +7,30 @@ name the section each change answers to.
 
 ## Unreleased
 
+### GROUNDTRUTH — a channel bible, and one episode actually produced
+
+- [`docs/brand/HANDBOOK.md`](docs/brand/HANDBOOK.md) — content strategy, 35 story frameworks
+  with a per-framework GeoMotion shot spec, the GeoMotion/Hyperframe division of labour, and a
+  10-stage production pipeline for a map-first Shorts channel.
+- [`docs/brand/EP001-four-doors.md`](docs/brand/EP001-four-doors.md) — the sample episode
+  design: Russia's four fleets, four measured chokepoints, and a reversal that is a 5,000 km
+  camera move from Murmansk to the Gulf of Mexico.
+- **EP001 was then actually rendered**, end to end, against this repo's real tools — not left
+  as a design doc. `docs/brand/render/tools/` builds the GeoMotion project, drives Voicebox for
+  narration, renders all 2,520 frames through the studio's headless API in a real browser, mixes
+  a synthesised music bed against the CC0 SFX pack, and encodes the final MP4.
+- **Two narration lines were wrong and got caught before recording**, not after: "every shore
+  belongs to NATO" is false (Russia has Baltic coastline via Kaliningrad), and "the harbour needs
+  icebreakers" is a pre-1984 fact presented as current. Both rewritten; see
+  [`render/README.md`](docs/brand/render/README.md).
+- **The whole schedule was retimed from measured audio.** The handbook's 2.65 words/sec budget
+  overran on every one of 14 segments once real narration came back from Voicebox — the voice
+  used reads slower than estimated. Every scene boundary is now derived from actual clip
+  durations plus deliberate gaps, landing at exactly 84.00s.
+- A finale staging bug: three of the four "door" markers expired at their own scene's end, so
+  the closing reprise shot — the thumbnail frame — showed only one reticle instead of four.
+  Fixed with dedicated reprise markers for the closing beat.
+
 ### A world tour demo
 
 - **Demo → World tour.** 176 countries coloured by GDP per person, nine of them visited. It

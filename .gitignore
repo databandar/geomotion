@@ -25,3 +25,9 @@ apps/pipeline/assets/*/
 # OS / editor
 .DS_Store
 *.swp
+
+# Rendered episode output — reproducible from docs/brand/render/tools/, not versioned.
+# The 37MB MP4 doesn't diff and doesn't belong in history; the scripts that produced it do.
+docs/brand/render/*.mp4
+docs/brand/render/frames/
+docs/brand/render/vo/

@@ -2,6 +2,14 @@
 
 **GROUNDTRUTH · Pillar 1: CHOKEPOINTS · Framework A1 + B4 · Runtime 0:80 · 9:16**
 
+> **This episode has been produced.** [`render/`](render/) has the finished MP4 (1080×1920,
+> 84.00s, gitignored — rebuild with `render/tools/`) and [`render/README.md`](render/README.md)
+> documents what changed between this design doc and the actual render: two narration lines
+> corrected against sources, the whole schedule retimed from measured audio instead of the
+> word-count estimate below, and a finale staging bug. The below is the original design; treat
+> the narration-cell notes and the fact sheet's ❌ rows as the record of what was wrong and how
+> it was fixed, not as remaining open items.
+
 ---
 
 ## Why this idea
@@ -66,7 +74,14 @@ part is false. The music cut at 4.2 is the single most important frame in the vi
 
 ## Full narration script
 
-**166 words · ~63s of speech · ~80s with holds**
+**165 words as written · produced runtime 84.00s exactly.**
+
+> **Produced, and revised twice before recording** — see
+> [`render/README.md`](render/README.md) for what changed and why. First: two lines corrected
+> against sources rather than trusted from the first draft (below). Second: the word-count
+> budget in Handbook 1.11 assumes 2.65 words/sec; the voice actually used reads slower, and
+> every scene boundary in the storyboard below is the *original* estimate, not the measured
+> one. The real per-scene timing lives in `render/schedule.json`.
 
 > This is the largest country on Earth. Thirty-seven thousand kilometres of coastline.
 >
@@ -74,7 +89,7 @@ part is false. The music cut at 4.2 is the single most important frame in the vi
 >
 > Russia's navy is split into four fleets. Each one has exactly one way out.
 >
-> The Baltic Fleet has to pass here. Four kilometres wide. Every shore belongs to NATO.
+> The Baltic Fleet has to pass here. Four kilometres wide, between Denmark and Sweden.
 >
 > The Black Sea Fleet has one exit. The Bosphorus is seven hundred metres across, and it runs
 > through the middle of Istanbul.
@@ -83,7 +98,7 @@ part is false. The music cut at 4.2 is the single most important frame in the vi
 >
 > The Pacific Fleet is here, at Vladivostok. Every route to open water runs past Japan.
 >
-> And in winter, the harbour needs icebreakers.
+> And in winter, the harbour ices over.
 >
 > Which leaves the north. This is Murmansk — two hundred and seventy kilometres inside the
 > Arctic Circle.
@@ -141,7 +156,7 @@ part is false. The music cut at 4.2 is the single most important frame in the vi
 
 | | |
 |---|---|
-| **Narration** | "The Baltic Fleet has to pass here. Four kilometres wide. Every shore belongs to NATO." |
+| **Narration** | "The Baltic Fleet has to pass here. Four kilometres wide, between Denmark and Sweden." — revised from the original "every shore belongs to NATO," which is false: Russia has Baltic coastline via Kaliningrad and St Petersburg. See [render/README.md](render/README.md). |
 | **On-screen** | `4 km` |
 | **GM** | `SPINE` from Baltiysk NW through the Baltic (route, arc, 1600ms) → `PINCH` to Øresund `[12.7, 56.0]` z10.5. Danish + Swedish coasts flash `COLD`; Baltic littoral states fill `COLD` at 35%. Scale bar visibly re-reads to km. |
 | **HF** | Width comparison bar, data band (HF-02) |
@@ -189,7 +204,7 @@ part is false. The music cut at 4.2 is the single most important frame in the vi
 
 | | |
 |---|---|
-| **Narration** | "And in winter, the harbour needs icebreakers." |
+| **Narration** | "And in winter, the harbour ices over." — revised from "needs icebreakers," which was true before 1984; a thermal plant now keeps Golden Horn Bay open almost year-round without them. See [render/README.md](render/README.md). |
 | **On-screen** | *(none)* |
 | **GM** | `PINCH` back to Golden Horn Bay z11.8. Sea-ice extent `BLEED` in white at 60%, closing over the harbour. |
 | **HF** | **HF-05** — icebreaker hull in profile, riding onto ice. Cross-section; top-down cannot show this. |
@@ -536,11 +551,11 @@ Centred in the title band. Transparent background.
 | 2 | Russia coastline | 37,653 km | CIA World Factbook | ✅ |
 | 3 | Russia is the largest **country** | — | — | ✅ **Do not say "longest coastline"** — Canada's is far longer (~202,080 km) |
 | 4 | Four fleets: Northern, Baltic, Black Sea, Pacific | — | Standard order of battle | ✅ |
-| 5 | Øresund narrowest | ~4 km | — | ⚠️ **VERIFY** — cite the specific strait; the Great Belt is far wider |
-| 6 | All Baltic littoral states in NATO | — | Post-Sweden accession, 2024 | ⚠️ **DATE-STAMP ON SCREEN** |
-| 7 | Bosphorus narrowest | ~700 m | — | ⚠️ **VERIFY** — sources vary 698–750 m |
+| 5 | Øresund narrowest, Helsingør–Helsingborg | 4 km | — | ✅ **Verified** before recording |
+| 6 | "Every shore belongs to NATO" (Baltic) | — | — | ❌ **False as drafted** — Russia has Baltic coastline via Kaliningrad and St Petersburg. Script rewritten to name the strait's actual shores instead of the sea's; the NATO claim and its date-stamp were dropped from the produced cut entirely. |
+| 7 | Bosphorus narrowest | 700 m | — | ✅ **Verified** — also, better than drafted: it's the world's narrowest strait used for international navigation, a stronger and equally short claim than "narrowest in the world" |
 | 8 | Montreux Convention | 1936 | Treaty text | ✅ |
-| 9 | Vladivostok needs icebreakers in winter | — | — | ⚠️ **VERIFY** — the bay freezes; icebreakers maintain access |
+| 9 | Vladivostok needs icebreakers in winter | — | — | ❌ **Outdated as drafted** — true before 1984; a thermal plant's discharge now keeps Golden Horn Bay open almost year-round without them. Rewritten to "the harbour ices over," which stays true without implying the old workaround still runs. |
 | 10 | Pacific exits pass Japan | Tsushima, Tsugaru, La Pérouse | — | ✅ |
 | 11 | Murmansk latitude | 68.97° N | — | ✅ |
 | 12 | Distance north of Arctic Circle | ~270 km | Derived: (68.97 − 66.56) × 111 km | ✅ |
