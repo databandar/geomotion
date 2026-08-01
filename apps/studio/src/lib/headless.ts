@@ -28,7 +28,8 @@ export interface HeadlessApi {
   /** Draw one exact frame at the given timeline position. */
   renderFrameAt(t: number): void;
   /** Resolve once tiles for the current view have finished loading. */
-  waitIdle(timeoutMs?: number): Promise<void>;
+  /** Resolves `false` when the tiles did not arrive in time and the frame is unfinished. */
+  waitIdle(timeoutMs?: number): Promise<boolean>;
   /** Hide editor-only chrome (selection handles, map controls). */
   setExporting(v: boolean): void;
   /**
@@ -92,7 +93,9 @@ export function installHeadlessApi(host: RenderHost) {
     },
 
     async waitIdle(timeoutMs = 15000) {
-      await host.waitForIdle(timeoutMs);
+      // Returned, not swallowed: the caller is a render loop that has to know whether this
+      // frame's tiles actually arrived. See waitForIdle in render/host.ts.
+      return host.waitForIdle(timeoutMs);
     },
 
     setExporting(v) {

@@ -63,6 +63,8 @@ export async function renderEncoded(project, outFile, opts = {}) {
           if (!map) throw new Error('no map canvas');
 
           let lastShape = -1;
+          // Frame indices captured before their tiles finished; reported to the CLI below.
+          const unfinished = [];
           const canvas = document.createElement('canvas');
           canvas.width = map.width;
           canvas.height = map.height;
@@ -138,10 +140,12 @@ export async function renderEncoded(project, outFile, opts = {}) {
              */
             const shape = window.geomotion.shape().layers;
             if (wait) {
-              await window.geomotion.waitIdle(12000);
+              // Counted, not swallowed: a frame captured before its tiles arrived carries
+              // grey loading blocks, and used to go out with the render reporting success.
+              if (!(await window.geomotion.waitIdle(12000))) unfinished.push(i);
             } else if (shape !== lastShape) {
               lastShape = shape;
-              await window.geomotion.waitIdle(3000);
+              if (!(await window.geomotion.waitIdle(3000))) unfinished.push(i);
             }
 
             // Two frames: one for MapLibre to paint, one for the compositor.
@@ -166,7 +170,7 @@ export async function renderEncoded(project, outFile, opts = {}) {
           encoder.close();
           window.__gmProgress(frames);
           if (window.__gmEncodeError) throw new Error(window.__gmEncodeError);
-          return { frames };
+          return { frames, unfinished };
         },
         total,
         fps,
@@ -179,5 +183,12 @@ export async function renderEncoded(project, outFile, opts = {}) {
   const bytes = Buffer.concat(chunks);
   if (!bytes.length) throw new EncoderUnavailable('the encoder produced no data');
   await fs.writeFile(outFile, bytes);
-  return { file: outFile, bytes: bytes.length, total: result.total, problems: result.problems };
+  const problems = [...(result.problems ?? [])];
+  const unfinished = result.unfinished ?? [];
+  if (unfinished.length) {
+    const shown = unfinished.slice(0, 5).join(', ');
+    const more = unfinished.length > 5 ? `, +${unfinished.length - 5} more` : '';
+    problems.push(`${unfinished.length} frame(s) captured before their tiles finished loading (${shown}${more})`);
+  }
+  return { file: outFile, bytes: bytes.length, total: result.total, problems, unfinished };
 }

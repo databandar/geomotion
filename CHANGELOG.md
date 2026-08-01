@@ -7,6 +7,24 @@ name the section each change answers to.
 
 ## Unreleased
 
+### Fixed — a frame no longer goes out before its basemap tiles (§00, §14)
+
+- **Rendered videos could contain grey loading blocks, and nothing said so.** `waitForIdle`
+  resolved on both the `idle` event *and* its timeout, so a tile that never arrived was
+  indistinguishable from one that arrived instantly. The frame was captured with the blocks
+  in it and the render reported success.
+- It **returns a verdict** now — `true` settled, `false` gave up. Still a resolve, not a
+  reject: a render must not unwind on frame 41 of 700. Timing out stays legal; pretending it
+  did not happen does not.
+- Both frame loops **count the early frames and report them**, with indices:
+  `! 3 of 724 frames were captured before their basemap tiles finished.`
+- **Tiles are warmed before frame 0** on a 30 s budget rather than 12. Most timeouts are the
+  cold start, not the middle of a render.
+- **`--wait-tiles`** buys a draft the waiting back (19 s → 74 s on the 724-frame example, so
+  it stays opt-in); **`--strict-tiles`** turns an unfinished frame into a failed render, for
+  CI.
+- See [`docs/features/tile-readiness.md`](docs/features/tile-readiness.md).
+
 ### The document model — M3.1, every declared number is a track (§04, §06, §18 Phase 1)
 
 - **§04's "every property is a track" was true of the machinery and false of the document.**

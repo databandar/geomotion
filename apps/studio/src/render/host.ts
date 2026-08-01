@@ -30,8 +30,13 @@ export interface RenderHost {
    * that fell back to store state. Keep it that way.
    */
   renderFrameAt(t: number): void;
-  /** Resolve once the map has finished loading tiles for the current view. */
-  waitForIdle(timeoutMs?: number): Promise<void>;
+  /**
+   * Resolve once the map has finished loading tiles for the current view.
+   *
+   * **`false` means it gave up.** The caller decides what an unfinished frame is worth —
+   * see `waitForIdle` below for why that is not this function's decision to make.
+   */
+  waitForIdle(timeoutMs?: number): Promise<boolean>;
 }
 
 const RenderHostContext = createContext<RenderHost | null>(null);
@@ -49,21 +54,35 @@ export function useRenderHost(): RenderHost | null {
 }
 
 /** Resolves once the map has finished loading tiles for the current view. */
-export function waitForIdle(map: MLMap, timeoutMs = 8000): Promise<void> {
+/**
+ * Wait for the map to finish loading tiles for the current view.
+ *
+ * Resolves **`true`** when the map actually went idle, **`false`** when the timeout won.
+ *
+ * The boolean is the whole point. This used to resolve either way, so a tile that never
+ * arrived produced a frame with grey loading blocks in it and the render reported success —
+ * a bad frame that nothing anywhere admitted to. Timing out is a legitimate thing to do
+ * (a render must not hang on one dead tile server); pretending it did not happen is not.
+ *
+ * It stays a resolve rather than a reject because a caller mid-render has to keep going and
+ * decide at the end, not unwind on frame 41 of 700.
+ */
+export function waitForIdle(map: MLMap, timeoutMs = 8000): Promise<boolean> {
   return new Promise((resolve) => {
     if (map.loaded() && map.areTilesLoaded()) {
-      resolve();
+      resolve(true);
       return;
     }
     let done = false;
-    const finish = () => {
+    const finish = (settled: boolean) => () => {
       if (done) return;
       done = true;
-      map.off('idle', finish);
+      map.off('idle', idle);
       clearTimeout(timer);
-      resolve();
+      resolve(settled);
     };
-    const timer = setTimeout(finish, timeoutMs);
-    map.on('idle', finish);
+    const idle = finish(true);
+    const timer = setTimeout(finish(false), timeoutMs);
+    map.on('idle', idle);
   });
 }

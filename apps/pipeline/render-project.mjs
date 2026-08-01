@@ -137,7 +137,14 @@ const progress = (i, total) => {
   const rate = i / ((Date.now() - t0) / 1000);
   process.stdout.write(`\r    ${pct}%  ${i}/${total}  ${rate.toFixed(1)} fps   `);
 };
-const renderOpts = { distDir, waitForTiles: !draft, port: Number(opt('port', 5212)), onProgress: progress };
+/*
+ * A draft skips tile waiting for speed, which is why a draft can show grey loading blocks.
+ * `--wait-tiles` buys them back when the draft is for judging the picture rather than the
+ * timing; `--strict-tiles` turns an unfinished frame into a failed render, for CI.
+ */
+const waitTiles = flag('wait-tiles') || !draft;
+const strictTiles = flag('strict-tiles');
+const renderOpts = { distDir, waitForTiles: waitTiles, port: Number(opt('port', 5212)), onProgress: progress };
 
 const mp4 = path.join(outDir, `${slug}${draft ? '-draft' : ''}.mp4`);
 /*
@@ -162,9 +169,11 @@ if (draft && !flag('frames')) {
 }
 
 let problems = [];
+let unfinished = [];
 if (encoded) {
   process.stdout.write('\n');
   problems = encoded.problems;
+  unfinished = encoded.unfinished ?? [];
   ok(`encoded in ${Math.round((Date.now() - t0) / 1000)}s (${(encoded.bytes / 1024 / 1024).toFixed(1)} MB of h264)`);
   step(4, 'Muxing');
   await muxEncoded({
@@ -179,12 +188,28 @@ if (encoded) {
   step(3, `Rendering ${frameCount} frames`);
   const result = await renderFrames(project, framesDir, renderOpts);
   problems = result.problems;
+  unfinished = result.unfinished ?? [];
   process.stdout.write('\n');
   ok(`frames in ${Math.round((Date.now() - t0) / 1000)}s`);
   step(4, 'Encoding');
   await encode({ framesDir, pad: result.pad, fps: project.fps, audio, out: mp4, crf: draft ? 26 : 18 });
 }
 if (problems.length) console.warn(`    ! ${problems.length} page errors: ${problems.slice(0, 3).join(' | ')}`);
+/*
+ * Said out loud, every time. A frame captured before its tiles arrived has grey blocks in
+ * it, and this used to be invisible — the render simply reported success.
+ */
+if (unfinished.length) {
+  console.warn(
+    `    ! ${unfinished.length} of ${frameCount} frames were captured before their basemap tiles finished.\n` +
+      `      Those frames have loading blocks in them.` +
+      (waitTiles ? ' The tile server was too slow; try again, or raise the budget.' : ' Re-run with --wait-tiles.'),
+  );
+  if (strictTiles) {
+    console.error('    ✗ --strict-tiles: refusing to call this render good.');
+    process.exit(1);
+  }
+}
 
 const thumb = path.join(outDir, `${slug}-thumb.png`);
 await grabThumbnail({ video: mp4, at: Math.min(project.duration * 0.94, project.duration - 0.1), out: thumb });

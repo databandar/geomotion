@@ -239,10 +239,31 @@ export async function renderFrames(project, outDir, opts = {}) {
     const total = Math.max(1, Math.round(project.duration * project.fps));
     const pad = String(total).length + 1;
 
+    /*
+     * Warm the tiles before frame 0, on a longer budget.
+     *
+     * Most tile timeouts are the cold start — an empty cache fetching a whole viewport at
+     * once — not the middle of a render, where the camera has usually moved a little and
+     * most of what it needs is already there. Paying for that once, generously, is what
+     * stops the first seconds of a video going out with grey blocks in them.
+     */
+    if (waitForTiles) {
+      await page.evaluate((tt) => window.geomotion.renderFrameAt(tt), 0);
+      const warm = await page.evaluate(() => window.geomotion.waitIdle(30000));
+      if (!warm) problems.push('tiles had not finished loading before the first frame (waited 30s)');
+    }
+
+    // Frames captured before their tiles arrived. Counted rather than thrown, because a
+    // render must not unwind on frame 41 of 700 — but it must not stay quiet either.
+    const unfinished = [];
+
     for (let i = 0; i < total; i++) {
       const t = i / project.fps;
       await page.evaluate((tt) => window.geomotion.renderFrameAt(tt), t);
-      if (waitForTiles) await page.evaluate(() => window.geomotion.waitIdle(12000));
+      if (waitForTiles) {
+        const settled = await page.evaluate(() => window.geomotion.waitIdle(12000));
+        if (!settled) unfinished.push(i);
+      }
       // Two frames: one for MapLibre to paint, one for the compositor.
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       await page.screenshot({
@@ -254,7 +275,15 @@ export async function renderFrames(project, outDir, opts = {}) {
       onProgress(i + 1, total);
     }
 
-    return { total, pad, problems };
+    if (unfinished.length) {
+      const shown = unfinished.slice(0, 5).join(', ');
+      const more = unfinished.length > 5 ? `, +${unfinished.length - 5} more` : '';
+      problems.push(
+        `${unfinished.length} frame(s) captured before their tiles finished loading (${shown}${more})`,
+      );
+    }
+
+    return { total, pad, problems, unfinished };
   } finally {
     await browser.close();
     server.close();
