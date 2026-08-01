@@ -404,6 +404,18 @@ export interface CloudsLayer extends LayerBase {
 /** A picture placed in screen space — a photo, a logo, a chart you made elsewhere. */
 export interface ImageLayer extends LayerBase {
   type: 'image';
+  /**
+   * The upload as it arrived, before its background was keyed out.
+   *
+   * Absent until the key is applied. Keeping it is what makes the edit non-destructive —
+   * §01's first commitment is "everything stays editable", and a tolerance you cannot
+   * re-tune because the pixels are gone is a bake step by another name.
+   */
+  srcOriginal?: string;
+  /** How close to the border colour a pixel must be to be removed, 0..1. */
+  bgTolerance: number;
+  /** Softening at the cut edge, in pixels. */
+  bgFeather: number;
   /** data: URL, http(s) URL, or a path the page can reach */
   src: string;
   /** normalised anchor position in the frame */

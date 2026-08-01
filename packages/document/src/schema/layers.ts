@@ -492,6 +492,8 @@ export const imageType: NodeTypeDef = {
       shadow: true,
       anim: 'kenBurns',
       caption: '',
+      bgTolerance: 0.12,
+      bgFeather: 1,
     }) as Layer,
   /*
    * As with clouds, the shipped panel is the authority where the two disagreed: `width`
@@ -502,6 +504,11 @@ export const imageType: NodeTypeDef = {
   props: [
     // The file picker and its embedded-size readout; a text field cannot open a file (§5.8).
     { prop: 'src', label: 'Source', custom: true, row: { kind: 'text' } },
+    // Applied by a button, not by scrubbing: keying re-decodes the whole bitmap, so a live
+    // slider would re-run it per pointer move. The rows sit beside that button.
+    { prop: 'srcOriginal', label: 'Original', custom: true, optional: true, row: { kind: 'text' } },
+    { prop: 'bgTolerance', label: 'Tolerance', section: 'Background', help: 'How close to the edge colour counts as background', row: { kind: 'number', min: 0, max: 0.6, step: 0.01, precision: 2, slider: true } },
+    { prop: 'bgFeather', label: 'Soften edge', section: 'Background', row: { kind: 'number', min: 0, max: 4, step: 1, precision: 0, unit: 'px' } },
     { prop: 'caption', label: 'Caption', section: 'Image', row: { kind: 'text' } },
     {
       prop: 'anim',

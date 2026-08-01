@@ -14,7 +14,7 @@ import type {
 } from '@geomotion/document';
 import { INDIA_STATES, matchNames, regionSet } from '@geomotion/entities';
 import { tourDuration } from '@geomotion/evaluator';
-import { RAMPS, getRamp, rampColor } from '@geomotion/core';
+import { RAMPS, getRamp, rampColor, removeBackground } from '@geomotion/core';
 import indiaStatesOfficial from '../data/india-states-official.json';
 import indiaStatesNE from '../data/india-states.json';
 import { EASING_NAMES } from '@geomotion/animation';
@@ -129,7 +129,12 @@ export default function Inspector() {
           <SchemaRows
             node={layer}
             {...(layer.type === 'image'
-              ? { blocks: { Image: { before: <ImageSource layer={layer} /> } } }
+              ? {
+                  blocks: {
+                    Image: { before: <ImageSource layer={layer} /> },
+                    Background: { before: <ImageBackground layer={layer} /> },
+                  },
+                }
               : {})}
             {...(layer.type === 'shape'
               ? { blocks: { GeoJSON: { before: <ShapeSource layer={layer} /> } } }
@@ -1044,6 +1049,111 @@ function ShapeSource({ layer }: { layer: ShapeLayer }) {
       </div>
     </>
   );
+}
+
+/* ------------------------------------------------------- image background */
+
+/**
+ * Key a flat background out of an uploaded image.
+ *
+ * A button rather than a live slider: keying re-decodes the whole bitmap, so a slider wired
+ * straight to it would re-run the flood on every pointer move. The two rows above set the
+ * parameters, this applies them, and the result says what it did.
+ *
+ * **Non-destructive.** The upload is kept in `srcOriginal`, so the tolerance stays re-tunable
+ * and "Restore" is exact rather than approximate — §01's first commitment is that everything
+ * stays editable, and pixels you have thrown away are a bake step.
+ */
+function ImageBackground({ layer }: { layer: ImageLayer }) {
+  const update = useStore((s) => s.updateLayer);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const apply = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      // Always from the original, so re-applying at a new tolerance does not key an
+      // already-keyed image — which would eat the subject a slice at a time.
+      const source = layer.srcOriginal || layer.src;
+      const out = await keyOutBackground(source, layer.bgTolerance, layer.bgFeather);
+      update<ImageLayer>(layer.id, { src: out.url, srcOriginal: source }, 'bg-remove');
+      setNote(out.warning ?? `Removed ${Math.round(out.removed * 100)}% of the image.`);
+    } catch (err) {
+      setNote(
+        err instanceof Error && /tainted|cross-origin|SecurityError/i.test(err.message)
+          ? 'That image is loaded from another site and will not allow its pixels to be read. Download it and pick the file instead.'
+          : 'Could not read that image.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearProp = useStore((s) => s.clearNodeProp);
+  const restore = () => {
+    if (!layer.srcOriginal) return;
+    // Removed rather than blanked: absent *is* "never keyed", which is what the button label
+    // and the re-apply source both read. The shared history key keeps it one undo step.
+    update<ImageLayer>(layer.id, { src: layer.srcOriginal }, 'bg-restore');
+    clearProp(layer.id, 'srcOriginal');
+    setNote(null);
+  };
+
+  return (
+    <>
+      <div className="row-buttons">
+        <button className="mini primary" disabled={!layer.src || busy} onClick={apply}>
+          {busy ? 'Working…' : layer.srcOriginal ? 'Re-apply' : 'Remove background'}
+        </button>
+        {layer.srcOriginal && (
+          <button className="mini" onClick={restore}>
+            Restore original
+          </button>
+        )}
+      </div>
+      <p className="hint">
+        {note ??
+          'Keys out a flat background connected to the edges — logos, flags, charts. It cannot cut a subject out of a photograph, and will say so when it has not worked.'}
+      </p>
+    </>
+  );
+}
+
+/**
+ * Decode, key, re-encode. The DOM half of `removeBackground`, which is pure and lives in
+ * `@geomotion/core` so it can be tested without a canvas.
+ */
+async function keyOutBackground(
+  src: string,
+  tolerance: number,
+  feather: number,
+): Promise<{ url: string; warning: string | null; removed: number }> {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('could not load the image'));
+    img.src = src;
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('no 2d context');
+  ctx.drawImage(img, 0, 0);
+
+  // Throws a SecurityError on a cross-origin image, which the caller turns into the one
+  // message that tells the user what to do about it.
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const out = removeBackground(pixels, { tolerance, feather });
+  // Written back into the bitmap the canvas already owns, rather than constructing a fresh
+  // `ImageData` — its constructor overloads differ across lib.dom versions, and this needs
+  // no allocation either.
+  pixels.data.set(out.data);
+  ctx.putImageData(pixels, 0, 0);
+  return { url: canvas.toDataURL('image/png'), warning: out.warning, removed: out.removed };
 }
 
 /* ----------------------------------------------------------- image source */

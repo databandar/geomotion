@@ -7,6 +7,32 @@ name the section each change answers to.
 
 ## Unreleased
 
+### An uploaded image can have its background keyed out (§01, §02, §11)
+
+- **A flat background, flooded in from the border**, so a flag, a logo, a chart or a
+  screenshot stops sitting in a white rectangle over the terrain.
+- **Flooded, not thresholded.** "Remove every white pixel" also removes the white *inside* a
+  logo — the counter of an O, the highlight on a chart — and the shape renders with holes over
+  the map. Only background connected to the edge is background; what the subject encloses
+  belongs to the subject.
+- **The seed is the median of the four corners**, not one: a single pixel can be a compression
+  artefact, and four corners disagree honestly when the background is not flat.
+- **It says when it has not worked.** `removeBackground` returns the fraction removed and a
+  warning — *almost nothing was removed, the background may not be a flat colour* — rather
+  than presenting a bad cut-out as a good one. It is a colour key, not a matte: it cannot cut
+  a subject out of a photograph, and does not pretend to.
+- **Non-destructive.** The upload is kept in `srcOriginal`, so tolerance stays re-tunable and
+  "Restore original" is exact. Re-applying always keys from the original, never from the
+  already-keyed result, which would eat the subject a slice at a time.
+- `removeBackground` lives in `@geomotion/core` — pure, DOM-free, deterministic, testable
+  without a canvas. Decode and re-encode stay in the app, which is what owns one.
+- A cross-origin image gets a real explanation instead of "could not read that image".
+- No format bump: three additive fields, filled by `coerceToDefaults` like any other default.
+- 10 tests, written as pictures in characters; verified end-to-end on a real bitmap with an
+  enclosed hole. See [`docs/features/image-background.md`](docs/features/image-background.md).
+- **Stage B, a real matte** (`onnxruntime-web` + U²-Net), is deliberately not here: a new
+  runtime dependency and a model file need an ADR first (§13).
+
 ### The readout has a style, not a switch (§07, §02) — format 10
 
 - **`showCallout: boolean` becomes `calloutStyle: 'card' | 'plain' | 'pill' | 'none'`.**

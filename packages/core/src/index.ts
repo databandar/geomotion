@@ -8,6 +8,12 @@
 
 export { createId } from './id.ts';
 export {
+  removeBackground,
+  type Pixels,
+  type RemoveBackgroundOptions,
+  type RemoveBackgroundResult,
+} from './background.ts';
+export {
   RAMPS,
   getRamp,
   luminance,
