@@ -39,13 +39,16 @@ export {
 export {
   cameraFromShots,
   createCamera,
+  holdShot,
   keyframe,
   patchShot,
   removeShot,
   shotAt,
   shotsOf,
   upsertShot,
+  type HoldShotOptions,
 } from './camera.ts';
+export { stagger, type StaggerOptions } from './beats.ts';
 export {
   canPlayPerCue,
   envelopeOf,

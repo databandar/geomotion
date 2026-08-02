@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cameraFromShots, createCamera, keyframe, patchShot, removeShot, shotAt, shotsOf, upsertShot } from './camera.ts';
+import { cameraFromShots, createCamera, holdShot, keyframe, patchShot, removeShot, shotAt, shotsOf, upsertShot } from './camera.ts';
 import type { CameraNode } from './types.ts';
 
 /**
@@ -138,5 +138,39 @@ describe('keyframe / createCamera', () => {
     const camera = createCamera();
     expect(shotsOf(camera)).toHaveLength(1);
     expect(shotsOf(camera)[0]?.zoom).toBe(1.8);
+  });
+});
+
+describe('holdShot', () => {
+  it('enters after leadIn and releases before trailMargin, both defaulting to 0.3', () => {
+    const [enter, release] = holdShot([10, 16], [90, 74], 2.9);
+    expect(enter.t).toBeCloseTo(10.3, 6);
+    expect(release.t).toBeCloseTo(15.7, 6);
+    expect(enter.center).toEqual([90, 74]);
+    expect(release.zoom).toBe(2.9);
+  });
+
+  it('accepts independent leadIn/trailMargin, matching the real variance across episodes', () => {
+    // arctic-route S03: keyframe(S.s03[0]+0.4, ...), keyframe(S.s03[1]-0.6, ...)
+    const [enter, release] = holdShot([9.43, 17.98], [60, 35], 2.15, { leadIn: 0.4, trailMargin: 0.6 });
+    expect(enter.t).toBeCloseTo(9.83, 6);
+    expect(release.t).toBeCloseTo(17.38, 6);
+  });
+
+  it('never lets release land before enter, for a scene too short for both margins', () => {
+    const [enter, release] = holdShot([0, 0.5], [0, 0], 1, { leadIn: 0.3, trailMargin: 0.3 });
+    expect(release.t).toBeGreaterThanOrEqual(enter.t);
+  });
+
+  it('passes through pitch, bearing, and easing like a normal keyframe extra', () => {
+    const [enter] = holdShot([0, 10], [0, 0], 1, { pitch: 45, bearing: 12, easing: 'linear' });
+    expect(enter.pitch).toBe(45);
+    expect(enter.bearing).toBe(12);
+    expect(enter.easing).toBe('linear');
+  });
+
+  it('produces keyframes usable directly by cameraFromShots', () => {
+    const camera = cameraFromShots([...holdShot([0, 10], [1, 2], 3), ...holdShot([10, 20], [4, 5], 6)]);
+    expect(shotsOf(camera)).toHaveLength(4);
   });
 });

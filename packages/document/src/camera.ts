@@ -60,6 +60,38 @@ export function keyframe(t: number, center: LngLat, zoom: number, extra: Partial
   };
 }
 
+export interface HoldShotOptions extends Partial<Omit<CameraKeyframe, 'id' | 't' | 'center' | 'zoom'>> {
+  /** Seconds after the scene starts before the camera settles here. Default 0.3. */
+  leadIn?: number;
+  /** Seconds before the scene ends the hold should release by. Defaults to `leadIn`. */
+  trailMargin?: number;
+}
+
+/**
+ * The two-keyframe "hold camera here for this scene" pair — by far the most
+ * repeated hand-written pattern across every produced episode (73 individual
+ * `keyframe(...)` calls across four build scripts, the large majority of them in
+ * exactly this shape: enter a fixed position shortly after the scene starts, hold
+ * it, release shortly before the scene ends). Each occurrence's margins were typed
+ * by hand and drifted — 0.3/0.3, 0.3/0.4, 0.3/0.5, 0.4/0.5, 0.3/0.6 all appear —
+ * which was never a deliberate creative choice, just copy-paste variance. This
+ * doesn't remove the ability to vary margins per shot (still pass `leadIn`/
+ * `trailMargin` when a beat genuinely needs different pacing), it removes the
+ * *arithmetic* — `S.sXX[0] + n` / `S.sXX[1] - n` written out by hand at every call
+ * site is exactly the kind of small, silent error surface a one-digit typo turns
+ * into a camera that jumps a frame early or late.
+ *
+ * `bounds` is a scene's `[start, end]` span — what every episode's build script
+ * already computes into `S.sXX` from its schedule.
+ */
+export function holdShot(bounds: readonly [number, number], center: LngLat, zoom: number, opts: HoldShotOptions = {}): [CameraKeyframe, CameraKeyframe] {
+  const { leadIn = 0.3, trailMargin = leadIn, ...extra } = opts;
+  const [start, end] = bounds;
+  const enter = start + leadIn;
+  const release = Math.max(enter, end - trailMargin);
+  return [keyframe(enter, center, zoom, extra), keyframe(release, center, zoom, extra)];
+}
+
 /**
  * Rows → node.
  *
