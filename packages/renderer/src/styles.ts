@@ -68,7 +68,8 @@ export interface TextStyle {
   background: boolean;
   backgroundColor: string;
   letterSpacing: number;
-  anim: 'none' | 'fade' | 'slideUp' | 'typewriter' | 'wipe';
+  anim: 'none' | 'fade' | 'slideUp' | 'typewriter' | 'wipe' | 'pop';
+  fontFamily?: 'sans' | 'serif' | 'mono' | 'condensed';
 }
 
 export interface ShapeStyle {

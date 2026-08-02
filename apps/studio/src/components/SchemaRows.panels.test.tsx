@@ -205,7 +205,10 @@ describe('the text panel, generated', () => {
   it('draws the same sections, in the same order, as the panel it replaced', () => {
     render(<Inspector />);
     expect(labelsIn('Text')).toEqual(['Content', 'Animation']);
-    expect(labelsIn('Style')).toEqual(['Size', 'Weight', 'Colour', 'Tracking', 'Align', 'Backing']);
+    // 'Font' is a real addition after the conversion this suite otherwise locks in place —
+    // per-layer font family, added alongside the 'pop' animation so GeoMotion's own text
+    // layer covers more of what a separate tool (Hyperframe) used to be reached for.
+    expect(labelsIn('Style')).toEqual(['Font', 'Size', 'Weight', 'Colour', 'Tracking', 'Align', 'Backing']);
     expect(labelsIn('Position')).toEqual(['X', 'Y']);
   });
 

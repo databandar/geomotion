@@ -221,7 +221,18 @@ export interface TextLayer extends LayerBase {
   background: boolean;
   backgroundColor: string;
   letterSpacing: Track<number>;
-  anim: 'none' | 'fade' | 'slideUp' | 'typewriter' | 'wipe';
+  anim: 'none' | 'fade' | 'slideUp' | 'typewriter' | 'wipe' | 'pop';
+  /**
+   * A curated stack, not a free-typed name — an arbitrary font string would
+   * silently no-op to the fallback chain on whatever machine renders it (which is
+   * exactly what happened project-wide before this field existed: every episode's
+   * `text` layer named 'Inter' first, and 'Inter' was never actually installed on
+   * the machine that rendered any of them — every one has really been drawing in
+   * 'Helvetica Neue', the second name in the old hardcoded chain, the whole time).
+   * Each option keeps the same Devanagari fallback tail so non-Latin text still
+   * renders correctly regardless of which Latin face leads.
+   */
+  fontFamily?: 'sans' | 'serif' | 'mono' | 'condensed';
 }
 
 export interface ShapeLayer extends LayerBase {

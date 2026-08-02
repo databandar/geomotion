@@ -61,6 +61,8 @@ export interface TextRender {
   reveal: number;
   /** 0..1 horizontal wipe */
   wipe: number;
+  /** scale factor for `pop` — overshoots past 1 then settles, elsewhere always 1 */
+  pop: number;
 }
 
 export interface ShapeRender {

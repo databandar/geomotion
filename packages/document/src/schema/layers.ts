@@ -245,6 +245,7 @@ export const textType: NodeTypeDef = {
       backgroundColor: '#000000aa',
       letterSpacing: staticTrack(0),
       anim: 'slideUp',
+      fontFamily: 'sans',
       fade: 0.5,
     }) as Layer,
   /*
@@ -267,7 +268,23 @@ export const textType: NodeTypeDef = {
           { value: 'slideUp', label: 'Slide up' },
           { value: 'typewriter', label: 'Typewriter' },
           { value: 'wipe', label: 'Wipe' },
+          { value: 'pop', label: 'Pop (scale in)' },
           { value: 'none', label: 'None' },
+        ],
+      },
+    },
+    {
+      prop: 'fontFamily',
+      label: 'Font',
+      section: 'Style',
+      help: 'A curated set, not a free name — each keeps the same non-Latin fallback the default relies on.',
+      row: {
+        kind: 'select',
+        options: [
+          { value: 'sans', label: 'Sans (Helvetica Neue)' },
+          { value: 'serif', label: 'Serif (Georgia)' },
+          { value: 'mono', label: 'Mono (Menlo)' },
+          { value: 'condensed', label: 'Condensed (Avenir Next)' },
         ],
       },
     },

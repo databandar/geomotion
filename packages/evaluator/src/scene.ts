@@ -561,6 +561,9 @@ export function evaluate(project: Project, time: number): Scene {
         offsetY: layer.anim === 'slideUp' ? (1 - ease('easeOut', entering)) * 26 : 0,
         reveal: layer.anim === 'typewriter' ? clamp01((time - layer.in) / Math.max(0.2, layer.fade * 3)) : 1,
         wipe: layer.anim === 'wipe' ? ease('easeInOutCubic', entering) : 1,
+        // Reuses the same easeOutBack overshoot the marker entrance-pop behaviour
+        // already relies on (behaviour.ts) — one overshoot curve, not two.
+        pop: layer.anim === 'pop' ? ease('easeOutBack', entering) : 1,
       });
     } else if (layer.type === 'shape') {
       const trace = layer.traceOutline

@@ -10,7 +10,7 @@ import {
   offsetLabel,
   type LabelBox,
 } from './labels.ts';
-import type { RouteIconStyle } from './styles.ts';
+import type { RouteIconStyle, TextStyle } from './styles.ts';
 import type {
   CloudsRender,
   ImageRender,
@@ -56,6 +56,29 @@ export interface OverlayFrame {
 export const FONT_STACK =
   `'Inter', 'Helvetica Neue', system-ui, -apple-system, 'Segoe UI', Roboto, ` +
   `'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Devanagari Sangam MN', 'Nirmala UI', sans-serif`;
+
+/**
+ * Named, curated stacks for `text` layers only (markers, legends and image
+ * captions stay on `FONT_STACK` — this isn't a project-wide font system, it's a
+ * per-title choice). Not free-typed names: an arbitrary family a project author
+ * can't verify is installed would silently no-op to this same fallback chain,
+ * which is exactly what happened with the original `FONT_STACK` itself — 'Inter'
+ * led every stack in every episode this format has produced, and 'Inter' was
+ * never actually installed on the machine that rendered any of them. Every one
+ * has really been drawing in 'Helvetica Neue', the second name in the chain, the
+ * whole time. Verified against the real render environment (`system_profiler
+ * SPFontsDataType` on the machine every episode was rendered on) before picking
+ * these — each leads with a face confirmed actually present, not just plausible.
+ * Every stack keeps the same Devanagari fallback tail as the original.
+ */
+const DEVANAGARI_FALLBACK = `'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Devanagari Sangam MN', 'Nirmala UI'`;
+const TEXT_FONT_STACKS: Record<NonNullable<TextStyle['fontFamily']>, string> = {
+  sans: `'Helvetica Neue', system-ui, -apple-system, 'Segoe UI', Roboto, ${DEVANAGARI_FALLBACK}, sans-serif`,
+  serif: `Georgia, 'Times New Roman', ${DEVANAGARI_FALLBACK}, serif`,
+  mono: `Menlo, 'SF Mono', ui-monospace, ${DEVANAGARI_FALLBACK}, monospace`,
+  condensed: `'Avenir Next Condensed', 'Avenir Next', Avenir, ${DEVANAGARI_FALLBACK}, sans-serif`,
+};
+const fontStackFor = (family: TextStyle['fontFamily']): string => TEXT_FONT_STACKS[family ?? 'sans'];
 
 export function drawOverlay(f: OverlayFrame, scene: Scene) {
   const { ctx } = f;
@@ -775,7 +798,7 @@ function drawText(f: OverlayFrame, t: TextRender) {
   let fit = 1;
   {
     const maxW = f.width * 0.92;
-    ctx.font = `${style.weight} ${size}px ${FONT_STACK}`;
+    ctx.font = `${style.weight} ${size}px ${fontStackFor(style.fontFamily)}`;
     const widest = Math.max(
       ...style.text.split('\n').map((l) => measureTracked(ctx, l, style.letterSpacing * f.scale)),
       1,
@@ -794,7 +817,15 @@ function drawText(f: OverlayFrame, t: TextRender) {
 
   ctx.save();
   ctx.globalAlpha = t.alpha;
-  ctx.font = `${style.weight} ${size}px ${FONT_STACK}`;
+  // Scales the whole block (background, wipe-clip, glyphs) around the text's own
+  // anchor point — applied before anything below reads `x`/`y`, so every draw
+  // call downstream is already in the scaled space without its own math changing.
+  if (t.pop !== 1) {
+    ctx.translate(x, y);
+    ctx.scale(t.pop, t.pop);
+    ctx.translate(-x, -y);
+  }
+  ctx.font = `${style.weight} ${size}px ${fontStackFor(style.fontFamily)}`;
   ctx.textAlign = 'left';
 
   const widths = lines.map((l) => measureTracked(ctx, l, spacing));
