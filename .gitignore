@@ -44,3 +44,10 @@ docs/brand/databandar-demo/v2/vo/
 docs/brand/databandar-demo/v2/project.geomotion.json
 docs/brand/databandar-demo/v2/schedule.json
 docs/brand/databandar-demo/v2/scene-bounds.json
+
+docs/brand/malacca-strait/*.mp4
+docs/brand/malacca-strait/audio.wav
+docs/brand/malacca-strait/frames/
+docs/brand/malacca-strait/vo/
+docs/brand/malacca-strait/project.geomotion.json
+docs/brand/malacca-strait/scene-bounds.json
