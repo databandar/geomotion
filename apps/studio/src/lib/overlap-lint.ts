@@ -133,7 +133,7 @@ export function rectsOverlap(a: OverlapRect, b: OverlapRect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-function boundsOf(pts: readonly { x: number; y: number }[]): OverlapRect {
+export function boundsOf(pts: readonly { x: number; y: number }[]): OverlapRect {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const p of pts) {
     if (p.x < minX) minX = p.x;
@@ -156,7 +156,7 @@ function segsIntersect(
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
-type Point = { x: number; y: number };
+export type Point = { x: number; y: number };
 
 /**
  * Liang-Barsky segment-vs-rect clip — the portion of `p1`→`p2` inside `rect`, or
@@ -174,7 +174,7 @@ type Point = { x: number; y: number };
  * too far" margin was tried first and turned out to be guessing at a value real
  * clipping makes unnecessary.
  */
-function clipToViewport(p1: Point, p2: Point, width: number, height: number): [Point, Point] | null {
+export function clipToViewport(p1: Point, p2: Point, width: number, height: number): [Point, Point] | null {
   if (![p1.x, p1.y, p2.x, p2.y].every(Number.isFinite)) return null;
   let t0 = 0;
   let t1 = 1;

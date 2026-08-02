@@ -13,16 +13,20 @@
  */
 
 export {
+  antimeridianRisks,
   bearing,
   buildPath,
   fitBounds,
   haversine,
   headingAt,
+  MAX_MERCATOR_LATITUDE,
   measure,
   pointAt,
+  polarClipRisks,
   sliceAt,
   slerp,
   unwrap,
+  type AntimeridianRisk,
   type FitBoundsOptions,
   type FitBoundsPadding,
   type FitBoundsResult,

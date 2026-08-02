@@ -266,8 +266,9 @@ export interface FitBoundsResult {
 // ±85.0511° limit that silently breaks polygon fills past this line (see the
 // arctic-route episode's post-mortem). Applied here too, so a bounding box that
 // includes a too-far-north point doesn't skew the fit around an unrepresentable
-// coordinate.
-const MAX_MERCATOR_LATITUDE = 85.051129;
+// coordinate. Exported so a lint pass can flag a coordinate that crosses it, not
+// just quietly clamp around it.
+export const MAX_MERCATOR_LATITUDE = 85.051129;
 
 function mercatorX(lng: number): number {
   return (180 + lng) / 360;
@@ -350,4 +351,50 @@ export function fitBounds(coords: readonly LngLat[], opts: FitBoundsOptions): Fi
     center: [wrapLng(lngFromMercatorX(midX - offsetXFrac)), latFromMercatorY(midY - offsetYFrac)],
     zoom,
   };
+}
+
+/**
+ * Two coordinate-only checks — no camera, no rendering — for the two silent
+ * geometry failure modes actually hit while producing episodes, both invisible in
+ * the coordinate list and only obvious once rendered:
+ *
+ *  - A polygon or route crossing the antimeridian without continuous (unwrapped)
+ *    longitude renders as a self-intersecting mess (the arctic-route ice shapes,
+ *    first draft: a broken crescent from wide out, a nonsense edge from close in).
+ *    A route's own path-builder already unwraps automatically (see `buildPath`);
+ *    a shape layer's raw GeoJSON does not, and is exactly what broke.
+ *
+ *  - A vertex beyond MapLibre's ±85.0511° Mercator limit doesn't degrade
+ *    gracefully — it clips into a genuinely broken fill, confirmed by testing 5°
+ *    and 1.5° vertex spacing and getting a pixel-identical broken shape both
+ *    times, which is what revealed it wasn't an edge-straightness problem at all.
+ *
+ * Both run in plain Node against raw coordinates, so a build script can call them
+ * immediately after constructing a ring or route — no browser, no render.
+ */
+export interface AntimeridianRisk {
+  /** Index of the second point in the offending pair — the jump is between i-1 and i. */
+  index: number;
+  from: LngLat;
+  to: LngLat;
+}
+
+/**
+ * Whether consecutive points jump more than 180° in raw longitude — the ambiguous
+ * case where "the short way" and "the long way round" can't be told apart, and a
+ * polygon fill (which doesn't auto-unwrap) picks the wrong one.
+ */
+export function antimeridianRisks(coords: readonly LngLat[]): AntimeridianRisk[] {
+  const risks: AntimeridianRisk[] = [];
+  for (let i = 1; i < coords.length; i++) {
+    const [lngA] = coords[i - 1]!;
+    const [lngB] = coords[i]!;
+    if (Math.abs(lngB - lngA) > 180) risks.push({ index: i, from: coords[i - 1]!, to: coords[i]! });
+  }
+  return risks;
+}
+
+/** Every point beyond MapLibre's ±85.0511° Mercator limit. */
+export function polarClipRisks(coords: readonly LngLat[]): LngLat[] {
+  return coords.filter(([, lat]) => Math.abs(lat) > MAX_MERCATOR_LATITUDE);
 }

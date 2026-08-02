@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { LngLat } from '@geomotion/core';
 import {
-  bearing, buildPath, fitBounds, haversine, headingAt, measure, pointAt, sliceAt, slerp, unwrap,
+  antimeridianRisks, bearing, buildPath, fitBounds, haversine, headingAt, MAX_MERCATOR_LATITUDE,
+  measure, pointAt, polarClipRisks, sliceAt, slerp, unwrap,
 } from './geo.ts';
 
 /**
@@ -307,5 +308,85 @@ describe('fitBounds', () => {
     const { zoom } = fitBounds(route, { width: 1080, height: 1920, padding: 0.18 });
     expect(zoom).toBeGreaterThan(7.5);
     expect(zoom).toBeLessThan(10);
+  });
+});
+
+describe('antimeridianRisks', () => {
+  it('flags nothing for a ring that stays comfortably inside a 180° span', () => {
+    // The arctic-route episode's actual, fixed ice-shape ring — kept entirely
+    // within 15°E-175°E on purpose, precisely to avoid this failure mode.
+    const winterIce: LngLat[] = [
+      [15, 69], [35, 71], [55, 72], [75, 72.5], [95, 72.5], [115, 72], [135, 71], [155, 70], [175, 69],
+      [175, 81], [155, 83.5], [115, 84.5], [75, 84], [35, 82], [15, 80], [15, 69],
+    ];
+    expect(antimeridianRisks(winterIce)).toEqual([]);
+  });
+
+  /**
+   * Regression case: a reconstruction of the arctic-route episode's *original*
+   * ice-shape ring — described in that episode's build script and README as
+   * wrapping through 172° → -170° → -155° → -140° to close a loop around the
+   * pole. It rendered as a self-intersecting mess (a broken crescent from wide
+   * out, a nonsense edge from close in), caught only by rendering a frame and
+   * looking at it. This is a faithful reconstruction of the documented pattern,
+   * not the literal original coordinates, which weren't preserved verbatim.
+   */
+  it('flags a ring that wraps through the antimeridian without unwrapped longitude', () => {
+    const brokenRing: LngLat[] = [
+      [150, 80], [172, 82], [-170, 84], [-155, 86], [-140, 87], [-120, 86], [150, 80],
+    ];
+    const risks = antimeridianRisks(brokenRing);
+    expect(risks.length).toBeGreaterThan(0);
+    // The specific jump the episode actually hit: 172° straight to -170°.
+    expect(risks.some((r) => r.from[0] === 172 && r.to[0] === -170)).toBe(true);
+  });
+
+  it('flags even a genuinely short real-world hop if it is expressed as raw non-continuous coordinates', () => {
+    // 179° to -179° is a 2° hop the short way round the world — but expressed as
+    // raw numbers it's still a 358° jump, and that's the actual failure mode: a
+    // renderer can't tell "a short hop, expressed ambiguously" from "the long way
+    // round" without unwrapped (continuous, e.g. 181° instead of -179°)
+    // coordinates. Geographic intent doesn't make the raw jump safe.
+    expect(antimeridianRisks([[178, 10], [179, 10], [-179, 10]])).toHaveLength(1);
+  });
+
+  it('does not flag the same hop once expressed as continuous (unwrapped) coordinates', () => {
+    expect(antimeridianRisks([[178, 10], [179, 10], [181, 10]])).toHaveLength(0);
+  });
+});
+
+describe('polarClipRisks', () => {
+  it('flags nothing for coordinates within the Mercator limit', () => {
+    expect(polarClipRisks([[0, 84.9], [0, -84.9], [0, 0]])).toEqual([]);
+  });
+
+  /**
+   * Regression case: the arctic-route episode's original summer-ice ring peaked
+   * at 87°N — past MapLibre's ±85.0511° Mercator limit, which doesn't degrade
+   * gracefully but clips into a genuinely broken fill (confirmed at the time by
+   * testing 5° and 1.5° vertex densification and getting a pixel-identical
+   * broken shape both times).
+   */
+  it('flags the exact latitude that broke the arctic-route summer ice shape', () => {
+    const originalSummerIce: LngLat[] = [
+      [20, 82], [60, 83.5], [100, 83.5], [140, 82.5], [175, 81],
+      [175, 86], [140, 87], [100, 87], [60, 86.5], [20, 85], [20, 82],
+    ];
+    const risks = polarClipRisks(originalSummerIce);
+    expect(risks.length).toBeGreaterThan(0);
+    expect(risks.some(([, lat]) => lat === 87)).toBe(true);
+  });
+
+  it('does not flag the fixed version of that same shape', () => {
+    const fixedSummerIce: LngLat[] = [
+      [30, 79], [70, 81], [100, 81], [130, 80], [165, 78.5],
+      [165, 84.5], [130, 84.8], [100, 84.8], [70, 84.5], [30, 82.5], [30, 79],
+    ];
+    expect(polarClipRisks(fixedSummerIce)).toEqual([]);
+  });
+
+  it('is exact at the boundary — MAX_MERCATOR_LATITUDE itself is not a risk, one hair past it is', () => {
+    expect(polarClipRisks([[0, MAX_MERCATOR_LATITUDE]])).toEqual([]);
+    expect(polarClipRisks([[0, MAX_MERCATOR_LATITUDE + 0.001]])).toHaveLength(1);
   });
 });

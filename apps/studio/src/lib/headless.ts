@@ -5,6 +5,7 @@ import type { RenderHost } from '../render/host';
 import { evaluate } from '@geomotion/evaluator';
 import { imagesReady } from '@geomotion/renderer';
 import { findOverlapsAt, type OverlapFinding } from './overlap-lint';
+import { findTinyRoutesAt, type TinyRouteFinding } from './route-visibility';
 
 /**
  * A small, stable surface for automation — the render step of the video pipeline
@@ -70,6 +71,15 @@ export interface HeadlessApi {
    * same reason; call it with scene-boundary times, not every frame.
    */
   checkOverlaps(times: number[]): Promise<OverlapFinding[]>;
+  /**
+   * Every route whose on-screen extent is too small to read as a line (default
+   * under 30% of the viewport's own diagonal) at each given time — a route's
+   * stroke width is always a fixed screen size, but at a wide-enough zoom its
+   * whole *length* can compress to a smudge. Same camera-settling behaviour as
+   * `checkOverlaps`. Pick times where the route is meant to be prominent — a
+   * deliberately wide context shot legitimately shrinks it, and that's not a bug.
+   */
+  checkTinyRoutes(times: number[], minFraction?: number): Promise<TinyRouteFinding[]>;
   /** GL sources/layers we own plus the evaluated scene, for diagnosis. */
   debug(t?: number): {
     styleLoaded: boolean;
@@ -156,6 +166,18 @@ export function installHeadlessApi(host: RenderHost) {
         host.renderFrameAt(t);
         await host.waitForIdle(8000);
         findings.push(...findOverlapsAt(state.project, host.map, t));
+      }
+      return findings;
+    },
+
+    async checkTinyRoutes(times, minFraction) {
+      const state = useStore.getState();
+      if (!host.map) return [];
+      const findings: TinyRouteFinding[] = [];
+      for (const t of times) {
+        host.renderFrameAt(t);
+        await host.waitForIdle(8000);
+        findings.push(...findTinyRoutesAt(state.project, host.map, t, minFraction));
       }
       return findings;
     },
