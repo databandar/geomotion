@@ -51,3 +51,10 @@ docs/brand/malacca-strait/frames/
 docs/brand/malacca-strait/vo/
 docs/brand/malacca-strait/project.geomotion.json
 docs/brand/malacca-strait/scene-bounds.json
+
+docs/brand/arctic-route/*.mp4
+docs/brand/arctic-route/audio.wav
+docs/brand/arctic-route/frames/
+docs/brand/arctic-route/vo/
+docs/brand/arctic-route/project.geomotion.json
+docs/brand/arctic-route/scene-bounds.json
