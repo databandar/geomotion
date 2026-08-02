@@ -1,5 +1,6 @@
 import type { CameraState, LngLat, RegionsLayer } from '@geomotion/document';
 import { getRamp, rampColor } from '@geomotion/core';
+import { fitBounds as fitBoundsGeo } from '@geomotion/geometry';
 
 /* ------------------------------------------------------------- geometry */
 
@@ -246,23 +247,6 @@ function buildOrder(layer: RegionsLayer, regions: Region[]): number[] {
 
 /* ------------------------------------------------------------- framing */
 
-const MAX_LAT = 85.051129;
-
-const mercY = (lat: number) => {
-  const l = Math.max(-MAX_LAT, Math.min(MAX_LAT, lat));
-  return 0.5 - Math.log(Math.tan(Math.PI / 4 + (l * Math.PI) / 360)) / (2 * Math.PI);
-};
-
-const invMercY = (y: number) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
-
-/**
- * The camera that frames `bounds` in a viewport of exactly width×height pixels.
- *
- * This is the same maths MapLibre's own fitBounds uses, kept pure so a frame can
- * be evaluated without touching the map — which is what makes offline export
- * reproducible. It depends on the pixel size, which is precisely why the preview
- * stage renders at full output resolution.
- */
 /**
  * The region a tour stop refers to.
  *
@@ -276,6 +260,20 @@ export const regionAtStop = (set: RegionSet, stop: number): Region | undefined =
   return index === undefined ? undefined : set.regions[index];
 };
 
+/**
+ * The camera that frames `bounds` in a viewport of exactly width×height pixels.
+ *
+ * A thin, signature-preserving wrapper around `@geomotion/geometry`'s `fitBounds` —
+ * this function used to carry its own copy of the Mercator fit math (the exact same
+ * formulas, independently written), which went undiscovered by a whole separate
+ * video-production effort that hand-derived and hand-calibrated camera zooms from
+ * scratch instead, at real cost (see that package's changelog). One implementation,
+ * used from both places, so that doesn't happen again. Only the pieces this
+ * region-tour caller actually needs are added back here: a plain `[w,s,e,n]` tuple
+ * (regions never span the antimeridian, so two opposite corners are a complete
+ * bounding box) and the pitch compensation, which is specific to touring a flat
+ * region layer and has no equivalent in the general geographic helper.
+ */
 export function fitBounds(
   bounds: [number, number, number, number],
   width: number,
@@ -285,24 +283,9 @@ export function fitBounds(
   maxZoom = 22,
 ): CameraState {
   const [w, s, e, n] = bounds;
-  const x1 = w / 360 + 0.5;
-  const x2 = e / 360 + 0.5;
-  const y1 = mercY(n);
-  const y2 = mercY(s);
-
-  const dx = Math.max(1e-9, x2 - x1);
-  const dy = Math.max(1e-9, y2 - y1);
-  const usable = Math.max(0.1, 1 - 2 * Math.max(0, Math.min(0.45, padding)));
-
-  const zx = Math.log2((usable * width) / (dx * 512));
-  const zy = Math.log2((usable * height) / (dy * 512));
+  const p = Math.max(0, Math.min(0.45, padding));
+  const fit = fitBoundsGeo([[w, s], [e, n]], { width, height, padding: p, maxZoom: Math.min(20, maxZoom) });
   // A pitched camera sees further, so ease off the zoom a little to compensate.
-  const zoom = Math.max(0, Math.min(20, maxZoom, Math.min(zx, zy) - (pitch / 85) * 0.55));
-
-  return {
-    center: [((x1 + x2) / 2 - 0.5) * 360, invMercY((y1 + y2) / 2)],
-    zoom,
-    bearing: 0,
-    pitch,
-  };
+  const zoom = Math.max(0, fit.zoom - (pitch / 85) * 0.55);
+  return { center: fit.center, zoom, bearing: 0, pitch };
 }

@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@geomotion/core": "workspace:*",
-    "@geomotion/document": "workspace:*"
+    "@geomotion/document": "workspace:*",
+    "@geomotion/geometry": "workspace:*"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
