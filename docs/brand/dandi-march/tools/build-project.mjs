@@ -94,8 +94,13 @@ const camera = cameraFromShots([
   keyframe(S.s02[1] - 0.3, [72.80, 21.97], 8.9, { pitch: 0 }),
   keyframe(S.s03[0] + 0.3, [72.80, 21.97], 8.75, { pitch: 0 }),     // S03 hold — the crowd grows
   keyframe(S.s03[1] - 0.5, [72.80, 21.97], 8.75, { pitch: 0 }),
-  keyframe(S.s04[0] + 0.3, [72.80, 20.89], 10.5, { pitch: 0 }),     // S04 tight on Dandi — the act
-  keyframe(S.s04[1] - 0.3, [72.80, 20.89], 10.5, { pitch: 0 }),
+  // Recentred slightly SW of Dandi's own coordinate (was [72.80, 20.89]) — checkOverlaps
+  // found the incoming route (approaching from Navsari, to the NE) crossed the top-right
+  // source citation at the original centering. Pulling the center away from Dandi moves
+  // Dandi itself toward the lower-left of frame, which pulls the incoming line's path down
+  // and away from that corner instead.
+  keyframe(S.s04[0] + 0.3, [72.72, 20.80], 10.5, { pitch: 0 }),     // S04 tight on Dandi — the act
+  keyframe(S.s04[1] - 0.3, [72.72, 20.80], 10.5, { pitch: 0 }),
   keyframe(S.s05[0] + 0.3, [80, 23], 4.2, { pitch: 0 }),            // S05 pull back — India-wide, the consequence
   keyframe(S.s05[1] - 0.4, [80, 23], 4.2, { pitch: 0 }),
   keyframe(S.s06[0] + 0.3, [75, 20], 4.8, { pitch: 0 }),            // S06 reframed — the Time beat
@@ -170,11 +175,12 @@ const crowdDots = crowdStops.map(([coord, label], i) =>
   crowdDot(S.s03[0] + 0.3 + i * ((S.s03[1] - S.s03[0] - 0.6) / crowdStops.length), coord, label));
 
 /* -------------------------------------------------------------------- markers */
-const pulseMarker = (name, at, out, coord, label) =>
+const pulseMarker = (name, at, out, coord, label, opts = {}) =>
   createLayer('marker', at, {
     name, out, coord, fade: 0.3,
     color: SIGNAL, size: staticTrack(7),
     label: label ?? '', labelSize: staticTrack(label ? 18 : 0), labelColor: PAPER,
+    ...(opts.labelOffset !== undefined ? { labelOffset: staticTrack(opts.labelOffset) } : {}),
   });
 
 // Dandi's label originally persisted to EDGE, same as the route — it collided with the
@@ -183,7 +189,13 @@ const pulseMarker = (name, at, out, coord, label) =>
 // a marker's job is to give its own moment life, not stay labelled for the rest of the film.
 // The route itself still marks where the march ends; the label doesn't need to.
 const markers = [
-  pulseMarker('Sabarmati', S.s02[0] + 0.3, S.s04[0], SABARMATI, 'SABARMATI ASHRAM'),
+  // labelOffset trimmed from the default 16 to 9 — checkOverlaps (the new tooling built
+  // this session) found Sabarmati's real position at S02's framing puts its label just 3px
+  // into the top-right source citation. Dropping the offset pulls the label down toward its
+  // own dot, clear of the citation above, without touching the citation's own position
+  // (which is fine everywhere else in the film — moving it would have been a wider-blast-
+  // radius fix for a problem specific to this one marker at this one beat).
+  pulseMarker('Sabarmati', S.s02[0] + 0.3, S.s04[0], SABARMATI, 'SABARMATI ASHRAM', { labelOffset: 9 }),
   pulseMarker('Dandi', S.s04[0] + 0.2, S.s05[0], DANDI, 'DANDI'),
 ];
 
