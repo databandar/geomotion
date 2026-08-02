@@ -58,3 +58,10 @@ docs/brand/arctic-route/frames/
 docs/brand/arctic-route/vo/
 docs/brand/arctic-route/project.geomotion.json
 docs/brand/arctic-route/scene-bounds.json
+
+docs/brand/dandi-march/*.mp4
+docs/brand/dandi-march/audio.wav
+docs/brand/dandi-march/frames/
+docs/brand/dandi-march/vo/
+docs/brand/dandi-march/project.geomotion.json
+docs/brand/dandi-march/scene-bounds.json
