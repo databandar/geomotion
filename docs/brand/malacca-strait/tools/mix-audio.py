@@ -42,9 +42,12 @@ for j, (fname, t, db) in enumerate(SFX_CUES):
 
 sub_dur = DUR + 1
 sub = f"sine=f=55:d={sub_dur}:r=48000,tremolo=f={92/60:.4f}:d=0.55,volume=0.20"
+# The pink-noise "tex" bed reads as audible background hiss against the quieter passages —
+# same issue and same fix as the Arctic episode's post-release audio fix: cut from 0.4 to 0.09
+# so it stays a barely-there atmosphere instead of a constant hiss under the whole video.
 tex = (
     f"anoisesrc=d={sub_dur}:c=pink:a=0.3:r=48000,bandpass=f=1500:width_type=o:w=1.8,"
-    f"volume=0.4"
+    f"volume=0.09"
 )
 music_filters = [
     f"{sub}[sub]",
