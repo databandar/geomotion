@@ -202,6 +202,60 @@ const T = (name, at, out, text, y, size, opts = {}) =>
     background: opts.bg ?? false,
   });
 
+/*
+ * Flux-generated image inserts — see image-prompts.md for the prompts and the reasoning
+ * (three-color palette matched to the map, no photorealism, no recognizable faces, no
+ * trademarked designs). Embedded as data URIs rather than served from a public/ folder: these
+ * are one-off assets for this episode, not a studio feature, and a data URI keeps the whole
+ * project self-contained the same way the rest of this pipeline is.
+ *
+ * The source PNGs came back with an opaque white rounded-corner card baked in by the model
+ * (RGB, no alpha) rather than true transparency — confirmed by sampling corner pixels before
+ * touching anything. A naive "make near-white transparent" pass would have also punched holes
+ * in s04-cupped-hands.png's white salt crystals, so the actual fix was a flood-fill from each
+ * of the four image corners (only the region connected to the corner through near-white
+ * pixels), which correctly leaves internal white content alone. Two of the five images
+ * (s04-cupped-hands, s06-time-frame) never had the issue — their corners were already dark.
+ */
+const ASSETS = `${OUT}/assets`;
+const img = (file) => {
+  const b64 = readFileSync(`${ASSETS}/${file}`).toString('base64');
+  return `data:image/png;base64,${b64}`;
+};
+
+const imageCard = (name, at, out, file, opts) =>
+  createLayer('image', at, {
+    name, out, src: img(file),
+    x: staticTrack(opts.x), y: staticTrack(opts.y), width: staticTrack(opts.width),
+    anchor: opts.anchor ?? 'topLeft',
+    opacity: staticTrack(1),
+    radius: staticTrack(18),
+    border: true, borderColor: SIGNAL,
+    shadow: true,
+    anim: opts.anim ?? 'kenBurns',
+    fade: 0.4,
+    caption: '',
+  });
+
+// s04-gandhi-silhouette.png was the user's own pick over the originally-planned cupped-hands
+// image for this beat — kept cupped-hands.png in assets/ as a documented alternate rather than
+// using both, since one beat only reasonably holds one card.
+const images = [
+  imageCard('Img S01', S.s01[0] + 0.4, S.s01[1], 's01-fist-salt.png',
+    { anchor: 'topLeft', x: 0.08, y: 0.58, width: 0.34 }),
+  // topRight collided with the route's final approach into Dandi, which enters this tight S04
+  // shot from the upper-right — moved to topLeft, clear of it (confirmed at the t=22 spot-check).
+  imageCard('Img S04', S.s04[0] + 0.2, S.s04[1], 's04-gandhi-silhouette.png',
+    { anchor: 'topLeft', x: 0.08, y: 0.16, width: 0.30 }),
+  imageCard('Img S05', S.s05[0] + 0.2, S.s05[1], 's05-prisoners.png',
+    { anchor: 'topLeft', x: 0.08, y: 0.20, width: 0.34 }),
+  // x:0.66 with anchor topRight still put the card's left edge past screen-center — reads as
+  // centered, not "top right," and back-to-back with S05's similarly-sized topLeft card it felt
+  // repetitive. Pushed further into the actual corner and narrower so it reads distinctly.
+  imageCard('Img S06', S.s06[0] + 0.2, S.s06[1], 's06-time-frame.png',
+    { anchor: 'topRight', x: 0.92, y: 0.16, width: 0.26 }),
+];
+
 const texts = [
   // Below the title, not alongside the top-right source/mark stack — sharing that row still
   // collided at this text's actual rendered width even when left-aligned (seen at the t=1
@@ -225,7 +279,7 @@ const texts = [
 
 /* -------------------------------------------------------------------- project */
 const project = projectWith(
-  [camera, ctx, globeLand, india, route, ...crowdDots, ...markers, ...texts],
+  [camera, ctx, globeLand, india, route, ...crowdDots, ...markers, ...images, ...texts],
   {
     name: 'The Walk That Broke an Empire — Dandi March', duration: DUR, fps: 30, width: 1080, height: 1920,
     basemap: 'dark-clean', background: '#05070A',

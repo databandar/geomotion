@@ -77,6 +77,35 @@ extent and every other beat's framing were untouched since the route's north-sou
 change. Re-rendered and re-screenshot-tested; the audio mix was untouched and didn't need
 re-generating.
 
+## Post-release addition: Flux image inserts
+
+Four images from `image-prompts.md`'s plan, generated in Flux and wired in as GeoMotion's
+native `image` layer (a bordered, shadowed card with position/width/anchor placement — see
+`packages/document/src/schema/layers.ts:475`) at S01, S04, S05, and S06. Embedded as base64
+data URIs directly in the project JSON rather than served from a public folder, keeping the
+whole build self-contained the same way the rest of this pipeline is.
+
+**Two bugs found by rendering, not by reading the build script:**
+
+- **The source PNGs had an opaque white rounded-corner card baked in** (RGB, no real alpha —
+  confirmed by sampling corner pixels) rather than true transparency, so the engine's own
+  border/radius doubled up against it. A naive "make near-white transparent" pass would have
+  also punched holes in the white salt crystals in one of the images, so the actual fix was a
+  flood-fill from each of the four image corners — only the region connected to the corner
+  through near-white pixels gets cleared, leaving internal white content untouched.
+- **Two placements collided with the map itself.** The S04 card, planned at `topRight`, landed
+  on top of the route's final approach into Dandi (which enters that tight close-up from the
+  upper-right) — moved to `topLeft`. The S06 card's `topRight` anchor with a wide `x` value put
+  its left edge past screen-center, reading as centered rather than corner-placed, and looked
+  repetitive back-to-back with S05's similarly-sized card — pushed further into the actual
+  corner and narrowed.
+
+One deviation from the original plan: the user generated their own alternate for S04 — a
+walking silhouette (glasses, cane, dhoti) rather than the planned cupped-hands image — and
+picked it over the original. It works even better than planned, since the figure faces toward
+the Dandi marker in that shot, reading as "walking toward this point." The original
+cupped-hands image is kept in `assets/` as a documented alternate, unused in the current build.
+
 ## What's new for this series vs. Malacca/Arctic
 
 - **A growing-crowd mechanic**: small pulse markers appear one by one along the already-drawn
