@@ -3,7 +3,7 @@ import { layerAt, layersOf, migrate } from '@geomotion/document';
 import { demoProject, circleOfHumanityProject, globeGdpTourProject, globeTourProject, indiaTourProject, paintedWorldProject, routeStoryProject, worldTourProject } from './fixtures';
 import type { RenderHost } from '../render/host';
 import { evaluate } from '@geomotion/evaluator';
-import { imagesReady } from '@geomotion/renderer';
+import { detectBakedInCardBorder, imagesReady, type CardBorderFinding } from '@geomotion/renderer';
 import { findOverlapsAt, type OverlapFinding } from './overlap-lint';
 import { findTinyRoutesAt, type TinyRouteFinding } from './route-visibility';
 
@@ -39,6 +39,16 @@ export interface HeadlessApi {
    * this would silently render without their pictures.
    */
   imagesReady(): Promise<{ total: number; failed: string[] }>;
+  /**
+   * Whether an image source has a baked-in opaque card border — the defect found
+   * in three of five Dandi March episode images, where the generator drew its own
+   * rounded-rect frame into the pixels instead of leaving real transparency there.
+   * GeoMotion's `image` layer already draws its own border/radius/shadow, so an
+   * image bringing its own doubles up against it. `null` means the image looks
+   * fine. Decodes `src` itself — doesn't require the source to already be loaded
+   * as an image layer.
+   */
+  checkImage(src: string): Promise<CardBorderFinding | null>;
   info(): {
     duration: number;
     fps: number;
@@ -144,6 +154,24 @@ export function installHeadlessApi(host: RenderHost) {
 
     imagesReady() {
       return imagesReady();
+    },
+
+    async checkImage(src) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error(`checkImage: could not decode ${src.slice(0, 80)}`));
+        img.src = src;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0);
+      const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      return detectBakedInCardBorder({ width, height, data });
     },
 
     info() {

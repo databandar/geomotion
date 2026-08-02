@@ -22,5 +22,11 @@ export {
 } from './legend.ts';
 export { cloudTexture, scratchCanvas } from './clouds.ts';
 export { getImage, imagesReady } from './images.ts';
+export {
+  detectBakedInCardBorder,
+  type CardBorderFinding,
+  type CardBorderOptions,
+  type RasterImage,
+} from './image-lint.ts';
 export type * from './scene-types.ts';
 export type * from './styles.ts';
