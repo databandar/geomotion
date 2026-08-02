@@ -209,3 +209,145 @@ export function sliceAt(path: MeasuredPath, f: number): LngLat[] {
   head.push(pointAt(path, ff));
   return head;
 }
+
+/**
+ * `fitBounds` — the camera center/zoom that fits a set of coordinates inside a
+ * viewport.
+ *
+ * Built after hand-guessing a route's camera zoom turned out to be the single
+ * biggest source of wasted render cycles across every produced episode: a 387 km
+ * regional route and a 12,000 km chokepoint-to-chokepoint route need wildly
+ * different zoom levels, and neither was ever obvious without rendering, looking,
+ * and adjusting. This computes it directly instead.
+ *
+ * The math is MapLibre's own, not an approximation of it — pulled from its bundled
+ * source (`cameraForBoxAndBearing` / `projectToWorldCoordinates`) rather than
+ * assumed, because an earlier hand-derived formula (implicitly assuming a 256px-tile
+ * convention) was close enough to look plausible but wrong enough to cost several
+ * rebuild cycles finding the working value by bisection instead. MapLibre defines
+ * `worldSize = tileSize(512) * 2^zoom` — a *512px* tile convention, not the classic
+ * 256px one — which is why a zoom computed by the wrong convention lands roughly one
+ * zoom level off from what actually renders.
+ */
+export interface FitBoundsPadding {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+
+export interface FitBoundsOptions {
+  /** Viewport size in pixels the camera will render at. */
+  width: number;
+  height: number;
+  /**
+   * Margin to leave around the bounds, as a fraction of the viewport (0-1) per
+   * side. A single number applies uniformly; per-side values let a caller reserve
+   * room for fixed UI — a bottom text band, a corner image card — without the
+   * bounds sitting underneath it. Defaults to no padding.
+   */
+  padding?: number | FitBoundsPadding;
+  /** MapLibre's tile size in pixels, i.e. what its zoom levels are defined against.
+   * Only present so a test can pin the exact number to something other than the
+   * live library's — real callers should never set this. */
+  tileSize?: number;
+  /** Zoom is clamped to this range, matching MapLibre's own `fitBounds({maxZoom})`
+   * — without it, a single point (zero-size bounds) computes an unbounded zoom. */
+  minZoom?: number;
+  maxZoom?: number;
+}
+
+export interface FitBoundsResult {
+  center: LngLat;
+  zoom: number;
+}
+
+// MapLibre's own clamp on latitude passed to its Mercator projection — the same
+// ±85.0511° limit that silently breaks polygon fills past this line (see the
+// arctic-route episode's post-mortem). Applied here too, so a bounding box that
+// includes a too-far-north point doesn't skew the fit around an unrepresentable
+// coordinate.
+const MAX_MERCATOR_LATITUDE = 85.051129;
+
+function mercatorX(lng: number): number {
+  return (180 + lng) / 360;
+}
+function mercatorY(lat: number): number {
+  const clamped = Math.max(-MAX_MERCATOR_LATITUDE, Math.min(MAX_MERCATOR_LATITUDE, lat));
+  return (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (clamped * Math.PI) / 360))) / 360;
+}
+function lngFromMercatorX(x: number): number {
+  return x * 360 - 180;
+}
+function latFromMercatorY(y: number): number {
+  const y2 = 180 - y * 360;
+  return (360 / Math.PI) * Math.atan(Math.exp((y2 * Math.PI) / 180)) - 90;
+}
+function wrapLng(lng: number): number {
+  let l = lng;
+  while (l > 180) l -= 360;
+  while (l < -180) l += 360;
+  return l;
+}
+function resolvePadding(p: FitBoundsOptions['padding']): Required<FitBoundsPadding> {
+  if (p === undefined) return { top: 0, right: 0, bottom: 0, left: 0 };
+  if (typeof p === 'number') return { top: p, right: p, bottom: p, left: p };
+  return { top: p.top ?? 0, right: p.right ?? 0, bottom: p.bottom ?? 0, left: p.left ?? 0 };
+}
+
+export function fitBounds(coords: readonly LngLat[], opts: FitBoundsOptions): FitBoundsResult {
+  if (coords.length === 0) throw new Error('fitBounds: coords is empty');
+  const tileSize = opts.tileSize ?? 512;
+  const pad = resolvePadding(opts.padding);
+
+  // Unwrapped first — an antimeridian-crossing set of points (e.g. a route from
+  // Japan to the US west coast) would otherwise compute a bounding box spanning
+  // nearly the whole world instead of the narrow span it actually occupies.
+  const pts = unwrap([...coords]);
+  let west = Infinity;
+  let east = -Infinity;
+  let south = Infinity;
+  let north = -Infinity;
+  for (const [lng, lat] of pts) {
+    if (lng < west) west = lng;
+    if (lng > east) east = lng;
+    if (lat < south) south = lat;
+    if (lat > north) north = lat;
+  }
+
+  const x0 = mercatorX(west);
+  const x1 = mercatorX(east);
+  const y0 = mercatorY(north); // north has the smaller mercator Y (Y increases southward)
+  const y1 = mercatorY(south);
+  // A single point (or a route with zero extent) has zero size — clamped away from
+  // literal zero so the division below produces a very large, then-clamped zoom
+  // rather than Infinity/NaN.
+  const sizeX = Math.max(1e-9, x1 - x0);
+  const sizeY = Math.max(1e-9, y1 - y0);
+
+  const availW = opts.width * (1 - pad.left - pad.right);
+  const availH = opts.height * (1 - pad.top - pad.bottom);
+  if (availW <= 0 || availH <= 0) throw new Error('fitBounds: padding leaves no visible area');
+
+  const worldSize = Math.min(availW / sizeX, availH / sizeY);
+  const rawZoom = Math.log2(worldSize / tileSize);
+  const zoom = Math.min(opts.maxZoom ?? 20, Math.max(opts.minZoom ?? 0, rawZoom));
+  // Padding was computed against `rawZoom`'s worldSize, but the actual render uses
+  // the clamped `zoom` — recompute so the offset (and thus the center) matches what
+  // will actually be on screen, not the pre-clamp target.
+  const finalWorldSize = tileSize * 2 ** zoom;
+
+  // Asymmetric padding shifts the center, not just the zoom — the same "offset the
+  // frame, don't just center the raw bounds" step MapLibre's own fitBounds does, so
+  // the visible content centers in the *unpadded* remaining area, not the full
+  // viewport.
+  const midX = (x0 + x1) / 2;
+  const midY = (y0 + y1) / 2;
+  const offsetXFrac = (opts.width * (pad.left - pad.right)) / (2 * finalWorldSize);
+  const offsetYFrac = (opts.height * (pad.top - pad.bottom)) / (2 * finalWorldSize);
+
+  return {
+    center: [wrapLng(lngFromMercatorX(midX - offsetXFrac)), latFromMercatorY(midY - offsetYFrac)],
+    zoom,
+  };
+}

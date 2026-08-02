@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { LngLat } from '@geomotion/core';
-import { bearing, buildPath, haversine, headingAt, measure, pointAt, sliceAt, slerp, unwrap } from './geo.ts';
+import {
+  bearing, buildPath, fitBounds, haversine, headingAt, measure, pointAt, sliceAt, slerp, unwrap,
+} from './geo.ts';
 
 /**
  * Behavioural spec for the geo primitives.
@@ -201,5 +203,109 @@ describe('measure / pointAt / headingAt / sliceAt', () => {
     expect(empty.length).toBe(0);
     expect(pointAt(empty, 0.5)).toEqual([0, 0]);
     expect(headingAt(empty, 0.5)).toBe(0);
+  });
+});
+
+describe('fitBounds', () => {
+  it('fits the whole world into a 512px square at zoom 0', () => {
+    // MapLibre's own convention: worldSize = tileSize(512) * 2^zoom, so a 512px
+    // viewport showing the full -180..180 span is zoom 0 by definition. Points step
+    // by 90° so no consecutive pair is >180° apart — `unwrap` treats a bigger jump
+    // as "the shorter way around" (correct for a path), which would otherwise
+    // collapse a naive [-180,0]→[180,0] pair into the same point.
+    const worldSpan: LngLat[] = [[-180, -85], [-90, 0], [0, 85], [90, 0], [179, -85]];
+    const { zoom, center } = fitBounds(worldSpan, { width: 512, height: 512 });
+    expect(zoom).toBeCloseTo(0, 1);
+    expect(center[0]).toBeCloseTo(-0.5, 0);
+  });
+
+  it('doubles worldSize (adds one zoom level) when the viewport doubles', () => {
+    const bounds: LngLat[] = [[-10, -10], [10, 10]];
+    const a = fitBounds(bounds, { width: 512, height: 512 });
+    const b = fitBounds(bounds, { width: 1024, height: 1024 });
+    expect(b.zoom).toBeCloseTo(a.zoom + 1, 6);
+  });
+
+  it('zoom increases monotonically as the bounds shrink', () => {
+    let prevZoom = -Infinity;
+    for (const halfSpan of [40, 20, 10, 5, 2.5, 1]) {
+      const { zoom } = fitBounds([[-halfSpan, -halfSpan], [halfSpan, halfSpan]], { width: 1080, height: 1920 });
+      expect(zoom).toBeGreaterThan(prevZoom);
+      prevZoom = zoom;
+    }
+  });
+
+  it('centers on the bounds midpoint with no padding', () => {
+    const { center } = fitBounds([[10, 20], [30, 40]], { width: 1080, height: 1920 });
+    expect(center[0]).toBeCloseTo(20, 4);
+    // Mercator Y isn't linear in latitude, so the vertical midpoint isn't exactly
+    // the arithmetic mean of 20 and 40 — but it should land close, on this small a span.
+    expect(center[1]).toBeGreaterThan(29);
+    expect(center[1]).toBeLessThan(31);
+  });
+
+  it('unwraps the antimeridian instead of bounding the whole world', () => {
+    // Tokyo to San Francisco crosses 180° — without unwrapping, a naive min/max
+    // over raw longitudes would compute a bounding box spanning the long way round
+    // (roughly 262°, nearly the whole globe) instead of the ~98° short way the
+    // route actually takes across the Pacific.
+    const tokyo: LngLat = [139.69, 35.68];
+    const sanFrancisco: LngLat = [-122.42, 37.77];
+    const wide: LngLat[] = [[-180, -60], [-90, 0], [0, 60], [90, 0], [179, -60]]; // ~whole world
+    const { zoom: wideZoom } = fitBounds(wide, { width: 1080, height: 1920 });
+    const { zoom } = fitBounds([tokyo, sanFrancisco], { width: 1080, height: 1920 });
+    expect(zoom).toBeGreaterThan(wideZoom + 1);
+  });
+
+  it('asymmetric padding shifts the center away from the reserved side', () => {
+    // Reserving 40% on the right (e.g. for a corner image card) should push fixed
+    // content — and so the returned center — toward the east, so that content
+    // renders shifted left, into the remaining visible area.
+    const point: LngLat = [0, 0];
+    const centered = fitBounds([point], { width: 1080, height: 1920, maxZoom: 10 });
+    const padded = fitBounds([point], { width: 1080, height: 1920, padding: { right: 0.4 }, maxZoom: 10 });
+    expect(padded.center[0]).toBeGreaterThan(centered.center[0]);
+  });
+
+  it('reserving bottom padding shifts the center south (content moves up, away from it)', () => {
+    const point: LngLat = [0, 0];
+    const centered = fitBounds([point], { width: 1080, height: 1920, maxZoom: 10 });
+    const padded = fitBounds([point], { width: 1080, height: 1920, padding: { bottom: 0.3 }, maxZoom: 10 });
+    expect(padded.center[1]).toBeLessThan(centered.center[1]);
+  });
+
+  it('clamps to maxZoom/minZoom rather than returning Infinity for a single point', () => {
+    const { zoom } = fitBounds([[10, 10]], { width: 1080, height: 1920, maxZoom: 14 });
+    expect(zoom).toBe(14);
+    expect(Number.isFinite(zoom)).toBe(true);
+  });
+
+  it('throws on empty input rather than silently returning a nonsense camera', () => {
+    expect(() => fitBounds([], { width: 1080, height: 1920 })).toThrow();
+  });
+
+  /**
+   * Regression case: the Dandi March route (docs/brand/dandi-march). The original
+   * camera zoom for this shot was found by eight-plus rebuild/render/inspect
+   * cycles — a formula estimate of ~8.7 left the 387 km route a near-invisible
+   * sliver, ~11.3 overflowed the frame and broke the base landmass render, and 8.9
+   * was what finally worked, found by bisecting against the studio's own
+   * `debug(t)` API. `fitBounds` should recover a zoom in that same ballpark
+   * directly from the route's real coordinates, with no rendering required.
+   */
+  it('recovers roughly the empirically-found zoom for a real regional route (Dandi March)', () => {
+    const route: LngLat[] = [
+      [72.5808, 23.0600], // Sabarmati
+      [72.5939, 22.9141], // Aslali
+      [72.8600, 22.6900], // Nadiad
+      [72.9000, 22.6000], // Anand
+      [72.9000, 22.4200], // Borsad
+      [72.9900, 21.6324], // Ankleshwar
+      [72.9520, 20.9467], // Navsari
+      [72.8009, 20.8865], // Dandi
+    ];
+    const { zoom } = fitBounds(route, { width: 1080, height: 1920, padding: 0.18 });
+    expect(zoom).toBeGreaterThan(7.5);
+    expect(zoom).toBeLessThan(10);
   });
 });

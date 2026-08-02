@@ -7,12 +7,15 @@
  *
  * The topology store, boolean ops, simplification and projection morphs named in
  * §08 are not here yet — they arrive with the geometry editor. What has moved is
- * the great-circle layer that the route and camera systems already depend on.
+ * the great-circle layer that the route and camera systems already depend on, plus
+ * `fitBounds` — camera keyframes computed from coordinates, for build scripts that
+ * have no live map to ask.
  */
 
 export {
   bearing,
   buildPath,
+  fitBounds,
   haversine,
   headingAt,
   measure,
@@ -20,5 +23,8 @@ export {
   sliceAt,
   slerp,
   unwrap,
+  type FitBoundsOptions,
+  type FitBoundsPadding,
+  type FitBoundsResult,
   type MeasuredPath,
 } from './geo.ts';
