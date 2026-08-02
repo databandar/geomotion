@@ -42,9 +42,12 @@ for j, (fname, t, db) in enumerate(SFX_CUES):
 
 sub_dur = DUR + 1
 sub = f"sine=f=52:d={sub_dur}:r=48000,tremolo=f={88/60:.4f}:d=0.5,volume=0.20"
+# The pink-noise "tex" bed reads as audible background hiss against the quieter passages
+# (measured noise floor only ~13dB below narration in a silent gap) — cut hard, from 0.38 to
+# 0.09, so it stays a barely-there atmosphere instead of a constant hiss under the whole video.
 tex = (
     f"anoisesrc=d={sub_dur}:c=pink:a=0.28:r=48000,bandpass=f=1400:width_type=o:w=1.8,"
-    f"volume=0.38"
+    f"volume=0.09"
 )
 music_filters = [
     f"{sub}[sub]",
