@@ -126,6 +126,11 @@ export interface CloudsStyle {
 }
 
 export interface ImageStyle {
+  /** Was missing here the same way it was once missing from `MarkerStyle` — nothing
+      could match a rendered image back to the layer that produced it. Already present
+      on the runtime object (`resolveTracks` passes the whole node through); this just
+      declares it. */
+  id: string;
   src: string;
   x: number;
   y: number;

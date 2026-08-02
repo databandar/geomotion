@@ -4,6 +4,7 @@ import { demoProject, circleOfHumanityProject, globeGdpTourProject, globeTourPro
 import type { RenderHost } from '../render/host';
 import { evaluate } from '@geomotion/evaluator';
 import { imagesReady } from '@geomotion/renderer';
+import { findOverlapsAt, type OverlapFinding } from './overlap-lint';
 
 /**
  * A small, stable surface for automation — the render step of the video pipeline
@@ -59,6 +60,16 @@ export interface HeadlessApi {
    * call every frame, unlike `debug`, which evaluates a whole scene.
    */
   shape(): { layers: number };
+  /**
+   * Every visible layer-vs-layer collision (text-on-text, a marker's label under a
+   * title, an image card over a route's approach into its destination — the actual
+   * bug categories found across every produced episode) at each of the given
+   * timeline positions. Moves the camera to each time and waits for tiles before
+   * checking it — geographic layers are projected through the live map, so an
+   * unsettled camera would check the wrong position. Slower than `debug` for the
+   * same reason; call it with scene-boundary times, not every frame.
+   */
+  checkOverlaps(times: number[]): Promise<OverlapFinding[]>;
   /** GL sources/layers we own plus the evaluated scene, for diagnosis. */
   debug(t?: number): {
     styleLoaded: boolean;
@@ -135,6 +146,18 @@ export function installHeadlessApi(host: RenderHost) {
         layers: layersOf(p).length,
         basemap: p.basemap,
       };
+    },
+
+    async checkOverlaps(times) {
+      const state = useStore.getState();
+      if (!host.map) return [];
+      const findings: OverlapFinding[] = [];
+      for (const t of times) {
+        host.renderFrameAt(t);
+        await host.waitForIdle(8000);
+        findings.push(...findOverlapsAt(state.project, host.map, t));
+      }
+      return findings;
     },
 
     debug(t) {

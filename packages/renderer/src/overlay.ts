@@ -53,7 +53,7 @@ export interface OverlayFrame {
  * generic fallback is what stops Hindi rendering in a default serif with broken
  * matras. The Latin faces stay first so Latin text is unaffected.
  */
-const FONT_STACK =
+export const FONT_STACK =
   `'Inter', 'Helvetica Neue', system-ui, -apple-system, 'Segoe UI', Roboto, ` +
   `'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Devanagari Sangam MN', 'Nirmala UI', sans-serif`;
 
@@ -838,11 +838,11 @@ function drawText(f: OverlayFrame, t: TextRender) {
   ctx.restore();
 }
 
-const alignLeft = (x: number, w: number, align: 'left' | 'center' | 'right') =>
+export const alignLeft = (x: number, w: number, align: 'left' | 'center' | 'right') =>
   align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
 
 /** Manual letter-spacing — ctx.letterSpacing isn't universally supported. */
-function measureTracked(ctx: CanvasRenderingContext2D, s: string, spacing: number): number {
+export function measureTracked(ctx: CanvasRenderingContext2D, s: string, spacing: number): number {
   if (spacing === 0) return ctx.measureText(s).width;
   let w = 0;
   for (const ch of s) w += ctx.measureText(ch).width + spacing;

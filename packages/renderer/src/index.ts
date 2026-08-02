@@ -9,7 +9,9 @@
  * a canvas is not a useful abstraction.
  */
 
-export { drawOverlay, scaleFor, type OverlayFrame, type ProjectFn } from './overlay.ts';
+export {
+  alignLeft, drawOverlay, FONT_STACK, measureTracked, scaleFor, type OverlayFrame, type ProjectFn,
+} from './overlay.ts';
 export {
   formatValue,
   legendMetrics,
