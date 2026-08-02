@@ -5,7 +5,9 @@
  *
  * The new element: a growing-crowd mechanic — small pulse markers appearing progressively
  * along the route during the "78 volunteers to tens of thousands" beat, a coordinate-native
- * way to show the march swelling rather than a bar chart doing the telling.
+ * way to show the march swelling rather than a bar chart doing the telling. The route itself
+ * follows the real overnight-halt villages (Aslali, Nadiad, Anand, Borsad, Ankleshwar, Navsari)
+ * rather than a straight line between the two endpoints — see the coordinates section below.
  *
  * Facts verified before scripting — see README.md:
  *   387 km / 24 days, Sabarmati Ashram to Dandi · 78 volunteers growing to tens of thousands by
@@ -46,9 +48,21 @@ writeFileSync(`${OUT}/scene-bounds.json`, JSON.stringify(S, null, 2));
 const EDGE = DUR + 3;
 
 /* -------------------------------------------------------------------- coordinates */
+// The real route, not a straight line — verified overnight-halt villages (History.com,
+// Outlook Traveller), in the order the march actually walked them. It bows east through
+// central Gujarat (Nadiad/Anand/Borsad/Ankleshwar all sit ~0.3-0.4° east of the Sabarmati-Dandi
+// meridian) before turning back to the coast at Navsari — a real historical curve, not
+// artistic license. The first version connected only the two endpoints with lerp-interpolated
+// filler points, which is a straight line by construction no matter how many points you add
+// along it; it needed real waypoints, not more points on the same line.
 const SABARMATI = [72.5808, 23.0600];
+const ASLALI = [72.5939, 22.9141];
+const NADIAD = [72.8600, 22.6900];
+const ANAND = [72.9000, 22.6000];
+const BORSAD = [72.9000, 22.4200];
+const ANKLESHWAR = [72.9900, 21.6324];
+const NAVSARI = [72.9520, 20.9467];
 const DANDI = [72.8009, 20.8865];
-const lerp = (f) => [SABARMATI[0] + (DANDI[0] - SABARMATI[0]) * f, SABARMATI[1] + (DANDI[1] - SABARMATI[1]) * f];
 
 /* -------------------------------------------------------------------- map */
 const ctx = createMapContext('Gujarat — no labels');
@@ -76,18 +90,18 @@ ctx.projection = 'globe';
 const camera = cameraFromShots([
   keyframe(S.s01[0], [79, 22], 4.4, { pitch: 0 }),                  // S01 India, context
   keyframe(S.s01[1] - 0.3, [77, 21.5], 4.7, { pitch: 0 }),
-  keyframe(S.s02[0] + 0.3, [72.69, 21.97], 8.9, { pitch: 0 }),      // S02 Gujarat, the route itself
-  keyframe(S.s02[1] - 0.3, [72.69, 21.97], 8.9, { pitch: 0 }),
-  keyframe(S.s03[0] + 0.3, [72.69, 21.97], 8.75, { pitch: 0 }),     // S03 hold — the crowd grows
-  keyframe(S.s03[1] - 0.5, [72.69, 21.97], 8.75, { pitch: 0 }),
+  keyframe(S.s02[0] + 0.3, [72.80, 21.97], 8.9, { pitch: 0 }),      // S02 Gujarat, the route itself
+  keyframe(S.s02[1] - 0.3, [72.80, 21.97], 8.9, { pitch: 0 }),
+  keyframe(S.s03[0] + 0.3, [72.80, 21.97], 8.75, { pitch: 0 }),     // S03 hold — the crowd grows
+  keyframe(S.s03[1] - 0.5, [72.80, 21.97], 8.75, { pitch: 0 }),
   keyframe(S.s04[0] + 0.3, [72.80, 20.89], 10.5, { pitch: 0 }),     // S04 tight on Dandi — the act
   keyframe(S.s04[1] - 0.3, [72.80, 20.89], 10.5, { pitch: 0 }),
   keyframe(S.s05[0] + 0.3, [80, 23], 4.2, { pitch: 0 }),            // S05 pull back — India-wide, the consequence
   keyframe(S.s05[1] - 0.4, [80, 23], 4.2, { pitch: 0 }),
   keyframe(S.s06[0] + 0.3, [75, 20], 4.8, { pitch: 0 }),            // S06 reframed — the Time beat
   keyframe(S.s06[1] - 0.3, [75, 20], 4.8, { pitch: 0 }),
-  keyframe(S.s07[0] + 0.3, [72.7, 21.9], 8.4, { pitch: 0 }),        // S07 — the one reset, closing wide
-  keyframe(DUR, [72.7, 21.9], 8.4, { pitch: 0 }),
+  keyframe(S.s07[0] + 0.3, [72.78, 21.9], 8.4, { pitch: 0 }),       // S07 — the one reset, closing wide
+  keyframe(DUR, [72.78, 21.9], 8.4, { pitch: 0 }),
 ]);
 
 /* -------------------------------------------------------------------- landmass */
@@ -119,7 +133,7 @@ const india = createLayer('shape', S.s05[0] - 0.3, {
 /* -------------------------------------------------------------------- route */
 const route = createLayer('route', S.s02[0] + 0.2, {
   name: 'The Dandi March', out: EDGE,
-  coords: [SABARMATI, lerp(0.25), lerp(0.5), lerp(0.75), DANDI],
+  coords: [SABARMATI, ASLALI, NADIAD, ANAND, BORSAD, ANKLESHWAR, NAVSARI, DANDI],
   curve: 'geodesic',
   color: SIGNAL,
   width: staticTrack(3.6),
@@ -133,22 +147,27 @@ const route = createLayer('route', S.s02[0] + 0.2, {
 });
 
 /*
- * The growing-crowd mechanic. Small pulse markers along the already-drawn route, appearing one
- * by one through the "78 volunteers to tens of thousands" beat — a coordinate-native way to
- * show the march swelling, instead of a bar chart doing the telling. Deliberately un-labelled
- * (no per-point numbers) since no source gives crowd size at these specific points — the
- * narration's verified totals (78 at the start, tens of thousands by the coast) carry the
- * precision; the accumulating dots carry the feeling of growth.
+ * The growing-crowd mechanic. Small pulse markers at the real overnight-halt villages, appearing
+ * one by one through the "78 volunteers to tens of thousands" beat — a coordinate-native way to
+ * show the march swelling, instead of a bar chart doing the telling. Three of the six carry the
+ * village's name (Nadiad, Anand, Ankleshwar — real, recognizable stops) so the route reads as a
+ * journey through real places, not just a line; the other three stay unlabelled dots so the
+ * beat doesn't turn into a wall of text. No per-village crowd counts are shown — no source gives
+ * a number at these specific points, so the narration's two verified totals (78 at the start,
+ * tens of thousands by the coast) still carry all the precision here.
  */
-const crowdDot = (at, coord) =>
+const crowdStops = [
+  [ASLALI, ''], [NADIAD, 'NADIAD'], [ANAND, 'ANAND'],
+  [BORSAD, ''], [ANKLESHWAR, 'ANKLESHWAR'], [NAVSARI, ''],
+];
+const crowdDot = (at, coord, label) =>
   createLayer('marker', at, {
-    name: 'Crowd', out: S.s04[0], coord, fade: 0.3,
+    name: label || 'Crowd', out: S.s04[0], coord, fade: 0.3,
     color: AMBER, size: staticTrack(5),
-    label: '', labelSize: staticTrack(0),
+    label, labelSize: staticTrack(label ? 13 : 0), labelColor: DIM,
   });
-const crowdFractions = [0.12, 0.24, 0.36, 0.48, 0.6, 0.72, 0.84];
-const crowdDots = crowdFractions.map((f, i) =>
-  crowdDot(S.s03[0] + 0.3 + i * ((S.s03[1] - S.s03[0] - 0.6) / crowdFractions.length), lerp(f)));
+const crowdDots = crowdStops.map(([coord, label], i) =>
+  crowdDot(S.s03[0] + 0.3 + i * ((S.s03[1] - S.s03[0] - 0.6) / crowdStops.length), coord, label));
 
 /* -------------------------------------------------------------------- markers */
 const pulseMarker = (name, at, out, coord, label) =>

@@ -59,6 +59,24 @@ placed in the same top row as the persistent source citation; even left-aligned,
 rendered width reached far enough right to overlap. Fixed by moving it to its own row below the
 title instead of trying to share space with the top-right corner block.
 
+## Post-release fix: the route was a straight line
+
+User feedback after the first cut: the route was a straight line between Sabarmati and Dandi
+and never named a single place in between — accurate to the endpoints, but not to the actual
+march, and a missed chance to make the "walk through real places" feeling concrete. The march
+wasn't a straight line; it bowed east through central Gujarat before turning back to the coast.
+
+Fixed by looking up the real overnight-halt villages (History.com, Outlook Traveller) and
+rebuilding both the route and the growing-crowd markers around them: Sabarmati → Aslali →
+Nadiad → Anand → Borsad → Ankleshwar → Navsari → Dandi. Three of the six crowd-beat markers
+(Nadiad, Anand, Ankleshwar) now carry the village name on screen — real, recognizable stops,
+not per-village crowd counts (no source gives a number at these specific points, so the
+narration's two verified totals still carry all the precision). The camera's horizontal
+centering was nudged east (72.69° → 72.80°) to keep the new bulge in frame; the vertical
+extent and every other beat's framing were untouched since the route's north-south span didn't
+change. Re-rendered and re-screenshot-tested; the audio mix was untouched and didn't need
+re-generating.
+
 ## What's new for this series vs. Malacca/Arctic
 
 - **A growing-crowd mechanic**: small pulse markers appear one by one along the already-drawn
