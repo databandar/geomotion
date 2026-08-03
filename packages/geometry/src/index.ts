@@ -19,9 +19,11 @@ export {
   fitBounds,
   haversine,
   headingAt,
+  landCrossingRisks,
   MAX_MERCATOR_LATITUDE,
   measure,
   pointAt,
+  pointInPolygon,
   polarClipRisks,
   sliceAt,
   slerp,
@@ -30,5 +32,6 @@ export {
   type FitBoundsOptions,
   type FitBoundsPadding,
   type FitBoundsResult,
+  type LandCrossingRisk,
   type MeasuredPath,
 } from './geo.ts';

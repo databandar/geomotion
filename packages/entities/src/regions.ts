@@ -1,5 +1,5 @@
 import type { CameraState, LngLat, RegionsLayer } from '@geomotion/document';
-import { getRamp, rampColor } from '@geomotion/core';
+import { getRamp, rampColor, rampPosition } from '@geomotion/core';
 import { fitBounds as fitBoundsGeo } from '@geomotion/geometry';
 
 /* ------------------------------------------------------------- geometry */
@@ -26,6 +26,8 @@ export interface RegionSet {
   /** bounds of everything, for the opening overview shot */
   bounds: [number, number, number, number];
   domain: [number, number];
+  /** the diverging reference value, carried so the legend reads the same scale the fills do */
+  midpoint: number | null;
   withValues: number;
   /** ready to hand to MapLibre, with `_fill` baked into each feature */
   data: GeoJSON.FeatureCollection;
@@ -36,9 +38,22 @@ const EMPTY_SET: RegionSet = {
   order: [],
   bounds: [0, 0, 0, 0],
   domain: [0, 1],
+  midpoint: null,
   withValues: 0,
   data: { type: 'FeatureCollection', features: [] },
 };
+
+/**
+ * The midpoint as the scale actually used it, or `null`.
+ *
+ * `rampPosition` ignores a midpoint at or outside the domain — an arm of zero width
+ * cannot be read. The legend has to make the same call, or it would draw a tick for a
+ * boundary the fills never honoured.
+ */
+function effectiveMidpoint(mid: number | null, domain: [number, number]): number | null {
+  if (mid === null || !isFinite(mid)) return null;
+  return mid > domain[0] && mid < domain[1] ? mid : null;
+}
 
 function ringsOf(g: GeoJSON.Geometry | null, out: LngLat[][]) {
   if (!g) return;
@@ -114,6 +129,7 @@ export function regionSet(layer: RegionsLayer, basemapIsDark: boolean): RegionSe
     layer.ramp,
     String(layer.flipRamp),
     layer.autoDomain ? 'auto' : `${layer.min}-${layer.max}`,
+    String(layer.midpoint),
     layer.tour.order,
     layer.tour.customOrder.join('|'),
     basemapIsDark,
@@ -173,7 +189,7 @@ function build(layer: RegionsLayer, basemapIsDark: boolean): RegionSet {
   const flip = layer.flipRamp ?? basemapIsDark;
   for (const r of regions) {
     if (r.value === null) continue;
-    r.fill = rampColor(ramp, (r.value - domain[0]) / (domain[1] - domain[0]), flip);
+    r.fill = rampColor(ramp, rampPosition(r.value, domain[0], domain[1], layer.midpoint), flip);
   }
 
   [...valued]
@@ -212,6 +228,7 @@ function build(layer: RegionsLayer, basemapIsDark: boolean): RegionSet {
     order,
     bounds: boundsOfRings(regions.flatMap((r) => r.rings)),
     domain,
+    midpoint: effectiveMidpoint(layer.midpoint, domain),
     withValues: valued.length,
     data,
   };

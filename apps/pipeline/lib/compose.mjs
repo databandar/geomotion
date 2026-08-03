@@ -39,8 +39,14 @@ async function readJson(p) {
  * `hook` is real but undocumented — it is the short-format opener. Listed here so a
  * script using it is not rejected, and so this stays the single place the set is
  * written down.
+ *
+ * `aside` owns no visual of its own: it takes a slot on the timeline, narrates, and
+ * draws its `onScreen` text like any other beat. It exists for a stretch whose picture
+ * is hand-authored — a camera keyframe, an image — rather than composed from a `kind`.
+ * Without it, such a stretch had to borrow another kind's name and silently suppress
+ * the layer that name builds.
  */
-export const BEAT_KINDS = ['clouds', 'hook', 'outline', 'overview', 'tour', 'labels'];
+export const BEAT_KINDS = ['clouds', 'hook', 'aside', 'outline', 'overview', 'tour', 'labels'];
 
 /**
  * Reject a script that cannot produce what it is asking for, before anything is spent.
@@ -443,6 +449,17 @@ export async function compose(script, timings) {
     anim: 'none',
   });
 
+  /*
+   * Provenance, stamped once on everything built above.
+   *
+   * `mergeComposed` used to work this out by reading which story blocks referenced which
+   * layers — a good inference, but an inference, and one nothing outside this file could
+   * reuse. A build script post-processing a composed project had no way to ask "did you
+   * make this?" except to match names, which is how a restyle pass that meant to skip
+   * hand-made layers silently caught the `labels` beat's own title.
+   */
+  for (const l of layers) l.source = 'composer';
+
   const project = {
     version: 1,
     name: script.title ?? 'Untitled',
@@ -574,7 +591,18 @@ export function mergeComposed(existing, fresh) {
   // it — the tie goes to the person.
   for (const b of mine) for (const id of b.nodes) composerOwned.delete(id);
 
-  const keptLayers = existingLayers.filter((l) => !composerOwned.has(l.id));
+  /*
+   * The stamp wins where it exists.
+   *
+   * Reading story blocks infers ownership from what a block happens to reference, and a
+   * generated layer that no surviving block names would be mistaken for handmade and kept
+   * forever — duplicated against its own replacement on every re-run. `source` says it
+   * outright. Projects written before the stamp carry none, so the inference above stays
+   * as the fallback rather than being replaced.
+   */
+  const keptLayers = existingLayers.filter((l) =>
+    l.source === 'composer' ? false : !composerOwned.has(l.id),
+  );
 
   return {
     ...fresh,

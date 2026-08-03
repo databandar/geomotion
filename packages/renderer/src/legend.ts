@@ -7,6 +7,8 @@
  * callout that leaves the bar, a number that reads differently on someone else's
  * machine.
  */
+import { luminance, rampPosition } from '@geomotion/core';
+
 
 /** Everything positioned, in device pixels, for one legend. */
 export interface LegendMetrics {
@@ -74,10 +76,16 @@ export function legendMetrics(scale: number, frameHeight: number, hasNoData: boo
  * is ordinary data, not an error, and without the guard it divides by zero and puts the
  * callout at `NaN`, which silently draws nothing.
  */
-export function scaleAt(value: number, domain: readonly [number, number]): number {
+export function scaleAt(
+  value: number,
+  domain: readonly [number, number],
+  midpoint?: number | null,
+): number {
   const span = domain[1] - domain[0];
   if (!isFinite(value) || !isFinite(span) || Math.abs(span) < 1e-9) return 0;
-  const t = (value - domain[0]) / span;
+  // Deferred to the same helper the fills use. Two copies of this arithmetic is how the
+  // bar ends up disagreeing with the map it explains.
+  const t = rampPosition(value, domain[0], domain[1], midpoint);
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }
 
@@ -148,4 +156,28 @@ export function placeReadout(
 
   const x = Math.max(margin, Math.min(anchor.x - boxW / 2, frame.width - boxW - margin));
   return { x, y, below };
+}
+
+/**
+ * Ink for a readout drawn straight onto a region's own fill.
+ *
+ * The `plain` callout has no box, so the type sits on the choropleth. White on a dark
+ * fill is right almost everywhere and was hardcoded — but "almost everywhere" excludes
+ * the pale end of the scale, and on a diverging ramp *both* extremes are pale. The
+ * region a piece builds to is usually an extreme, so the one readout that matters most
+ * is the one most likely to disappear.
+ *
+ * The fill is composited over the basemap at `opacity`, so the raw swatch overstates how
+ * light it lands. Assuming a dark surface underneath is deliberate: it under-estimates on
+ * a light basemap, which keeps white ink where it is already used today, so this can only
+ * move a readout that was genuinely unreadable and never disturb one that worked.
+ *
+ * A non-hex fill yields luminance 0 (see `luminance`), so it takes the light-ink branch —
+ * the existing behaviour.
+ */
+export function readoutInk(fill: string, opacity: number): { ink: string; dim: string; shadow: string } {
+  const effective = luminance(fill) * (isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1);
+  return effective > 0.5
+    ? { ink: '#0b0f14', dim: 'rgba(11,15,20,0.68)', shadow: 'rgba(255,255,255,0.85)' }
+    : { ink: '#ffffff', dim: 'rgba(255,255,255,0.62)', shadow: 'rgba(0,0,0,0.85)' };
 }

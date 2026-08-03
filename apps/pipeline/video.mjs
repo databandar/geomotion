@@ -17,6 +17,7 @@ import { collectLines, compose, buildSrt, mergeComposed, prepareScript, validate
 import { lineAudio, buildVoiceTrack } from './lib/tts.mjs';
 import { renderFrames } from './lib/render.mjs';
 import { encode, grabThumbnail } from './lib/encode.mjs';
+import { checkDistFreshness, stalenessWarning } from './lib/dist-freshness.mjs';
 
 const run = promisify(execFile);
 // Path anchors. Named explicitly because a single ambiguous "ROOT" is what broke
@@ -217,6 +218,14 @@ try {
   await fs.access(path.join(distDir, 'index.html'));
   if (flag('rebuild')) throw new Error('forced');
   ok('dist/ present (pass --rebuild to force)');
+  /*
+   * Present is not the same as current. Every renderer here draws through dist/, so a
+   * change under packages/ that has not been rebuilt simply does not exist as far as
+   * the render is concerned — silently, and with plausible output.
+   */
+  const freshness = await checkDistFreshness(REPO, distDir);
+  const warning = stalenessWarning(freshness);
+  if (warning) console.warn(`    \x1b[33m!\x1b[0m ${warning}`);
 } catch {
   await run('pnpm', ['--filter', '@geomotion/studio', 'build'], { cwd: REPO, maxBuffer: 1024 * 1024 * 32 });
   ok('built');

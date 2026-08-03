@@ -1,0 +1,30 @@
+[
+  { "id": "click", "label": "Click", "hint": "a region is selected", "group": "Interface" },
+  { "id": "tick", "label": "Tick", "hint": "a counter steps", "group": "Interface" },
+  { "id": "select", "label": "Select", "hint": "a marker is picked out", "group": "Interface" },
+  { "id": "toggle", "label": "Toggle", "hint": "a layer comes on", "group": "Interface" },
+  { "id": "switch", "label": "Switch", "hint": "the view changes mode", "group": "Interface" },
+
+  { "id": "bong", "label": "Bong", "hint": "a marker arrives", "group": "Accents" },
+  { "id": "pluck", "label": "Pluck", "hint": "a label appears", "group": "Accents" },
+  { "id": "chime", "label": "Chime", "hint": "a number lands", "group": "Accents" },
+  { "id": "confirm", "label": "Confirm", "hint": "a total is revealed", "group": "Accents" },
+  { "id": "drop", "label": "Drop", "hint": "something falls into place", "group": "Accents" },
+  { "id": "alert", "label": "Alert", "hint": "a warning beat", "group": "Accents" },
+
+  { "id": "card-in", "label": "Card in", "hint": "a card opens", "group": "Panels" },
+  { "id": "card-out", "label": "Card out", "hint": "a card closes", "group": "Panels" },
+  { "id": "zoom-in", "label": "Zoom in", "hint": "the camera pushes in", "group": "Panels" },
+  { "id": "zoom-out", "label": "Zoom out", "hint": "the camera pulls back", "group": "Panels" },
+
+  { "id": "hush", "label": "Hush", "hint": "a layer clears and the frame settles", "group": "Transitions" },
+  { "id": "whoosh", "label": "Whoosh", "hint": "the camera flies past", "group": "Transitions" },
+  { "id": "rise", "label": "Rise", "hint": "a build into a reveal", "group": "Transitions" },
+
+  { "id": "ocean-waves", "label": "Ocean waves", "hint": "the story is at sea, or a coastline is on screen", "group": "World" },
+  { "id": "wind", "label": "Wind", "hint": "an exposed, open, or high place", "group": "World" },
+  { "id": "foghorn", "label": "Foghorn", "hint": "a ship or a port arrives on screen", "group": "World" },
+  { "id": "engine-rumble", "label": "Engine rumble", "hint": "something mechanical is moving — a ship, a convoy, a factory", "group": "World" },
+  { "id": "footsteps-march", "label": "Footsteps (march)", "hint": "a crowd or a procession is walking", "group": "World" },
+  { "id": "distant-thunder", "label": "Distant thunder", "hint": "a dramatic turn, a warning, a storm on the way", "group": "World" }
+]

@@ -1,0 +1,98 @@
+{
+  "title": "India's Vanishing Birth Rate",
+  "slug": "india-fertility-collapse",
+  "format": "short",
+  "fps": 30,
+  "basemap": "dark-clean",
+  "dataset": "india-official",
+  "values": "/Users/sugandhkhobragade/Study/geolayer/docs/brand/india-fertility/tfr.json",
+  "ramp": "neon-divergent",
+  "flipRamp": false,
+  "domain": [
+    1.4,
+    2.8
+  ],
+  "credit": "NFHS-6 (IIPS, 2023–24) · World Bank · Boundaries: Government of India",
+  "voice": {
+    "engine": "voicebox",
+    "vbEngine": "kokoro",
+    "presetVoice": "af_heart",
+    "language": "en",
+    "profileName": "DataBandar fertility af_heart"
+  },
+  "metric": {
+    "label": "Births per woman",
+    "unit": "",
+    "decimals": 1,
+    "legend": "Births per woman"
+  },
+  "pitch": 42,
+  "cameraBow": 0.45,
+  "flyTime": 1.1,
+  "maxZoom": 6.4,
+  "beatGap": 0.28,
+  "tailOut": 1.8,
+  "beats": [
+    {
+      "kind": "clouds",
+      "say": "India's birth rate is falling. It has already dropped below the level that keeps a population from shrinking.",
+      "onScreen": "INDIA'S BIRTH RATE\nIS FALLING",
+      "pad": 0.45
+    },
+    {
+      "kind": "aside",
+      "id": "korea",
+      "say": "This is where that road ends. South Korea: zero point seven five births per woman — the lowest rate ever recorded in a country at peace.",
+      "pad": 0.4
+    },
+    {
+      "kind": "aside",
+      "id": "china",
+      "say": "China, one point oh. Japan, one point two. Every one of them now shrinking, generation over generation.",
+      "pad": 0.4
+    },
+    {
+      "kind": "outline",
+      "say": "A population holds steady at two point one children per woman. Below that line, every generation is smaller than the one before it.",
+      "pad": 0.45
+    },
+    {
+      "kind": "overview",
+      "say": "India is at two point oh. Here is that line, drawn across the country. Pink is below it. Blue is above.",
+      "onScreen": "BIRTHS PER WOMAN, BY STATE",
+      "pad": 0.5
+    },
+    {
+      "kind": "aside",
+      "id": "urbanrural",
+      "say": "The split is not really north and south. It is town and country. Urban India is already at one point six. Rural India, two point one — and falling faster.",
+      "pad": 0.5
+    },
+    {
+      "kind": "tour",
+      "stopPad": 0.4,
+      "minStop": 2.2,
+      "stops": [
+        {
+          "region": "Sikkim",
+          "say": "Sikkim: one point oh. The same as China. In its towns, zero point seven — South Korea's number, in the Himalayas."
+        },
+        {
+          "region": "Kerala",
+          "say": "Kerala, the state that fell first, has stopped falling. One point eight, unchanged since the last survey. The floor, it turns out, is not zero."
+        },
+        {
+          "region": "Bihar",
+          "say": "And Bihar, the last big holdout, two point seven. But three years ago it was three point oh. Even here, the fall is the fastest in the country."
+        }
+      ]
+    },
+    {
+      "kind": "labels",
+      "labelAll": true,
+      "say": "Twenty-eight of India's thirty-five states are already below the line. The crowd is still growing — the generation behind it is not.",
+      "onScreen": "28 OF 35 BELOW REPLACEMENT",
+      "pad": 1.2
+    }
+  ]
+}

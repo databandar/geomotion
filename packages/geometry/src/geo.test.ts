@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { LngLat } from '@geomotion/core';
 import {
-  antimeridianRisks, bearing, buildPath, fitBounds, haversine, headingAt, MAX_MERCATOR_LATITUDE,
-  measure, pointAt, polarClipRisks, sliceAt, slerp, unwrap,
+  antimeridianRisks, bearing, buildPath, fitBounds, haversine, headingAt, landCrossingRisks,
+  MAX_MERCATOR_LATITUDE, measure, pointAt, pointInPolygon, polarClipRisks, sliceAt, slerp, unwrap,
 } from './geo.ts';
 
 /**
@@ -134,6 +136,72 @@ describe('buildPath', () => {
   it('handles degenerate inputs', () => {
     expect(buildPath([], 'geodesic')).toEqual([]);
     expect(buildPath([LONDON], 'geodesic')).toHaveLength(1);
+  });
+});
+
+describe('buildPath — smooth', () => {
+  // A real zigzag, not a synthetic one: the Dandi March route as actually shipped
+  // in docs/brand/dandi-march/project.geomotion.json — Sabarmati Ashram to the
+  // Dandi seashore, eight hand-placed waypoints with a real direction change partway
+  // through (the march turned south-southwest around Nadiad/Anand).
+  const DANDI_MARCH: LngLat[] = [
+    [72.5808, 23.06], [72.5939, 22.9141], [72.86, 22.69], [72.9, 22.6],
+    [72.9, 22.42], [72.99, 21.6324], [72.952, 20.9467], [72.8009, 20.8865],
+  ];
+
+  it('falls back to the plain points below three waypoints, like straight does', () => {
+    expect(buildPath([LONDON, TOKYO], 'smooth')).toEqual([LONDON, TOKYO]);
+    expect(buildPath([LONDON], 'smooth')).toEqual([LONDON]);
+    expect(buildPath([], 'smooth')).toEqual([]);
+  });
+
+  it('densifies, the same way arc and geodesic do', () => {
+    expect(buildPath([LONDON, PARIS, TOKYO], 'smooth').length).toBeGreaterThan(50);
+  });
+
+  it('passes through every waypoint, not just the first and last', () => {
+    const zigzag: LngLat[] = [[0, 0], [10, 8], [20, -4], [30, 6], [40, 0]];
+    const path = buildPath(zigzag, 'smooth');
+    for (const wp of zigzag) {
+      const hit = path.some((p) => Math.abs(p[0] - wp[0]) < 1e-6 && Math.abs(p[1] - wp[1]) < 1e-6);
+      expect(hit, `waypoint [${wp}] should sit exactly on the curve`).toBe(true);
+    }
+  });
+
+  it('turns smoothly through an interior waypoint instead of kinking, unlike arc', () => {
+    // A sharp zigzag: straight segments would reverse the y-direction abruptly at
+    // the middle waypoint. The smooth curve should turn, not corner — the
+    // heading measured just before and just after the waypoint should differ far
+    // less than the ~152° the raw polyline corner itself turns through.
+    const zigzag: LngLat[] = [[0, 0], [10, 10], [20, 0]];
+    const smooth = measure(buildPath(zigzag, 'smooth'));
+    const before = headingAt(smooth, 0.48);
+    const after = headingAt(smooth, 0.52);
+    const turn = Math.min(Math.abs(after - before), 360 - Math.abs(after - before));
+    expect(turn).toBeLessThan(30); // a gentle turn, nowhere near the polyline's own corner
+  });
+
+  it('every point is finite — no NaN from the degenerate first/last phantom point', () => {
+    const path = buildPath(DANDI_MARCH, 'smooth');
+    for (const [lng, lat] of path) {
+      expect(Number.isFinite(lng)).toBe(true);
+      expect(Number.isFinite(lat)).toBe(true);
+    }
+  });
+
+  it('reproduces the real Dandi March route: passes through all eight waypoints, no runaway curvature', () => {
+    const path = buildPath(DANDI_MARCH, 'smooth');
+    for (const wp of DANDI_MARCH) {
+      const hit = path.some((p) => Math.abs(p[0] - wp[0]) < 1e-6 && Math.abs(p[1] - wp[1]) < 1e-6);
+      expect(hit, `waypoint [${wp}] should sit exactly on the curve`).toBe(true);
+    }
+    // A smooth curve through real waypoints should be close in length to the
+    // straight polyline through the same points — nowhere near arc's ~40% bulge
+    // per hop, since a spline is pulled taut by every neighbour, not bowed alone.
+    const straightLen = measure(DANDI_MARCH).length;
+    const smoothLen = measure(path).length;
+    expect(smoothLen).toBeGreaterThanOrEqual(straightLen);
+    expect(smoothLen).toBeLessThan(straightLen * 1.15);
   });
 });
 
@@ -388,5 +456,121 @@ describe('polarClipRisks', () => {
   it('is exact at the boundary — MAX_MERCATOR_LATITUDE itself is not a risk, one hair past it is', () => {
     expect(polarClipRisks([[0, MAX_MERCATOR_LATITUDE]])).toEqual([]);
     expect(polarClipRisks([[0, MAX_MERCATOR_LATITUDE + 0.001]])).toHaveLength(1);
+  });
+});
+
+describe('pointInPolygon', () => {
+  const SQUARE: GeoJSON.Polygon = {
+    type: 'Polygon',
+    coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]],
+  };
+
+  it('is true inside, false outside', () => {
+    expect(pointInPolygon([5, 5], SQUARE)).toBe(true);
+    expect(pointInPolygon([15, 5], SQUARE)).toBe(false);
+  });
+
+  it('honours a hole (a ring after the first)', () => {
+    const withHole: GeoJSON.Polygon = {
+      type: 'Polygon',
+      coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]], [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]]],
+    };
+    expect(pointInPolygon([5, 5], withHole)).toBe(false); // inside the hole
+    expect(pointInPolygon([1, 1], withHole)).toBe(true); // inside the fill, outside the hole
+  });
+
+  it('checks every part of a MultiPolygon', () => {
+    const two: GeoJSON.MultiPolygon = {
+      type: 'MultiPolygon',
+      coordinates: [
+        [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]],
+        [[[20, 20], [22, 20], [22, 22], [20, 22], [20, 20]]],
+      ],
+    };
+    expect(pointInPolygon([1, 1], two)).toBe(true);
+    expect(pointInPolygon([21, 21], two)).toBe(true);
+    expect(pointInPolygon([10, 10], two)).toBe(false);
+  });
+});
+
+describe('landCrossingRisks', () => {
+  const SQUARE_LAND: GeoJSON.FeatureCollection = {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: { name: 'Squareland' },
+      geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] },
+    }],
+  };
+
+  it('finds nothing for a path entirely over water', () => {
+    expect(landCrossingRisks([[-5, -5], [-5, 5], [-10, 10]], SQUARE_LAND)).toEqual([]);
+  });
+
+  it('flags a path that crosses land, naming the feature', () => {
+    const risks = landCrossingRisks([[-5, 5], [5, 5], [15, 5]], SQUARE_LAND);
+    expect(risks).toHaveLength(1);
+    expect(risks[0]!.name).toBe('Squareland');
+  });
+
+  it('collapses a long run on the same landmass into one finding, not one per point', () => {
+    const denseRun: LngLat[] = Array.from({ length: 50 }, (_, i) => [1 + i * 0.15, 5]);
+    expect(landCrossingRisks(denseRun, SQUARE_LAND)).toHaveLength(1);
+  });
+
+  it('reports a separate finding for each time the path re-enters land', () => {
+    // out, in, out, in — two separate landmasses either side of the square.
+    const other: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        ...SQUARE_LAND.features,
+        {
+          type: 'Feature',
+          properties: { name: 'Otherland' },
+          geometry: { type: 'Polygon', coordinates: [[[20, 0], [30, 0], [30, 10], [20, 10], [20, 0]]] },
+        },
+      ],
+    };
+    const path: LngLat[] = [[-5, 5], [5, 5], [15, 5], [25, 5], [35, 5]];
+    const risks = landCrossingRisks(path, other);
+    expect(risks.map((r) => r.name)).toEqual(['Squareland', 'Otherland']);
+  });
+
+  /**
+   * Regression: the real `docs/brand/hormuz` "Cape detour" route, as it actually
+   * shipped before this check existed. Two of its seven waypoints were on land
+   * ([48,5] inside Somalia, [30,-15] deep inside Zambia) — invisible under the
+   * `arc` curve that was live at the time, but once the route moved to `smooth`
+   * (this same session), the single curve through all seven points crossed the
+   * entire width of southern Africa. This is the exact bug a user caught by eye
+   * in the rendered video; this test is what should have caught it first.
+   */
+  it('catches the real Hormuz Cape-detour bug before the fix', () => {
+    const world = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../../../apps/studio/src/data/world-countries.json', import.meta.url)), 'utf8'),
+    ) as GeoJSON.FeatureCollection;
+
+    const brokenControlPoints: LngLat[] = [
+      [42, 19], [43.5, 12.7], [48, 5], [42, -5], [30, -15], [18.4, -34.4],
+    ];
+    const brokenPath = buildPath(brokenControlPoints, 'smooth');
+    const brokenRisks = landCrossingRisks(brokenPath, world);
+    // The curve through the two bad control points cuts across whichever
+    // mainland it happens to bow over on the way toward [30,-15] — not
+    // necessarily Zambia itself, since a spline doesn't pass through the
+    // "middle" of a hop the way a straight line does. What matters is that it
+    // crosses real interior African land well away from the coast, at all.
+    expect(brokenRisks.length).toBeGreaterThan(0);
+    expect(brokenRisks.some((r) => !['Saudi Arabia', 'Yemen'].includes(r.name))).toBe(true);
+
+    const fixedControlPoints: LngLat[] = [
+      [42, 19], [43.5, 12.7], [53, 12], [50, 3], [42, -5], [42, -15], [34, -31], [24, -36], [19.5, -36], [18.4, -34.4],
+    ];
+    const fixedPath = buildPath(fixedControlPoints, 'smooth');
+    const fixedRisks = landCrossingRisks(fixedPath, world);
+    // The first two control points are themselves the named strait markers
+    // (Bab el-Mandeb, a Red Sea port) — legitimately right at the coast, and
+    // not the bug this route actually shipped with.
+    expect(fixedRisks.every((r) => r.name === 'Saudi Arabia' || r.name === 'Yemen')).toBe(true);
   });
 });

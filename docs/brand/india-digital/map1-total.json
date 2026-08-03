@@ -1,0 +1,38 @@
+{
+  "title": "India's Digital Divide — Map 1: The Big Numbers",
+  "slug": "dd-map1-total",
+  "format": "short",
+  "fps": 30,
+  "basemap": "dark-clean",
+  "dataset": "india-official",
+  "values": "/Users/sugandhkhobragade/Study/geolayer/docs/brand/india-digital/women-internet.json",
+  "ramp": "inferno",
+  "credit": "Data: NFHS-6 · Boundaries: Government of India",
+  "voice": { "engine": "voicebox", "vbEngine": "kokoro", "presetVoice": "af_heart", "language": "en", "profileName": "DataBandar digital af_heart" },
+  "metric": {
+    "label": "Women who have used the internet",
+    "unit": "%",
+    "decimals": 1,
+    "legend": "Women who have used internet (%)"
+  },
+  "domain": [45, 95],
+  "beatGap": 0.25,
+  "tailOut": 1.5,
+  "beats": [
+    { "kind": "hook", "say": "India just passed a billion internet users. But look closer — who's still missing?",
+      "onScreen": "A BILLION INDIANS ONLINE", "pad": 0.4 },
+    { "kind": "outline", "say": "Two-thirds of women are online now — sixty-four percent. The national average, at least. The map disagrees.",
+      "pad": 0.4 },
+    { "kind": "overview", "say": "On this map, hotter means more women online. See the two Indias.",
+      "onScreen": "WOMEN WHO'VE USED THE INTERNET", "pad": 0.4 },
+    { "kind": "tour", "stopPad": 0.3, "minStop": 2.1,
+      "stops": [
+        { "region": "Goa", "say": "Goa, ninety-four percent. Nearly everyone." },
+        { "region": "Kerala", "say": "Kerala, eighty-seven. The south is connected." },
+        { "region": "Uttarakhand", "say": "Uttarakhand, seventy-seven. The middle sits lower." },
+        { "region": "Odisha", "say": "Cross east. Odisha, fifty-two percent." },
+        { "region": "Tripura", "say": "Tripura, under forty-nine. In the East, half the women have never been online." }
+      ] },
+    { "kind": "labels", "labelAll": true, "say": "Same country, same year — a forty-five point spread. That's Map One.", "pad": 0.8 }
+  ]
+}

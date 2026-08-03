@@ -139,20 +139,102 @@ export interface LayerBase {
    * project you cannot edit with nothing on screen explaining why.
    */
   locked?: boolean;
+  /**
+   * Who made this layer. Absent means a person did.
+   *
+   * `'composer'` marks a layer the pipeline's beat composer generated and therefore owns:
+   * it will be regenerated on the next run, and anything editing a composed project can
+   * tell it apart from a layer that was added by hand.
+   *
+   * The alternative was inferring it — matching layer *names*, or reading which story
+   * block happens to reference a layer. Both were in use and both are guesses. A restyle
+   * pass that skipped generated layers by name with `/flag|value|label/` also matched a
+   * beat called `labels`, so the closing title silently kept the wrong style; names are
+   * content, and content is not identity.
+   */
+  source?: 'composer';
 }
 
-export type RouteIcon = 'dot' | 'plane' | 'car' | 'pin' | 'none';
+/**
+ * A flat vector glyph, drawn by the renderer rather than sourced from an image file —
+ * so it scales crisply at any zoom and inherits the marker or route's own colour instead
+ * of carrying a fixed palette. Started as "what rides the head of a drawing route"
+ * (dot/plane/car/pin); `ship`/`port`/`factory`/`flag`/`oil`/`mountain` extend the same
+ * vocabulary for a static `MarkerLayer` at a place the story is about — a port, a
+ * refinery, a summit — without reaching for a raster asset GeoMotion has to fetch and
+ * this repo would otherwise have no shared library of. See the map-video-production
+ * skill's "if it has a coordinate, GeoMotion draws it" rule: an object depicted for its
+ * own sake (a ship in cutaway) is Hyperframe's job, but a glyph *pinned to a coordinate*
+ * has a coordinate, so it's this system's.
+ */
+export type RouteIcon =
+  | 'dot'
+  | 'plane'
+  | 'car'
+  | 'pin'
+  | 'ship'
+  | 'port'
+  | 'factory'
+  | 'flag'
+  | 'oil'
+  | 'mountain'
+  | 'emoji'
+  | 'none';
 
 export interface RouteLayer extends LayerBase {
   type: 'route';
   coords: LngLat[];
-  /** how intermediate geometry is built between the points you clicked */
-  curve: 'geodesic' | 'straight' | 'arc';
+  /**
+   * How intermediate geometry is built between the points you clicked.
+   *
+   * `arc` bows each consecutive pair independently — right for a two-stop flight
+   * path, but a visible kink at every interior waypoint once a route has more
+   * than two. `smooth` is a single Catmull-Rom curve through every waypoint
+   * instead, with no corner at any of them — see `buildPath` in
+   * `@geomotion/geometry`.
+   */
+  curve: 'geodesic' | 'straight' | 'arc' | 'smooth';
+  /**
+   * Opts this route into the land-crossing geometry lint (`checkProjectGeometry`
+   * in `@geomotion/evaluator`, surfaced by `apps/pipeline/lint-project.mjs`) —
+   * off by default, since a route crossing land on purpose (a pipeline, a
+   * flight path, a drive) is common and not a mistake. Turn it on for a route
+   * that's supposed to represent a sea lane, so a curve that bows onto a
+   * continent gets caught before a person has to notice it in the render. See
+   * `RouteLayer.curve`'s own note: the check runs on the actual drawn curve,
+   * not just these coordinates, because that's exactly where this kind of bug
+   * hides.
+   */
+  overWater?: boolean;
   color: string;
   width: Track<number>;
   opacity: Track<number>;
+  /** Superseded by `lineStyle`, kept for documents saved before it existed — see there. */
   dashed: boolean;
+  /**
+   * How the line itself is drawn. Optional and falling back to `dashed ? 'dashed' :
+   * 'solid'` when absent, the same way `MarkerLayer.icon` defaults rather than
+   * migrates — so a route saved before this field existed still renders unchanged.
+   * `rail` is two parallel offset lines with tick-mark dashing, a distinct
+   * cartographic mark for a route the story treats as infrastructure (a railway, a
+   * shipping lane) rather than a path someone walked.
+   */
+  lineStyle?: 'solid' | 'dashed' | 'dotted' | 'longdash' | 'rail';
   glow: boolean;
+  /**
+   * A brightness gradient along the line, dim at the start and bright for the last
+   * stretch before the head — a comet's tail, not a hard-edged reveal. Requires
+   * `glow` for anything to be visible while the head sits still (see the note on
+   * `lineGradient` in `mapsync.ts`).
+   */
+  cometTail?: boolean;
+  /**
+   * The dash pattern (when `lineStyle` is `dashed`/`dotted`/`longdash`) creeps
+   * forward continuously — a shipping lane or a data-flow that still reads as
+   * *moving* after the reveal finishes, not a line that stops dead once drawn.
+   * Ignored for `solid`/`rail`, which have nothing to animate.
+   */
+  animateDash?: boolean;
   /**
    * How much of the line is drawn, 0..1.
    *
@@ -165,6 +247,9 @@ export interface RouteLayer extends LayerBase {
   marker: {
     enabled: boolean;
     icon: RouteIcon;
+    /** The character drawn when `icon` is `'emoji'` — any glyph the platform's own
+     * emoji font renders, so this isn't a fixed set: ✈️🚌🚂🚢⛵🚀🛞🐫, anything. */
+    iconEmoji?: string;
     color: string;
     size: Track<number>;
     rotate: boolean;
@@ -183,6 +268,16 @@ export interface MarkerLayer extends LayerBase {
   type: 'marker';
   coord: LngLat;
   color: string;
+  /**
+   * The glyph drawn at this marker's dot. Optional and defaulting to `dot` (a plain
+   * filled circle) the same way `TextLayer.fontFamily` defaults rather than migrates
+   * — so every marker saved before this field existed keeps rendering pixel-identical
+   * with no format bump. Anything else replaces the circle with a flat vector
+   * pictogram in the marker's own colour — see `RouteIcon`.
+   */
+  icon?: RouteIcon;
+  /** The character drawn when `icon` is `'emoji'` — see `RouteLayer.marker.iconEmoji`. */
+  iconEmoji?: string;
   /**
    * The first property on the §04 substrate: a track, not a bare number.
    *
@@ -294,6 +389,17 @@ export interface RegionsLayer extends LayerBase {
   autoDomain: boolean;
   min: number;
   max: number;
+  /**
+   * The reference value a diverging ramp is read against — a replacement rate, a 50%
+   * line, a baseline. `null` (the default) means the scale is sequential and the
+   * domain maps straight across.
+   *
+   * Set, it pins the ramp's neutral centre to this value and gives each side of it a
+   * full half of the ramp, so an uneven spread either side still uses the whole scale.
+   * See `rampPosition` in @geomotion/core for why the linear alternative silently
+   * draws the boundary in the wrong place.
+   */
+  midpoint: number | null;
   fillOpacity: Track<number>;
   noDataColor: string;
 

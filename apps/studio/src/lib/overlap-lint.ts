@@ -30,7 +30,7 @@ import { layerAt } from '@geomotion/document';
 import type { Project } from '@geomotion/document';
 import { evaluate } from '@geomotion/evaluator';
 import {
-  alignLeft, FONT_STACK, getImage, measureTracked, scaleFor,
+  alignLeft, FONT_STACK, fontStackFor, getImage, measureTracked, scaleFor,
   type ImageStyle, type MarkerStyle, type TextStyle,
 } from '@geomotion/renderer';
 
@@ -76,14 +76,17 @@ function textRect(ctx: CanvasRenderingContext2D, style: TextStyle, width: number
   const lines = style.text.split('\n');
 
   const maxW = width * 0.92;
-  ctx.font = `${style.weight} ${size}px ${FONT_STACK}`;
+  // The layer's own stack, not the default one: `condensed` measures ~15% narrower than
+  // `sans`, and measuring every layer in `sans` reported overflow on titles that fit.
+  const stack = fontStackFor(style.fontFamily);
+  ctx.font = `${style.weight} ${size}px ${stack}`;
   let spacing = style.letterSpacing * scale;
   let widest = Math.max(...lines.map((l) => measureTracked(ctx, l, spacing)), 1);
   if (widest > maxW) {
     const fit = maxW / widest;
     size *= fit;
     spacing *= fit;
-    ctx.font = `${style.weight} ${size}px ${FONT_STACK}`;
+    ctx.font = `${style.weight} ${size}px ${stack}`;
     widest = Math.max(...lines.map((l) => measureTracked(ctx, l, spacing)), 1);
   }
 
@@ -301,6 +304,83 @@ export function findOverlapsAt(project: Project, map: MLMap, t: number): Overlap
         }
       }
     }
+  }
+
+  return findings;
+}
+
+export interface TextFitFinding {
+  layerId: string;
+  layerName: string;
+  time: number;
+  /** which frame edges the laid-out text crosses */
+  sides: ('left' | 'right' | 'top' | 'bottom')[];
+  /** worst overshoot in project pixels */
+  overflow: number;
+}
+
+/**
+ * Text laid out past the edge of the frame, at one instant.
+ *
+ * `drawText` already shrinks a line to fit 92% of the frame width — which sounds like
+ * this cannot happen, and is why it went unnoticed. That guard bounds the text's
+ * *width*; it says nothing about where the block is *placed*. A left-aligned headline
+ * anchored at x=0.075 is free to occupy the full 92% starting from there and run
+ * straight off the right edge, which is exactly what a two-line masthead did — twice,
+ * because the first size reduction was still not enough and nothing but an extracted
+ * frame could say so.
+ *
+ * Screen-space only, so unlike `findOverlapsAt` this needs no map and no settled
+ * tiles: the camera cannot move a text layer.
+ */
+export function findTextOverflowAt(project: Project, t: number): TextFitFinding[] {
+  const ctx = measureCtx();
+  const { width, height } = project;
+  const scale = scaleFor(height);
+  const findings: TextFitFinding[] = [];
+
+  /*
+   * Measured against a safe area, not the hard edge — otherwise this check is
+   * technically correct and practically useless.
+   *
+   * `drawText` shrinks a line to 92% of the frame width, which sounds like it makes
+   * overflow impossible. It caps the text's *width*; it does not know where the block
+   * is anchored. A left-aligned headline at x=0.075 may use that entire 92% budget
+   * starting from 7.5%, landing its right edge at 99.5% — inside the frame by a hair,
+   * and visibly jammed against the edge in the render. That is the exact shape of the
+   * bug this was written for, and a hard-edge test misses it.
+   *
+   * The margin is the renderer's own budget rather than a taste call: 92% centred
+   * leaves 4% each side, so text reaching into that 4% is using room its own layout
+   * rule already reserved.
+   */
+  const marginX = width * 0.04;
+  const marginY = height * 0.02;
+
+  for (const tr of evaluate(project, t).texts) {
+    if (tr.alpha <= 0.01) continue;
+    const rect = textRect(ctx, tr.style, width, height, scale);
+    const sides: TextFitFinding['sides'] = [];
+    if (rect.x < marginX) sides.push('left');
+    if (rect.x + rect.width > width - marginX) sides.push('right');
+    if (rect.y < marginY) sides.push('top');
+    if (rect.y + rect.height > height - marginY) sides.push('bottom');
+    if (!sides.length) continue;
+
+    findings.push({
+      layerId: tr.style.id,
+      layerName: layerAt(project, tr.style.id)?.name ?? tr.style.id,
+      time: t,
+      sides,
+      overflow: Math.round(
+        Math.max(
+          marginX - rect.x,
+          rect.x + rect.width - (width - marginX),
+          marginY - rect.y,
+          rect.y + rect.height - (height - marginY),
+        ),
+      ),
+    });
   }
 
   return findings;

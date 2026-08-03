@@ -15,6 +15,7 @@
     "@geomotion/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/geojson": "^7946.0.16",
     "typescript": "^5.9.0",
     "vitest": "^3.2.7"
   }

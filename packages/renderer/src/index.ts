@@ -10,7 +10,7 @@
  */
 
 export {
-  alignLeft, drawOverlay, FONT_STACK, measureTracked, scaleFor, type OverlayFrame, type ProjectFn,
+  alignLeft, drawOverlay, FONT_STACK, fontStackFor, measureTracked, scaleFor, type OverlayFrame, type ProjectFn,
 } from './overlay.ts';
 export {
   formatValue,

@@ -14,13 +14,16 @@ export {
   type RemoveBackgroundResult,
 } from './background.ts';
 export {
+  DIVERGING_RAMPS,
   RAMPS,
   getRamp,
   luminance,
   parseHex,
   rampColor,
+  rampPosition,
   withAlpha,
   type Ramp,
+  type RampKind,
   type Rgba,
 } from './palettes.ts';
 export { clamp, clamp01, invLerp, lerp, lerpAngle } from './numeric.ts';

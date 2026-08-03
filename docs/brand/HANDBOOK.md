@@ -599,6 +599,16 @@ That single test resolves ~95% of decisions.
 | Historical texture (documents, period illustration) | ❌ | ✅ |
 | Objects (a ship, a turbine, a container) | ❌ | ✅ |
 
+**One qualification.** "Icons" and "Objects" above mean an object depicted for its own sake —
+a cutaway, a hero shot, something the frame is *about*. A flat glyph *pinned to a coordinate* —
+a ship marking a port, an anchor marking a harbour, a factory marking an industrial region —
+has a coordinate, so line 4.1's own rule puts it in GeoMotion: `MarkerLayer.icon` and a route's
+`marker.icon` draw a small vocabulary of these (`ship`, `port`, `factory`, `flag`, `oil`,
+`mountain`, plus the original `dot`/`plane`/`car`/`pin`) as flat vector paths in the marker's
+own colour — no raster asset, no fixed palette to clash with SIGNAL/COLD. The moment an object
+needs enough detail to explain a mechanism or fill a frame on its own, it has left this system
+and become Hyperframe's job again.
+
 ## 4.2 Where Hyperframe earns its place
 
 **1. The cross-section.** The single best use. A strait from above is GeoMotion; a strait *in

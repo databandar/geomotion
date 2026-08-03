@@ -1,0 +1,38 @@
+{
+  "title": "India's Digital Divide — Map 3: Gender & Progress",
+  "slug": "dd-map3-gender",
+  "format": "short",
+  "fps": 30,
+  "basemap": "dark-clean",
+  "dataset": "india-official",
+  "values": "/Users/sugandhkhobragade/Study/geolayer/docs/brand/india-digital/gender-gap.json",
+  "ramp": "inferno",
+  "credit": "Data: NFHS-6 · Boundaries: Government of India",
+  "voice": { "engine": "voicebox", "vbEngine": "kokoro", "presetVoice": "af_heart", "language": "en", "profileName": "DataBandar digital af_heart" },
+  "metric": {
+    "label": "Gender gap (men − women), internet",
+    "unit": "pts",
+    "decimals": 1,
+    "legend": "Men ahead (men − women, pts)"
+  },
+  "domain": [0, 30],
+  "beatGap": 0.25,
+  "tailOut": 1.8,
+  "beats": [
+    { "kind": "hook", "say": "And then there's the quietest divide of all. Gender.",
+      "onScreen": "MEN 80% · WOMEN 64%", "pad": 0.4 },
+    { "kind": "outline", "say": "Nationally, eighty percent of men use the internet — against sixty-four percent of women. A sixteen point gap, everywhere on the map.",
+      "pad": 0.4 },
+    { "kind": "overview", "say": "Brighter here means a bigger gender gap.",
+      "onScreen": "THE GENDER GAP", "pad": 0.4 },
+    { "kind": "tour", "stopPad": 0.3, "minStop": 2.1,
+      "stops": [
+        { "region": "Karnataka", "say": "Karnataka — a twenty-six point gender gap." },
+        { "region": "Tripura", "say": "Tripura, twenty-three." },
+        { "region": "Telangana", "say": "Telangana, twenty-two. Southern states lead their own men least of all." },
+        { "region": "Odisha", "say": "Odisha, twenty-one. The list is long." },
+        { "region": "Goa", "say": "But Goa — the gap nearly disappears. Three points the other way. Women match men." }
+      ] },
+    { "kind": "labels", "labelAll": true, "say": "Yet in one survey cycle, the women's figure nearly doubled — from thirty-three to sixty-four percent. The fastest gains are in the states that were furthest behind.", "pad": 0.8 }
+  ]
+}

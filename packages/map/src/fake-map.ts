@@ -33,6 +33,7 @@ const PAINT_PROPS = new Set([
   'line-width',
   'line-opacity',
   'line-blur',
+  'line-offset',
   'fill-color',
   'fill-opacity',
   'fill-outline-color',

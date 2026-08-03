@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, legendMetrics, placeReadout, scaleAt } from './legend.ts';
+import { formatValue, legendMetrics, placeReadout, readoutInk, scaleAt } from './legend.ts';
 
 describe('legendMetrics', () => {
   it('sits at the bottom-left of the frame', () => {
@@ -165,5 +165,55 @@ describe('placeReadout', () => {
     const big = placeReadout({ x: 960, y: 700 }, 400, 260, frame, 1, 2);
     expect(big.y + 260).toBe(700 - 60);
     expect(placeReadout({ x: 0, y: 700 }, 400, 260, frame, 1, 2).x).toBe(14);
+  });
+});
+
+describe('scaleAt with a diverging midpoint', () => {
+  it('puts the reference value at the centre of the bar', () => {
+    // The legend has to agree with the fills, or the bar explains a map it disagrees
+    // with: linearly 2.1 sits at 0.667 of this domain.
+    expect(scaleAt(2.1, [0.9, 2.7])).toBeCloseTo(0.667, 2);
+    expect(scaleAt(2.1, [0.9, 2.7], 2.1)).toBe(0.5);
+  });
+
+  it('still clamps out-of-domain values onto the bar', () => {
+    expect(scaleAt(0.2, [0.9, 2.7], 2.1)).toBe(0);
+    expect(scaleAt(9, [0.9, 2.7], 2.1)).toBe(1);
+  });
+
+  it('is unchanged when no midpoint is given', () => {
+    expect(scaleAt(50, [0, 100], null)).toBe(0.5);
+    expect(scaleAt(25, [0, 100])).toBe(0.25);
+  });
+});
+
+describe('readoutInk', () => {
+  it('keeps light ink on a dark fill', () => {
+    expect(readoutInk('#2c313c', 1).ink).toBe('#ffffff');
+    expect(readoutInk('#8f2447', 0.9).ink).toBe('#ffffff');
+  });
+
+  it('flips to dark ink on a pale fill — the extreme a diverging scale builds to', () => {
+    // Cream at 0.92 opacity: the highest-value state on a flipped sequential ramp, and
+    // exactly where white-on-fill vanished before this existed.
+    expect(readoutInk('#f7ecd9', 0.92).ink).toBe('#0b0f14');
+    expect(readoutInk('#5ce8ff', 1).ink).toBe('#0b0f14');
+  });
+
+  it('accounts for the fill being composited, not painted solid', () => {
+    // The same pale swatch at low opacity lands dark on the map, so the ink stays light.
+    expect(readoutInk('#f7ecd9', 0.95).ink).toBe('#0b0f14');
+    expect(readoutInk('#f7ecd9', 0.3).ink).toBe('#ffffff');
+  });
+
+  it('pairs the shadow with the ink so the type never loses its edge', () => {
+    expect(readoutInk('#2c313c', 1).shadow).toBe('rgba(0,0,0,0.85)');
+    expect(readoutInk('#f7ecd9', 0.92).shadow).toBe('rgba(255,255,255,0.85)');
+  });
+
+  it('falls back to the existing light ink for a colour it cannot parse', () => {
+    expect(readoutInk('rgba(1,2,3,0.5)', 1).ink).toBe('#ffffff');
+    expect(readoutInk('', 1).ink).toBe('#ffffff');
+    expect(readoutInk('#f7ecd9', Number.NaN).ink).toBe('#0b0f14');
   });
 });

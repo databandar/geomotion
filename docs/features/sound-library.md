@@ -59,9 +59,9 @@ handed one. Undo restores the deleted field, which is the half worth testing and
 
 ## The sounds
 
-Eighteen, in four groups, chosen for moments that come up in a map video. Small on purpose — a
-hundred sounds is a worse library than fifteen if finding the click means auditioning all
-hundred. The Kenney pack ships six clicks; this takes one.
+Twenty-four, in five groups, chosen for moments that come up in a map video. Small on
+purpose — a hundred sounds is a worse library than fifteen if finding the click means
+auditioning all hundred. The Kenney pack ships six clicks; this takes one.
 
 | Group | Sounds |
 |---|---|
@@ -69,6 +69,16 @@ hundred. The Kenney pack ships six clicks; this takes one.
 | Accents | bong, pluck, chime, confirm, drop, alert |
 | Panels | card-in, card-out, zoom-in, zoom-out |
 | Transitions | hush, whoosh, rise |
+| World | ocean-waves, wind, foghorn, engine-rumble, footsteps-march, distant-thunder |
+
+**World** is the one group that isn't about the editing craft — it's about what's on screen.
+Route-style episodes (a march, a strait, a shipping lane) had no ambience beyond narration; a
+scene about the sea had no ocean under it. Each one has a job: `ocean-waves` under a coastline
+or a sea-level beat, `foghorn` when a ship or a port enters, `engine-rumble` under something
+mechanical moving, `footsteps-march` under a crowd or a procession, `wind` for an exposed or
+high place, `distant-thunder` for a dramatic turn. Longer than the Interface/Accents groups on
+purpose — these sit *under* a beat rather than marking an instant, the same job Transitions
+does, just for the world instead of the edit.
 
 They are peak-normalised to about −1 dBFS, which is right for a library — you can hear what
 you are picking — and too loud next to narration, so a placed sound starts at `gain: 0.7`. It
@@ -76,9 +86,22 @@ is an ordinary cue gain; the Inspector changes it like any other.
 
 Preview plays at that same 0.7, so the audition is not louder than the result.
 
+## Placing one from a build script
+
+The picker above is the editor's way in. `apps/pipeline`'s route-style episodes are built by a
+script, not by hand in the editor, so they need the library reachable from there too:
+`apps/pipeline/lib/sfx.mjs`'s `sfxCue(id, at, opts)` returns the same shape `cueFromLibrary`
+does — read `sfx-library.json` for the entry, measure the file's real duration, hand back an
+`AudioCue` with `role: 'sfx'`. Push a few of these into `project.audio.cues` alongside narration
+cues built by `apps/pipeline/lib/schedule.mjs`'s `narrateSchedule`, then render without
+`--audio=` so `render-project.mjs` takes the remix path and mixes both together — narration and
+sfx, at their placed times, through the same `materialiseClips`/`buildVoiceTrack` code the
+editor's own export already used. No new mixing path, same as the editor library's own design
+goal above: *nothing downstream knows a sound came from the library.*
+
 ## Licensing
 
-Everything here is CC0, and both halves are checkable rather than asserted.
+Everything here is CC0, and every part is checkable rather than asserted.
 
 - **Fifteen sounds** are from [Kenney's Interface Sounds](https://kenney.nl/assets/interface-sounds),
   curated down from the pack's hundred. The pack's own licence text ships beside them at
@@ -90,8 +113,13 @@ Everything here is CC0, and both halves are checkable rather than asserted.
   clearing layer was the example that prompted the feature. Pink noise through a lowpass with a
   long tail; band-passed noise with a swell; a 150→550 Hz chirp. Generated, so their provenance
   is not a claim about a download.
+- **Six World sounds** — `ocean-waves`, `wind`, `foghorn`, `engine-rumble`,
+  `footsteps-march`, `distant-thunder` — synthesised the same way, from filtered noise and
+  plain sines, no sample of anything. `apps/studio/scripts/synth-sfx.sh` is the exact,
+  re-runnable recipe for each one — unlike the three transitions above, which only ever existed
+  as prose describing what was typed once.
 
-All eighteen are Opus in `.ogg`, mono, ~96 kbps — 224 KB for the set.
+All twenty-four are Opus in `.ogg`, mono, ~96 kbps.
 
 ## What this deliberately does not do
 
@@ -100,7 +128,7 @@ disappears, a click when the state is selected" — a sound triggered by somethi
 That is a behaviour (ARCHITECTURE §06), and it needs an event model the document does not
 have: nothing in GeoMotion emits "this layer finished fading" for anything else to listen to.
 
-Inventing one to carry eighteen ogg files would be building the wrong thing first, and it
+Inventing one to carry two dozen ogg files would be building the wrong thing first, and it
 would be the third timing mechanism in the app. When behaviours arrive they can trigger these
 same sounds, and none of this changes — a triggered sound still resolves to a cue.
 

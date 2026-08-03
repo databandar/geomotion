@@ -1,0 +1,45 @@
+{
+  "at": {
+    "s01": {
+      "start": 0,
+      "end": 7.15,
+      "duration": 7.15
+    },
+    "s02": {
+      "start": 7.65,
+      "end": 15.53,
+      "duration": 7.88
+    },
+    "s03": {
+      "start": 16.13,
+      "end": 22.13,
+      "duration": 6
+    },
+    "s03b": {
+      "start": 22.73,
+      "end": 26.9,
+      "duration": 4.18
+    },
+    "s04": {
+      "start": 27.5,
+      "end": 38,
+      "duration": 10.5
+    },
+    "s05": {
+      "start": 38.6,
+      "end": 46.68,
+      "duration": 8.07
+    },
+    "s06": {
+      "start": 47.48,
+      "end": 55.28,
+      "duration": 7.8
+    },
+    "s07": {
+      "start": 56.18,
+      "end": 63.68,
+      "duration": 7.5
+    }
+  },
+  "DUR": 67.68
+}

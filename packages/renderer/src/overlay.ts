@@ -1,5 +1,5 @@
 import { getRamp, rampColor, withAlpha, type LngLat } from '@geomotion/core';
-import { formatValue, legendMetrics, placeReadout, scaleAt } from './legend.ts';
+import { formatValue, legendMetrics, placeReadout, readoutInk, scaleAt } from './legend.ts';
 import {
   collides,
   labelAppear,
@@ -78,7 +78,25 @@ const TEXT_FONT_STACKS: Record<NonNullable<TextStyle['fontFamily']>, string> = {
   mono: `Menlo, 'SF Mono', ui-monospace, ${DEVANAGARI_FALLBACK}, monospace`,
   condensed: `'Avenir Next Condensed', 'Avenir Next', Avenir, ${DEVANAGARI_FALLBACK}, sans-serif`,
 };
-const fontStackFor = (family: TextStyle['fontFamily']): string => TEXT_FONT_STACKS[family ?? 'sans'];
+/**
+ * The stack a text layer actually draws in.
+ *
+ * Exported because anything *measuring* text has to use the same one. `overlap-lint`
+ * measured every layer in the default stack, so a `condensed` headline came out ~15%
+ * wider than it renders — enough to report a false overflow on a title that fits.
+ */
+export const fontStackFor = (family: TextStyle['fontFamily']): string => TEXT_FONT_STACKS[family ?? 'sans'];
+
+/**
+ * For the `emoji` icon only. Named color-emoji faces first — a plain sans-serif
+ * font renders most emoji as a monochrome fallback glyph or a missing-glyph box,
+ * so this can't reuse `FONT_STACK`/`TEXT_FONT_STACKS`, which never name one.
+ * Verified against the real render environment the same way those were: Apple
+ * Color Emoji is a built-in macOS face, not one that needs installing, and
+ * confirmed present via `system_profiler SPFontsDataType` on the machine every
+ * episode in this repo has rendered on.
+ */
+const EMOJI_FONT_STACK = `'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif`;
 
 export function drawOverlay(f: OverlayFrame, scene: Scene) {
   const { ctx } = f;
@@ -249,12 +267,14 @@ const SURFACE = 'rgba(12,16,22,0.86)';
 function drawLightReadout(
   f: OverlayFrame,
   r: RegionsRender,
-  d: { p: { x: number; y: number }; s: number; shown: string; name: string },
+  d: { p: { x: number; y: number }; s: number; shown: string; name: string; fill: string },
 ) {
   const { ctx } = f;
   const { style } = r;
-  const { p, s, shown, name } = d;
+  const { p, s, shown, name, fill } = d;
   const pill = style.calloutStyle === 'pill';
+  // A pill brings its own dark ground, so only the boxless look has to adapt.
+  const tone = pill ? { ink: INK, dim: INK_DIM, shadow: 'rgba(0,0,0,0.85)' } : readoutInk(fill, style.fillOpacity);
 
   const nameSize = (pill ? 16 : 20) * s;
   const valueSize = (pill ? 26 : 64) * s;
@@ -294,7 +314,7 @@ function drawLightReadout(
      * thick enough to read over satellite imagery starts eating the letterforms at this
      * size, which is the whole reason for choosing this look.
      */
-    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowColor = tone.shadow;
     ctx.shadowBlur = 18 * s;
     ctx.shadowOffsetY = 2 * s;
   }
@@ -319,10 +339,10 @@ function drawLightReadout(
      * in the first render: "JHARKHAND" in dark red on a dark red state.
      */
     ctx.font = `700 ${nameSize}px ${FONT_STACK}`;
-    ctx.fillStyle = INK_DIM;
+    ctx.fillStyle = tone.dim;
     drawTracked(ctx, name, x, y + nameSize, tracking, 'fill');
     ctx.font = `800 ${valueSize}px ${FONT_STACK}`;
-    ctx.fillStyle = INK;
+    ctx.fillStyle = tone.ink;
     ctx.fillText(shown, x, y + nameSize + gap + valueSize * 0.82);
   }
 
@@ -364,7 +384,7 @@ function drawRegions(f: OverlayFrame, r: RegionsRender) {
    * result reads as a card that failed to draw rather than as a deliberate choice.
    */
   if (style.calloutStyle !== 'card') {
-    drawLightReadout(f, r, { p, s, shown, name });
+    drawLightReadout(f, r, { p, s, shown, name, fill: accent });
     return;
   }
 
@@ -581,7 +601,12 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
   const grad = ctx.createLinearGradient(x + pad, 0, x + pad + barW, 0);
   const ramp = getRamp(style.ramp);
   const flip = r.flip;
-  for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampColor(ramp, i / 10, flip));
+  /*
+   * Stops are sampled along the *bar*, and the bar is the ramp end to end — including
+   * on a diverging scale, where the bar's midpoint is the reference value rather than
+   * the middle of the domain. That is exactly what the tick below is for.
+   */
+  for (let i = 0; i <= 20; i++) grad.addColorStop(i / 20, rampColor(ramp, i / 20, flip));
   // Track first, then the gradient wiping across it during the intro.
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
   roundRect(ctx, x + pad, barY, barW, barH, barH / 2);
@@ -604,10 +629,38 @@ function drawLegend(f: OverlayFrame, r: RegionsRender) {
     barY + barH + 6 * s + tickSize * 0.85,
   );
 
+  /*
+   * The reference value, marked on the bar.
+   *
+   * A diverging scale's whole claim is "this side / that side of a line", and without
+   * the line drawn the legend is just a gradient with two end labels — the reader can
+   * see two colours meet somewhere but not what the meeting means. Sits at the bar's
+   * centre by construction, because that is where `rampPosition` puts the midpoint.
+   */
+  if (set.midpoint !== null) {
+    const mx = x + pad + scaleAt(set.midpoint, set.domain, set.midpoint) * barW;
+    ctx.save();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(1, 1.5 * s);
+    ctx.beginPath();
+    ctx.moveTo(mx, barY - 2 * s);
+    ctx.lineTo(mx, barY + barH + 2 * s);
+    ctx.stroke();
+    ctx.restore();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = INK;
+    ctx.fillText(
+      formatValue(set.midpoint, style.decimals, style.unit, style.numberLocale),
+      mx,
+      barY + barH + 6 * s + tickSize * 0.85,
+    );
+    ctx.fillStyle = INK_DIM;
+  }
+
   // Direct label: where the region on screen right now sits on the scale.
   const active = r.activeId ? set.regions.find((v) => v.id === r.activeId) : undefined;
   if (active && active.value !== null && r.calloutAlpha > 0) {
-    const tx = x + pad + scaleAt(active.value, set.domain) * barW;
+    const tx = x + pad + scaleAt(active.value, set.domain, set.midpoint) * barW;
     ctx.globalAlpha = r.alpha * r.calloutAlpha;
     ctx.beginPath();
     ctx.moveTo(tx, barY - 5 * s);
@@ -644,10 +697,13 @@ function drawRouteHead(f: OverlayFrame, r: RouteRender) {
   if (!isFinite(p.x) || !isFinite(p.y)) return;
 
   // Screen-space heading from the last drawn segment: exact under any
-  // bearing/pitch combination, unlike converting the compass bearing.
+  // bearing/pitch combination, unlike converting the compass bearing. Skipped for
+  // `emoji` — the glyph's own artwork has a fixed reading orientation nothing here
+  // controls, and rotating it away from upright generally looks wrong rather than
+  // "facing travel" the way the hand-drawn `ship`/`plane`/`car` paths were drawn to.
   let angle = 0;
   const penultimate = r.drawn[r.drawn.length - 2];
-  if (style.marker.rotate && penultimate) {
+  if (style.marker.rotate && penultimate && style.marker.icon !== 'emoji') {
     const prev = f.project(penultimate);
     angle = Math.atan2(p.y - prev.y, p.x - prev.x);
   }
@@ -660,16 +716,27 @@ function drawRouteHead(f: OverlayFrame, r: RouteRender) {
   ctx.rotate(angle);
   ctx.shadowColor = 'rgba(0,0,0,0.5)';
   ctx.shadowBlur = 8 * f.scale;
-  drawIcon(ctx, style.marker.icon, size, style.marker.color, style.color);
+  drawIcon(ctx, style.marker.icon, size, style.marker.color, style.color, style.marker.iconEmoji);
   ctx.restore();
 }
 
-function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIconStyle, s: number, color: string, accent: string) {
+function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIconStyle, s: number, color: string, accent: string, emoji?: string) {
   ctx.fillStyle = color;
   ctx.strokeStyle = accent;
   ctx.lineWidth = Math.max(1, s * 0.18);
 
   switch (icon) {
+    case 'emoji': {
+      if (!emoji) break; // nothing chosen yet — draw nothing rather than guess
+      // Canvas has no built-in emoji metrics, so the glyph is centred by eye at a
+      // size tuned to *look* the same weight as the vector icons beside it in the
+      // picker, not by any measured cap-height the way Latin text is sized above.
+      ctx.font = `${s * 2.3}px ${EMOJI_FONT_STACK}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, 0, s * 0.1);
+      break;
+    }
     case 'dot': {
       ctx.beginPath();
       ctx.arc(0, 0, s, 0, Math.PI * 2);
@@ -707,7 +774,12 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIconStyle, s: number
       break;
     }
     case 'pin': {
-      ctx.rotate(-Math.PI / 2); // pins always stand upright
+      // The path below is already round-top/point-down in its own coordinates —
+      // no rotation needed to stand upright. (A stray `ctx.rotate(-Math.PI / 2)`
+      // used to sit here; harmless for a route head with `marker.rotate: false`,
+      // since ambient rotation was already 0 and nothing exposed the mistake, but
+      // it turned this same path sideways the moment a static marker — which
+      // never applies an ambient rotation at all — started drawing it too.)
       ctx.beginPath();
       ctx.arc(0, -s * 1.1, s * 0.75, Math.PI, 0);
       ctx.quadraticCurveTo(s * 0.7, s * 0.1, 0, s * 0.9);
@@ -717,6 +789,119 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: RouteIconStyle, s: number
       ctx.beginPath();
       ctx.arc(0, -s * 1.1, s * 0.3, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fill();
+      break;
+    }
+    case 'ship': {
+      // Bow points along +x, same convention as plane/car, so a shipping-lane route's
+      // head marker turns to face travel exactly like they do.
+      const L = s * 1.8;
+      const B = s * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(L, 0);
+      ctx.lineTo(L * 0.3, B);
+      ctx.lineTo(-L * 0.9, B * 0.85);
+      ctx.quadraticCurveTo(-L * 1.05, 0, -L * 0.9, -B * 0.85);
+      ctx.lineTo(L * 0.3, -B);
+      ctx.closePath();
+      ctx.fill();
+      // Deckhouse, toward the stern.
+      ctx.fillStyle = accent;
+      roundRect(ctx, -L * 0.5, -B * 0.55, L * 0.55, B * 1.1, B * 0.3);
+      ctx.fill();
+      break;
+    }
+    case 'port': {
+      // An anchor. Static markers never carry a heading rotation, and this is drawn
+      // upright in its own local frame rather than counter-rotating like `pin` —
+      // there is nothing here to counter.
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = Math.max(1.5, s * 0.22);
+      ctx.lineCap = 'round';
+      const ringR = s * 0.28;
+      ctx.beginPath();
+      ctx.arc(0, -s * 1.15, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.87);
+      ctx.lineTo(0, s * 0.75);
+      ctx.moveTo(-s * 0.45, -s * 0.55);
+      ctx.lineTo(s * 0.45, -s * 0.55);
+      ctx.moveTo(-s * 0.9, s * 0.15);
+      ctx.quadraticCurveTo(-s * 0.9, s * 0.9, 0, s * 0.75);
+      ctx.moveTo(s * 0.9, s * 0.15);
+      ctx.quadraticCurveTo(s * 0.9, s * 0.9, 0, s * 0.75);
+      ctx.stroke();
+      break;
+    }
+    case 'factory': {
+      const w = s * 1.8;
+      const h = s * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, h / 2);
+      ctx.lineTo(-w / 2, -h * 0.1);
+      ctx.lineTo(-w / 2 + w * 0.22, -h * 0.42);
+      ctx.lineTo(-w / 2 + w * 0.44, -h * 0.1);
+      ctx.lineTo(-w / 2 + w * 0.66, -h * 0.42);
+      ctx.lineTo(-w / 2 + w * 0.88, -h * 0.1);
+      ctx.lineTo(w / 2, -h * 0.1);
+      ctx.lineTo(w / 2, h / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = accent;
+      roundRect(ctx, w * 0.12, -h * 1.0, w * 0.16, h * 0.62, w * 0.04);
+      ctx.fill();
+      break;
+    }
+    case 'flag': {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, s * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.7, s * 1.1);
+      ctx.lineTo(-s * 0.7, -s * 1.2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.7, -s * 1.2);
+      ctx.lineTo(s * 0.9, -s * 0.75);
+      ctx.lineTo(-s * 0.7, -s * 0.3);
+      ctx.closePath();
+      ctx.fillStyle = accent;
+      ctx.fill();
+      break;
+    }
+    case 'oil': {
+      const w = s * 1.3;
+      const h = s * 1.7;
+      roundRect(ctx, -w / 2, -h / 2, w, h, w * 0.18);
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(1, s * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, -h * 0.18);
+      ctx.lineTo(w / 2, -h * 0.18);
+      ctx.moveTo(-w / 2, h * 0.18);
+      ctx.lineTo(w / 2, h * 0.18);
+      ctx.stroke();
+      break;
+    }
+    case 'mountain': {
+      ctx.beginPath();
+      ctx.moveTo(-s * 1.5, s * 0.7);
+      ctx.lineTo(-s * 0.5, -s * 1.1);
+      ctx.lineTo(s * 0.05, -s * 0.35);
+      ctx.lineTo(s * 0.55, -s * 1.4);
+      ctx.lineTo(s * 1.5, s * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      // Snow cap, on the taller peak only.
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(s * 0.3, -s * 1.05);
+      ctx.lineTo(s * 0.55, -s * 1.4);
+      ctx.lineTo(s * 0.8, -s * 1.05);
+      ctx.lineTo(s * 0.55, -s * 0.85);
+      ctx.closePath();
       ctx.fill();
       break;
     }
@@ -756,16 +941,28 @@ function drawMarker(f: OverlayFrame, m: MarkerRender) {
     ctx.fill();
   }
 
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = style.color;
-  ctx.shadowColor = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur = 10 * f.scale;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = Math.max(1, r * 0.28);
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.stroke();
+  const icon = style.icon ?? 'dot';
+  if (icon === 'dot' || icon === 'none') {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = style.color;
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 10 * f.scale;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = Math.max(1, r * 0.28);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.stroke();
+  } else {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 10 * f.scale;
+    // Same accent every marker already uses for its dot's ring, so a pictogram
+    // reads as the same object family as a plain marker, just given a shape.
+    drawIcon(ctx, icon, r, style.color, 'rgba(255,255,255,0.9)', style.iconEmoji);
+    ctx.restore();
+  }
 
   if (style.label.trim()) {
     const size = style.labelSize * f.scale;

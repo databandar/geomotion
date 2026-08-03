@@ -355,6 +355,166 @@ describe('syncScene — a layer that leaves the composition', () => {
   });
 });
 
+describe('syncScene — line style', () => {
+  it('falls back to the legacy dashed boolean when lineStyle is absent', () => {
+    // Every route saved before `lineStyle` existed has only `dashed` — this is the
+    // exact scenario the earlier "sets the dash through the paint API" test covers,
+    // restated here to pin the fallback explicitly rather than incidentally.
+    sync(withRoute(routeStyle({ dashed: true })));
+    const c = map.ops('setPaint').find((x) => x.prop === 'line-dasharray');
+    expect(c?.value).toEqual([2, 1.6]);
+  });
+
+  it('lineStyle wins over dashed when both are present', () => {
+    sync(withRoute(routeStyle({ dashed: false, lineStyle: 'dotted' })));
+    const c = map.ops('setPaint').find((x) => x.prop === 'line-dasharray');
+    expect(c?.value).toEqual([0.3, 1.5]);
+  });
+
+  it('draws no dasharray for solid', () => {
+    sync(withRoute(routeStyle({ lineStyle: 'solid' })));
+    const c = map.ops('setPaint').find((x) => x.prop === 'line-dasharray');
+    expect(c?.value).toBeUndefined();
+  });
+
+  it('longdash is a longer pattern than dashed', () => {
+    sync(withRoute(routeStyle({ lineStyle: 'longdash' })));
+    const c = map.ops('setPaint').find((x) => x.prop === 'line-dasharray');
+    expect(c?.value).toEqual([4, 1.8]);
+  });
+
+  it('rail draws two offset lines instead of the single line layer', () => {
+    sync(withRoute(routeStyle({ lineStyle: 'rail' })));
+    const { layers } = map.state();
+    expect(layers).not.toContain('gm-route-r1-line');
+    expect(layers).toContain('gm-route-r1-rail-a');
+    expect(layers).toContain('gm-route-r1-rail-b');
+
+    const offsets = (map.ops('setPaint').filter((c) => c.prop === 'line-offset').map((c) => c.value) as number[]).sort((a, b) => a - b);
+    expect(offsets[0]).toBeCloseTo(-3.45, 5); // -width(3) * 1.15
+    expect(offsets[1]).toBeCloseTo(3.45, 5); // mirrored to the other side
+  });
+
+  it('switching away from rail removes both rail layers and restores the single line', () => {
+    sync(withRoute(routeStyle({ lineStyle: 'rail' })));
+    map.flush();
+    sync(withRoute(routeStyle({ lineStyle: 'solid' })));
+    const { layers } = map.state();
+    expect(layers).not.toContain('gm-route-r1-rail-a');
+    expect(layers).not.toContain('gm-route-r1-rail-b');
+    expect(layers).toContain('gm-route-r1-line');
+  });
+
+  it('rail suppresses the glow layer, which only makes sense for a single line', () => {
+    sync(withRoute(routeStyle({ lineStyle: 'rail', glow: true })));
+    expect(map.state().layers).not.toContain('gm-route-r1-glow');
+  });
+});
+
+describe('syncScene — animated dash', () => {
+  it('is static (equal to the base pattern) when animateDash is off', () => {
+    sync(withRoute(routeStyle({ lineStyle: 'dashed', animateDash: false })));
+    const c = map.ops('setPaint').find((x) => x.prop === 'line-dasharray');
+    expect(c?.value).toEqual([2, 1.6]);
+  });
+
+  it('produces a different array at a different time when animateDash is on', () => {
+    sync({ ...withRoute(routeStyle({ lineStyle: 'dashed', animateDash: true })), time: 0 });
+    const at0 = map.ops('setPaint').find((x) => x.prop === 'line-dasharray')?.value;
+    map.flush();
+    resetSyncCache(); // a genuinely different array at the same cache key must still be sent
+    sync({ ...withRoute(routeStyle({ lineStyle: 'dashed', animateDash: true })), time: 0.5 });
+    const at05 = map.ops('setPaint').find((x) => x.prop === 'line-dasharray')?.value;
+    expect(at05).not.toEqual(at0);
+  });
+
+  it('starts with the full first dash length at time 0 (no phase shift yet)', () => {
+    sync({ ...withRoute(routeStyle({ lineStyle: 'dashed', animateDash: true })), time: 0 });
+    const arr = map.ops('setPaint').find((x) => x.prop === 'line-dasharray')?.value as number[];
+    expect(arr[0]).toBeCloseTo(2, 5); // dashed's base pattern is [2, 1.6]
+  });
+
+  it('shortens the first segment continuously as time advances within one cycle', () => {
+    // speed = cycle * 0.6, cycle = 3.6, so the pattern re-wraps every 1/0.6 ≈ 1.667s.
+    const firstSegmentAt = (t: number) => {
+      resetSyncCache();
+      map = new FakeMap();
+      sync({ ...withRoute(routeStyle({ lineStyle: 'dashed', animateDash: true })), time: t });
+      return (map.ops('setPaint').find((x) => x.prop === 'line-dasharray')?.value as number[])[0]!;
+    };
+    const a = firstSegmentAt(0.1);
+    const b = firstSegmentAt(0.5);
+    const c = firstSegmentAt(0.9); // still inside the "on" part of the first cycle (< 2/0.6*... )
+    expect(a).toBeGreaterThan(b);
+    expect(b).toBeGreaterThan(c);
+  });
+
+  it('is periodic: the same time modulo the pattern period gives the same array', () => {
+    // offset = (time * cycle*0.6) % cycle, so it repeats whenever time advances by
+    // exactly 1/0.6 — the cycle length itself cancels out of that period.
+    const period = 1 / 0.6;
+    const firstSegmentAt = (t: number) => {
+      resetSyncCache();
+      map = new FakeMap();
+      sync({ ...withRoute(routeStyle({ lineStyle: 'dashed', animateDash: true })), time: t });
+      return (map.ops('setPaint').find((x) => x.prop === 'line-dasharray')?.value as number[])[0]!;
+    };
+    expect(firstSegmentAt(0.4)).toBeCloseTo(firstSegmentAt(0.4 + period), 5);
+  });
+
+  it('animates the rail ties too', () => {
+    sync({ ...withRoute(routeStyle({ lineStyle: 'rail', animateDash: true })), time: 0.4 });
+    const arrs = map.ops('setPaint').filter((x) => x.prop === 'line-dasharray').map((c) => c.value);
+    expect(arrs.length).toBe(2); // one per rail
+    expect(arrs[0]).toEqual(arrs[1]); // both ties march together
+  });
+});
+
+describe('syncScene — comet tail', () => {
+  const longRoute = () =>
+    scene({
+      routes: [{
+        style: routeStyle({ cometTail: true }),
+        alpha: 1,
+        progress: 1,
+        drawn: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0], [8, 0], [9, 0], [10, 0]],
+        head: [10, 0],
+        heading: 0,
+      }],
+    });
+
+  it('adds a second short line on its own source when enabled', () => {
+    sync(longRoute());
+    const { sources, layers } = map.state();
+    expect(sources).toContain('gm-route-r1-comet-src');
+    expect(layers).toContain('gm-route-r1-comet-src-line');
+  });
+
+  it('draws only the stretch nearest the head, ending exactly at it', () => {
+    sync(longRoute());
+    const src = map.getStyle().sources['gm-route-r1-comet-src'] as { data: GeoJSON.FeatureCollection };
+    const feature = src.data.features[0] as GeoJSON.Feature<GeoJSON.LineString>;
+    const coords = feature.geometry.coordinates;
+    expect(coords.length).toBeGreaterThan(0);
+    expect(coords.length).toBeLessThan(11); // shorter than the full drawn path
+    expect(coords.at(-1)).toEqual([10, 0]); // reaches the head
+    expect(coords[0]).not.toEqual([0, 0]); // does not start at the route's own start
+  });
+
+  it('is absent when cometTail is off', () => {
+    sync(withRoute(routeStyle({ cometTail: false })));
+    expect(map.state().layers).not.toContain('gm-route-r1-comet-src-line');
+  });
+
+  it('is removed once cometTail is switched off', () => {
+    sync(longRoute());
+    map.flush();
+    sync(withRoute(routeStyle({ cometTail: false })));
+    expect(map.state().sources).not.toContain('gm-route-r1-comet-src');
+    expect(map.state().layers).not.toContain('gm-route-r1-comet-src-line');
+  });
+});
+
 describe('syncScene — geometry uploads', () => {
   it('uploads the parsed shape', () => {
     sync(withShape());

@@ -1,0 +1,39 @@
+{
+  "title": "India's Digital Divide — Map 2: City vs Village",
+  "slug": "dd-map2-urural",
+  "format": "short",
+  "fps": 30,
+  "basemap": "dark-clean",
+  "dataset": "india-official",
+  "values": "/Users/sugandhkhobragade/Study/geolayer/docs/brand/india-digital/women-urban-rural-gap.json",
+  "ramp": "inferno",
+  "flipRamp": true,
+  "credit": "Data: NFHS-6 · Boundaries: Government of India",
+  "voice": { "engine": "voicebox", "vbEngine": "kokoro", "presetVoice": "af_heart", "language": "en", "profileName": "DataBandar digital af_heart" },
+  "metric": {
+    "label": "Urban–rural gap, women internet",
+    "unit": "pts",
+    "decimals": 1,
+    "legend": "Rural penalty (urban − rural, pts)"
+  },
+  "domain": [0, 30],
+  "beatGap": 0.25,
+  "tailOut": 1.5,
+  "beats": [
+    { "kind": "hook", "say": "But the real divide isn't between states. It's between the city and the village.",
+      "onScreen": "CITY vs VILLAGE", "pad": 0.4 },
+    { "kind": "outline", "say": "Nationally, seventy-seven percent of urban women are online — but only fifty-nine percent of rural. An eighteen point penalty.",
+      "pad": 0.4 },
+    { "kind": "overview", "say": "This map shows that gap, state by state. Brighter means a bigger rural penalty.",
+      "onScreen": "URBAN 77% · RURAL 59%", "pad": 0.4 },
+    { "kind": "tour", "stopPad": 0.3, "minStop": 2.1,
+      "stops": [
+        { "region": "Goa", "say": "Some states closed it. Goa — a gap of just three points." },
+        { "region": "Kerala", "say": "Kerala, four. Village women nearly caught up." },
+        { "region": "Punjab", "say": "Punjab, six. Delhi's villages even pass its city." },
+        { "region": "Gujarat", "say": "Others didn't. Gujarat — a twenty-seven point gap." },
+        { "region": "Karnataka", "say": "Karnataka, twenty-nine. Three quarters of city women, under half of rural." }
+      ] },
+    { "kind": "labels", "labelAll": true, "say": "Same country, opposite outcomes. That's the divide nobody draws.", "pad": 0.8 }
+  ]
+}

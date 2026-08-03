@@ -8,11 +8,20 @@
  * inverted for the surface it sits on.
  */
 
+/**
+ * How a ramp is meant to be read. Sequential runs end to end and encodes magnitude;
+ * diverging runs outward from a dark centre and encodes which side of a reference
+ * value a region falls on. See `DIVERGING_RAMPS` for why they are separate.
+ */
+export type RampKind = 'sequential' | 'diverging';
+
 export interface Ramp {
   id: string;
   name: string;
-  /** light → dark */
+  /** light → dark for sequential; low arm → centre → high arm for diverging */
   steps: string[];
+  /** absent means sequential — the default and the only kind in `RAMPS` */
+  kind?: RampKind;
 }
 
 /**
@@ -49,9 +58,59 @@ export const RAMPS: [Ramp, ...Ramp[]] = [
     name: 'Plasma (uniform)',
     steps: ['#f0f921', '#fdb42f', '#ed7953', '#cc4778', '#9c179e', '#5c01a6', '#0d0887'],
   },
+  {
+    id: 'terracotta',
+    name: 'Terracotta (editorial)',
+    // Muted, print-leaning warm scale for editorial choropleths: parchment through
+    // clay to oxblood. The saturated ramps above read as data-tool defaults on a
+    // dark basemap; this one keeps chroma low enough that white type and hairline
+    // borders stay the brightest things in frame.
+    steps: ['#f7ecd9', '#e8cfa6', '#d3a06a', '#b56f45', '#8f3f35', '#5c1f24'],
+  },
 ];
 
-export const getRamp = (id: string): Ramp => RAMPS.find((r) => r.id === id) ?? RAMPS[0];
+/**
+ * Diverging ramps — a *second* scale type, deliberately kept out of `RAMPS`.
+ *
+ * `RAMPS` is sequential-only and its monotonic-lightness gate is a hard rule that
+ * must not be relaxed (see palettes.test.ts). A diverging scale is not a sequential
+ * ramp that breaks that rule; it answers a different question. Sequential encodes
+ * magnitude — "rank these two". Diverging encodes signed distance from a meaningful
+ * reference — "which side of the line is this, and how far". A fertility map read
+ * against the 2.1 replacement level is exactly the second question, and forcing it
+ * through a sequential ramp throws away the only boundary that matters.
+ *
+ * So it gets its own registry and its own equally hard gate: the centre is the
+ * darkest step, and lightness climbs strictly outward along each arm. That is the
+ * same guarantee the sequential rule gives, stated for a scale read from the middle
+ * out rather than end to end — a reader can still rank two regions on the same side,
+ * and can now also tell the sides apart.
+ */
+export const DIVERGING_RAMPS: Ramp[] = [
+  {
+    id: 'neon-divergent',
+    name: 'Neon divergent (below / above)',
+    kind: 'diverging',
+    // Low arm hot pink → neutral slate centre → high arm neon cyan.
+    //
+    // The centre is the ramp's darkest step, but deliberately not its *dimmest*
+    // possible one: taken all the way down to near-black it matched the dark
+    // basemap, and regions sitting exactly at the reference value rendered as holes
+    // in the map — indistinguishable from no-data. A mid slate still recedes behind
+    // both arms while reading as a colour someone chose.
+    steps: ['#ffa3c0', '#ff5c8a', '#d84a72', '#6b7280', '#2f7fb8', '#22a8e0', '#5ce8ff'],
+  },
+];
+
+/**
+ * Look up a ramp by id across both registries.
+ *
+ * Sequential first, so nothing about the existing set changes; the fallback is still
+ * a sequential ramp, because a caller that names something unknown wants a working
+ * scale, not a diverging one it did not ask for.
+ */
+export const getRamp = (id: string): Ramp =>
+  RAMPS.find((r) => r.id === id) ?? DIVERGING_RAMPS.find((r) => r.id === id) ?? RAMPS[0];
 
 /** A colour taken apart: channels 0..255, alpha 0..1. */
 export interface Rgba {
@@ -138,6 +197,41 @@ export function rampColor(ramp: Ramp, t: number, flip: boolean): string {
   const a = hexToRgb(lo);
   const b = hexToRgb(hi);
   return rgbToHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
+}
+
+/**
+ * Where a value sits on its ramp, 0..1 — the one place value→colour position is decided.
+ *
+ * Without a midpoint this is the plain linear position in the domain, exactly as before.
+ *
+ * With one — the reference value a diverging scale is read *against*, a replacement rate,
+ * a 50% line, a baseline — each half of the domain is mapped onto its own half of the
+ * ramp. That matters because a diverging ramp's neutral sits at t=0.5 by construction, so
+ * under linear mapping the colour that means "on the line" lands at the middle of the
+ * *domain* rather than at the line. With a 2.1 reference and a 0.9–2.7 domain, linear
+ * mapping draws the neutral at 1.8 and every region is mis-sided by a third of the scale,
+ * while the map still looks entirely plausible.
+ *
+ * The alternative — forcing the author to pick a domain symmetric about the midpoint —
+ * works but wastes the ramp whenever the data is lopsided: 0.9–2.7 about 2.1 becomes
+ * 1.4–2.8, which clamps the low tail flat and never reaches the high arm's bright end.
+ * Splitting the arms uses all of both regardless of how uneven the two sides are.
+ *
+ * A midpoint outside the domain is ignored rather than honoured: it would put one arm
+ * on zero width, and silently colouring every region from half a ramp is worse than
+ * ignoring a field that cannot mean anything here.
+ */
+export function rampPosition(value: number, min: number, max: number, midpoint?: number | null): number {
+  const span = max - min;
+  if (!isFinite(value) || !isFinite(span) || Math.abs(span) < 1e-9) return 0;
+
+  if (midpoint === undefined || midpoint === null || !isFinite(midpoint) || midpoint <= min || midpoint >= max) {
+    return (value - min) / span;
+  }
+
+  return value <= midpoint
+    ? 0.5 * ((value - min) / (midpoint - min))
+    : 0.5 + 0.5 * ((value - midpoint) / (max - midpoint));
 }
 
 /** WCAG relative luminance, used to pick readable ink on top of a swatch. */

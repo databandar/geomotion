@@ -32,7 +32,7 @@ export function demoProject(): Project {
     width: staticTrack(3.5),
     out: 15,
     progress: windowTrack(3, 9.5, 'easeInOutCubic'),
-    marker: { enabled: true, icon: 'plane', color: '#ffffff', size: staticTrack(9), rotate: true },
+    marker: { enabled: true, icon: 'plane', iconEmoji: '', color: '#ffffff', size: staticTrack(9), rotate: true },
   } as Partial<Layer>) as Extract<Layer, { type: 'route' }>;
   route.coords = [SF, TOKYO];
 
@@ -995,7 +995,7 @@ export function routeStoryProject(): Project {
     glow: true,
     out: duration,
     progress: windowTrack(journeyStart, arrivalEnd, 'linear'),
-    marker: { enabled: true, icon: 'plane', color: '#ffffff', size: staticTrack(12), rotate: true },
+    marker: { enabled: true, icon: 'plane', iconEmoji: '', color: '#ffffff', size: staticTrack(12), rotate: true },
   } as Partial<Layer>) as Extract<Layer, { type: 'route' }>;
 
   // A pulsing stop at each city, alive only while the plane is around it.

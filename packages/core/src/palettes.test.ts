@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RAMPS, getRamp, luminance, parseHex, rampColor, withAlpha } from './palettes.ts';
+import { DIVERGING_RAMPS, RAMPS, getRamp, luminance, parseHex, rampColor, rampPosition, withAlpha } from './palettes.ts';
 
 /**
  * Behavioural spec for the sequential colour ramps, bound for the scale editor
@@ -48,6 +48,13 @@ describe('shipped ramps', () => {
         ).toBeLessThan(lums[i - 1]!);
       }
     }
+  });
+
+  it('the sequential registry contains no diverging ramps', () => {
+    // The gate above is what makes `RAMPS` safe to offer as a magnitude scale. A
+    // diverging ramp cannot satisfy it by construction, so one appearing here means
+    // it was added to the wrong registry rather than that the gate needs loosening.
+    for (const ramp of RAMPS) expect(ramp.kind ?? 'sequential').toBe('sequential');
   });
 
   it('spans a wide enough luminance range to be readable as a scale', () => {
@@ -187,5 +194,109 @@ describe('luminance', () => {
     // against every threshold, so one branch would be taken forever.
     expect(luminance('#zzzzzz')).toBe(0);
     expect(Number.isNaN(luminance('#12345'))).toBe(false);
+  });
+});
+
+describe('diverging ramps', () => {
+  /*
+   * The diverging equivalent of the sequential gate, and just as hard.
+   *
+   * A diverging scale is read from the middle outward: which side of the reference
+   * value, and how far. That is readable only if the centre is the darkest step and
+   * lightness climbs strictly along each arm — the same "rank by colour alone"
+   * guarantee, stated for a scale with a meaningful midpoint.
+   */
+  it('every diverging ramp has an odd number of steps, so a centre exists', () => {
+    for (const ramp of DIVERGING_RAMPS) {
+      expect(ramp.kind).toBe('diverging');
+      expect(ramp.steps.length % 2, `ramp "${ramp.id}" has no single centre step`).toBe(1);
+      expect(ramp.steps.length).toBeGreaterThanOrEqual(5);
+    }
+  });
+
+  it('EVERY diverging ramp is darkest at the centre and climbs along both arms', () => {
+    for (const ramp of DIVERGING_RAMPS) {
+      const lums = ramp.steps.map(luminance);
+      const mid = (ramp.steps.length - 1) / 2;
+
+      for (let i = 0; i < mid; i++) {
+        expect(
+          lums[i],
+          `ramp "${ramp.id}" low arm breaks monotonicity at step ${i}`,
+        ).toBeGreaterThan(lums[i + 1]!);
+      }
+      for (let i = mid; i < lums.length - 1; i++) {
+        expect(
+          lums[i],
+          `ramp "${ramp.id}" high arm breaks monotonicity at step ${i}`,
+        ).toBeLessThan(lums[i + 1]!);
+      }
+      expect(lums[mid], `ramp "${ramp.id}" centre is not its darkest step`).toBe(Math.min(...lums));
+    }
+  });
+
+  it('both arms span enough luminance to be told apart', () => {
+    for (const ramp of DIVERGING_RAMPS) {
+      const lums = ramp.steps.map(luminance);
+      const mid = (ramp.steps.length - 1) / 2;
+      // Both arms, not just the total: a neon red arm is naturally darker than a
+      // neon cyan one, and a ramp can look bold overall while one half is mush.
+      expect(lums[0]! - lums[mid]!, `ramp "${ramp.id}" low arm too flat`).toBeGreaterThan(0.25);
+      expect(lums[lums.length - 1]! - lums[mid]!, `ramp "${ramp.id}" high arm too flat`).toBeGreaterThan(0.25);
+    }
+  });
+
+  it('getRamp resolves a diverging ramp by id', () => {
+    expect(getRamp('neon-divergent').id).toBe('neon-divergent');
+    // and still falls back to a sequential ramp for a name nobody registered
+    expect(getRamp('no-such-ramp').kind ?? 'sequential').toBe('sequential');
+  });
+});
+
+describe('rampPosition', () => {
+  it('is plain linear position with no midpoint', () => {
+    expect(rampPosition(50, 0, 100)).toBeCloseTo(0.5);
+    expect(rampPosition(0, 0, 100)).toBe(0);
+    expect(rampPosition(100, 0, 100)).toBe(1);
+    expect(rampPosition(25, 0, 100, null)).toBeCloseTo(0.25);
+  });
+
+  it('puts the midpoint on the ramp centre however lopsided the domain is', () => {
+    /*
+     * The bug this exists for. A 2.1 reference in a 0.9–2.7 domain sits at 0.667 of the
+     * way along linearly, so a diverging ramp's neutral — fixed at 0.5 — landed on 1.8
+     * and every region was mis-sided by a third of the scale, on a map that looked fine.
+     */
+    expect(rampPosition(2.1, 0.9, 2.7)).toBeCloseTo(0.667, 2);
+    expect(rampPosition(2.1, 0.9, 2.7, 2.1)).toBe(0.5);
+  });
+
+  it('uses the full width of both arms, not the shorter one twice', () => {
+    // 0.9→2.1 is twice the width of 2.1→2.7, and each still spans its own half.
+    expect(rampPosition(0.9, 0.9, 2.7, 2.1)).toBe(0);
+    expect(rampPosition(1.5, 0.9, 2.7, 2.1)).toBeCloseTo(0.25);
+    expect(rampPosition(2.4, 0.9, 2.7, 2.1)).toBeCloseTo(0.75);
+    expect(rampPosition(2.7, 0.9, 2.7, 2.1)).toBe(1);
+  });
+
+  it('ignores a midpoint at or outside the domain rather than collapsing an arm', () => {
+    // Either arm would have zero width, and coluring every region from half a ramp is
+    // worse than ignoring a field that cannot mean anything here.
+    expect(rampPosition(50, 0, 100, 0)).toBeCloseTo(0.5);
+    expect(rampPosition(50, 0, 100, 100)).toBeCloseTo(0.5);
+    expect(rampPosition(50, 0, 100, 140)).toBeCloseTo(0.5);
+    expect(rampPosition(50, 0, 100, Number.NaN)).toBeCloseTo(0.5);
+  });
+
+  it('never returns NaN on a degenerate domain', () => {
+    expect(rampPosition(7, 7, 7)).toBe(0);
+    expect(rampPosition(7, 7, 7, 7)).toBe(0);
+    expect(Number.isNaN(rampPosition(Number.NaN, 0, 1))).toBe(false);
+  });
+
+  it('hands rampColor a position it already clamps, so out-of-domain still resolves', () => {
+    const ramp = getRamp('neon-divergent');
+    expect(rampColor(ramp, rampPosition(0.2, 0.9, 2.7, 2.1), false)).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(rampColor(ramp, rampPosition(9, 0.9, 2.7, 2.1), false)).toMatch(/^#[0-9a-f]{6}$/i);
   });
 });

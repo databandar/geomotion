@@ -87,11 +87,54 @@ function arcSegment(a: LngLat, b: LngLat, steps: number): LngLat[] {
   return out;
 }
 
+/**
+ * One point on a Catmull-Rom spline through `p1`..`p2`, using `p0`/`p3` as the
+ * neighbours either side to set the tangent — the standard construction, in the
+ * same plate-carrée lng/lat space `arcSegment` already uses rather than true
+ * spherical geometry, so the two curve kinds stay visually consistent with each
+ * other at the small-to-regional distances this is for.
+ */
+function catmullRom(p0: LngLat, p1: LngLat, p2: LngLat, p3: LngLat, t: number): LngLat {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const at = (a: number, b: number, c: number, d: number) =>
+    0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+  return [at(p0[0], p1[0], p2[0], p3[0]), at(p0[1], p1[1], p2[1], p3[1])];
+}
+
+/**
+ * A single flowing curve through every waypoint, not a bow between each
+ * consecutive pair — `arc`'s actual failure mode with three or more points.
+ * `arc`/`geodesic` build each segment in isolation, which is exactly right for a
+ * two-point hop but leaves a visible kink at every interior waypoint once a route
+ * has more than two, because neither segment either side of a vertex knows the
+ * other exists. Reaches for the segment before and after the current one to set
+ * each point's tangent, so the curve passes through every waypoint with no
+ * corner. The first/last waypoint has no "before"/"after" neighbour of its own,
+ * so the curve is not extended past the ends — see the two `pts[0]`/`pts.at(-1)`
+ * fallbacks below, the standard "phantom point" construction.
+ */
+function smoothPath(pts: LngLat[]): LngLat[] {
+  if (pts.length < 3) return pts;
+
+  const out: LngLat[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)]!;
+    const p1 = pts[i]!;
+    const p2 = pts[i + 1]!;
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]!;
+    const steps = Math.max(24, Math.min(256, Math.round(haversine(p1, p2) / 20000)));
+    for (let s = i === 0 ? 0 : 1; s <= steps; s++) out.push(catmullRom(p0, p1, p2, p3, s / steps));
+  }
+  return out;
+}
+
 /** Turn the control points you clicked into a dense renderable polyline. */
-export function buildPath(control: LngLat[], curve: 'geodesic' | 'straight' | 'arc'): LngLat[] {
+export function buildPath(control: LngLat[], curve: 'geodesic' | 'straight' | 'arc' | 'smooth'): LngLat[] {
   const pts = unwrap(control);
   if (pts.length < 2) return pts;
   if (curve === 'straight') return pts;
+  if (curve === 'smooth') return unwrap(smoothPath(pts));
 
   const out: LngLat[] = [];
   let a: LngLat | undefined;
@@ -397,4 +440,95 @@ export function antimeridianRisks(coords: readonly LngLat[]): AntimeridianRisk[]
 /** Every point beyond MapLibre's ±85.0511° Mercator limit. */
 export function polarClipRisks(coords: readonly LngLat[]): LngLat[] {
   return coords.filter(([, lat]) => Math.abs(lat) > MAX_MERCATOR_LATITUDE);
+}
+
+/* ---------------------------------------------------------- land crossing */
+
+/** Standard even-odd ray-casting rule. A ring after the first is a hole and
+ * subtracts from the fill, matching GeoJSON's own winding convention. */
+function pointInRing(pt: LngLat, ring: readonly (readonly number[])[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]!;
+    const [xj, yj] = ring[j]!;
+    const crosses = yi! > pt[1] !== yj! > pt[1] && pt[0] < ((xj! - xi!) * (pt[1] - yi!)) / (yj! - yi!) + xi!;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+/** Whether a point falls inside a GeoJSON Polygon or MultiPolygon. */
+export function pointInPolygon(pt: LngLat, geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon): boolean {
+  const polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  return polys.some((rings) => {
+    if (!pointInRing(pt, rings[0]!)) return false;
+    for (let i = 1; i < rings.length; i++) if (pointInRing(pt, rings[i]!)) return false; // a hole
+    return true;
+  });
+}
+
+function bboxOf(geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon): [number, number, number, number] {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const rings = geometry.type === 'Polygon' ? geometry.coordinates : geometry.coordinates.flat();
+  for (const ring of rings) {
+    for (const [x, y] of ring) {
+      if (x! < minX) minX = x!;
+      if (x! > maxX) maxX = x!;
+      if (y! < minY) minY = y!;
+      if (y! > maxY) maxY = y!;
+    }
+  }
+  return [minX, minY, maxX, maxY];
+}
+
+export interface LandCrossingRisk {
+  /** Where the path first touches this stretch of land — one entry per
+   * contiguous run, not one per sample point, so a route that clips a
+   * coastline for fifty consecutive points reads as one finding, not fifty. */
+  point: LngLat;
+  /** The land feature's own name, so the message points somewhere specific. */
+  name: string;
+}
+
+/**
+ * Every place a path crosses land, checked against a supplied set of land
+ * polygons — for a route meant to represent movement over water. Opt-in at the
+ * call site (there is no default dataset here; `packages/geometry` stays data-
+ * agnostic the same way `antimeridianRisks` does not know what a country is)
+ * and opt-in per route in the document (`RouteLayer.overWater`), because a
+ * route crossing land on purpose — a pipeline, a flight path, a drive — is
+ * common and not a mistake.
+ *
+ * Checks the path you give it, not the control points you built it from. A
+ * curved route can bow onto land somewhere none of its own waypoints do —
+ * found exactly that way in a real episode (`docs/brand/hormuz`): two of a
+ * seven-point detour route's waypoints were themselves offshore, but the
+ * `smooth` curve through them cut across the whole width of southern Africa,
+ * invisible to a check that only looked at the seven points and not the curve
+ * they produced.
+ */
+export function landCrossingRisks(coords: readonly LngLat[], land: GeoJSON.FeatureCollection): LandCrossingRisk[] {
+  const candidates = land.features
+    .filter((f): f is GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon> =>
+      f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon')
+    .map((f) => ({ feature: f, bbox: bboxOf(f.geometry) }));
+
+  const risks: LandCrossingRisk[] = [];
+  let wasOnLand = false;
+  for (const pt of coords) {
+    let name: string | null = null;
+    for (const { feature, bbox } of candidates) {
+      if (pt[0] < bbox[0] || pt[0] > bbox[2] || pt[1] < bbox[1] || pt[1] > bbox[3]) continue;
+      if (pointInPolygon(pt, feature.geometry)) {
+        name = String(feature.properties?.name ?? 'land');
+        break;
+      }
+    }
+    if (name && !wasOnLand) risks.push({ point: pt, name });
+    wasOnLand = !!name;
+  }
+  return risks;
 }

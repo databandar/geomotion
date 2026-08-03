@@ -1,0 +1,87 @@
+{
+  "title": "India's Digital Divide",
+  "slug": "india-digital",
+  "format": "short",
+  "fps": 30,
+  "basemap": "dark-clean",
+  "dataset": "india-official",
+  "values": {
+    "Kerala": 82,
+    "Delhi": 71,
+    "Maharashtra": 63,
+    "Tamil Nadu": 59,
+    "Karnataka": 54,
+    "Punjab": 51,
+    "Haryana": 50,
+    "Gujarat": 48,
+    "Telangana": 47,
+    "Andhra Pradesh": 42,
+    "Rajasthan": 38,
+    "West Bengal": 37,
+    "Odisha": 33,
+    "Assam": 32,
+    "Uttar Pradesh": 31,
+    "Madhya Pradesh": 30,
+    "Bihar": 25,
+    "Jharkhand": 24,
+    "Chhattisgarh": 23
+  },
+  "ramp": "viridis",
+  "credit": "Data: sample · Boundaries: Government of India",
+  "voice": {
+    "engine": "say",
+    "voice": "Samantha",
+    "rate": 170
+  },
+  "metric": {
+    "label": "Internet users per 100 people",
+    "unit": "",
+    "decimals": 0,
+    "legend": "Internet users per 100"
+  },
+  "beatGap": 0.2,
+  "tailOut": 1.2,
+  "beats": [
+    {
+      "kind": "clouds",
+      "id": "hook",
+      "say": "India has over 900 million internet users — but the access isn't spread evenly.",
+      "onScreen": "India's Digital Divide",
+      "pad": 0.6
+    },
+    {
+      "kind": "overview",
+      "id": "overview",
+      "say": "Kerala leads at 82 people per hundred, while Bihar has just 25. The gap is more than three to one.",
+      "onScreen": "Internet users per 100 people",
+      "pad": 0.4
+    },
+    {
+      "kind": "tour",
+      "id": "tour",
+      "stopPad": 0.3,
+      "minStop": 1.8,
+      "stops": [
+        {
+          "region": "Kerala",
+          "say": "Kerala, 82 out of 100 — the highest in the country."
+        },
+        {
+          "region": "Delhi",
+          "say": "Delhi, 71. Close behind despite being a city-state surrounded by lower-access states."
+        },
+        {
+          "region": "Bihar",
+          "say": "Bihar, back to just 25. The gap between Kerala and Bihar is 57 percentage points."
+        }
+      ]
+    },
+    {
+      "kind": "labels",
+      "id": "close",
+      "labelAll": true,
+      "say": "The pattern is clear — southern states lead, northern and eastern states lag. The digital divide in India is as wide as the geography.",
+      "pad": 0.8
+    }
+  ]
+}

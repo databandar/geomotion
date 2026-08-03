@@ -12,6 +12,52 @@ import { getBasemap, TERRAIN_SOURCE } from '@geomotion/map';
 import { waitForIdle, type RenderHost } from '../render/host';
 import type { LngLat, MarkerLayer, RouteLayer } from '@geomotion/document';
 
+/** Screen-pixel radius a click must land within to grab an existing vertex —
+ * shared by drag-start hit-testing and the two point-editing gestures below, so
+ * "close enough to be the vertex" means the same thing everywhere it's asked. */
+const VERTEX_HIT_PX = 10;
+
+function distToVertex(map: MLMap, coord: LngLat, pt: maplibregl.Point): number {
+  const p = map.project(coord);
+  return Math.hypot(p.x - pt.x, p.y - pt.y);
+}
+
+/** Perpendicular distance from a screen point to a screen-space segment, clamped
+ * to the segment itself rather than the infinite line through it. */
+function distToSegment(pt: maplibregl.Point, a: maplibregl.Point, b: maplibregl.Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(pt.x - a.x, pt.y - a.y);
+  const t = Math.max(0, Math.min(1, ((pt.x - a.x) * dx + (pt.y - a.y) * dy) / len2));
+  return Math.hypot(pt.x - (a.x + t * dx), pt.y - (a.y + t * dy));
+}
+
+/**
+ * Where a click on a route's *line* — not past its end, not on an existing
+ * vertex — should splice a new point in, or `null` if the click doesn't land on
+ * any segment closely enough. Route editing used to be append-only: every click
+ * added to the end, so fixing a point placed too early meant deleting and
+ * re-adding everything after it. This is what lets a click land in the middle.
+ *
+ * Deliberately checked *after* the caller has ruled out an existing vertex —
+ * a vertex is itself an endpoint of two segments, so without that guard a click
+ * meant to grab a vertex would insert a duplicate point beside it instead.
+ */
+function segmentInsertIndex(map: MLMap, coords: LngLat[], pt: maplibregl.Point): number | null {
+  if (coords.length < 2) return null;
+  let bestDist = 14; // a little looser than VERTEX_HIT_PX, so the two checks don't fight over the same pixels
+  let bestIndex: number | null = null;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const d = distToSegment(pt, map.project(coords[i]!), map.project(coords[i + 1]!));
+    if (d < bestDist) {
+      bestDist = d;
+      bestIndex = i + 1;
+    }
+  }
+  return bestIndex;
+}
+
 const seenSyncErrors = new Set<string>();
 function reportSyncError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
@@ -482,6 +528,28 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     const map = mapRef.current;
     if (!map) return;
 
+    /*
+     * Deleting a point used to mean the Inspector's per-row "×" — reachable, but
+     * a detour from the map you're looking at. A double-click on the point
+     * itself is the same gesture a vector-editing tool uses for "remove this
+     * node," and checking it first (rather than after the region hit-test
+     * below) means a route point that happens to sit over a coloured region
+     * still deletes the point, not fits the region — the selected route is what
+     * the double-click is about.
+     */
+    const state = useStore.getState();
+    if (state.selection?.kind === 'layer') {
+      const layer = layerAt(state.project, state.selection.id);
+      if (layer?.type === 'route') {
+        const index = layer.coords.findIndex((coord) => distToVertex(map, coord, e.point) < VERTEX_HIT_PX);
+        if (index !== -1) {
+          e.preventDefault();
+          state.updateLayer<RouteLayer>(layer.id, { coords: layer.coords.filter((_, i) => i !== index) });
+          return;
+        }
+      }
+    }
+
     const hit = map
       .queryRenderedFeatures(e.point)
       .find((f) => f.layer?.id?.startsWith('gm-regions-') && f.layer.id.endsWith('-fill'));
@@ -526,7 +594,18 @@ export default function MapCanvas({ onHostReady }: { onHostReady?: (host: Render
     const c: LngLat = [e.lngLat.lng, e.lngLat.lat];
 
     if (tool === 'route' && layer.type === 'route') {
-      state.updateLayer<RouteLayer>(layer.id, { coords: [...layer.coords, c] });
+      const map = mapRef.current;
+      // A click on an existing vertex is a mis-click, not an intent to add a
+      // point beside it — the drag handler is what a vertex click means.
+      const onVertex = map && layer.coords.some((coord) => distToVertex(map, coord, e.point) < VERTEX_HIT_PX);
+      const insertAt = !onVertex && map ? segmentInsertIndex(map, layer.coords, e.point) : null;
+      if (insertAt !== null) {
+        const coords = layer.coords.slice();
+        coords.splice(insertAt, 0, c);
+        state.updateLayer<RouteLayer>(layer.id, { coords });
+      } else if (!onVertex) {
+        state.updateLayer<RouteLayer>(layer.id, { coords: [...layer.coords, c] });
+      }
     } else if (tool === 'marker' && layer.type === 'marker') {
       state.updateLayer<MarkerLayer>(layer.id, { coord: c });
       state.setTool('select');

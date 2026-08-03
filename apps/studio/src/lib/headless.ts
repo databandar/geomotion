@@ -2,9 +2,10 @@ import { useStore } from '../store';
 import { layerAt, layersOf, migrate } from '@geomotion/document';
 import { demoProject, circleOfHumanityProject, globeGdpTourProject, globeTourProject, indiaTourProject, paintedWorldProject, routeStoryProject, worldTourProject } from './fixtures';
 import type { RenderHost } from '../render/host';
-import { evaluate } from '@geomotion/evaluator';
+import { evaluate, checkProjectDocument, checkProjectGeometry, type DocumentFinding, type GeometryFinding } from '@geomotion/evaluator';
+import worldCountries from '../data/world-countries.json';
 import { detectBakedInCardBorder, imagesReady, type CardBorderFinding } from '@geomotion/renderer';
-import { findOverlapsAt, type OverlapFinding } from './overlap-lint';
+import { findOverlapsAt, findTextOverflowAt, type OverlapFinding, type TextFitFinding } from './overlap-lint';
 import { findTinyRoutesAt, type TinyRouteFinding } from './route-visibility';
 
 /**
@@ -81,6 +82,28 @@ export interface HeadlessApi {
    * same reason; call it with scene-boundary times, not every frame.
    */
   checkOverlaps(times: number[]): Promise<OverlapFinding[]>;
+  /**
+   * Antimeridian-crossing, polar-clipping, and land-crossing risk across the
+   * whole project's geography — the last one only for a route with `overWater`
+   * set, checked against this app's own `world-countries.json`. Pure and
+   * synchronous under the hood (`@geomotion/evaluator`'s `checkProjectGeometry`)
+   * — exposed here, rather than called directly by a Node script, only so a
+   * plain `.mjs` pipeline tool can reach it without importing a TS package
+   * graph Node's own type-stripping can't load (parameter properties in
+   * `@geomotion/animation` aren't erasable syntax).
+   */
+  checkGeometry(): GeometryFinding[];
+  /**
+   * Static defects that are not geometric — an unregistered ramp id, a layer set to
+   * dissolve on the final frame. Both render successfully and wrongly, which is why
+   * they are worth a check rather than a note somewhere.
+   */
+  checkDocument(): DocumentFinding[];
+  /**
+   * Text laid out past the edge of the frame at each of `times`. Screen-space, so
+   * unlike `checkOverlaps` it does not move the camera or wait for tiles.
+   */
+  checkTextFit(times: number[]): TextFitFinding[];
   /**
    * Every route whose on-screen extent is too small to read as a line (default
    * under 30% of the viewport's own diagonal) at each given time — a route's
@@ -196,6 +219,19 @@ export function installHeadlessApi(host: RenderHost) {
         findings.push(...findOverlapsAt(state.project, host.map, t));
       }
       return findings;
+    },
+
+    checkGeometry() {
+      return checkProjectGeometry(useStore.getState().project, { land: worldCountries as GeoJSON.FeatureCollection });
+    },
+
+    checkDocument() {
+      return checkProjectDocument(useStore.getState().project);
+    },
+
+    checkTextFit(times) {
+      const p = useStore.getState().project;
+      return times.flatMap((t) => findTextOverflowAt(p, t));
     },
 
     async checkTinyRoutes(times, minFraction) {

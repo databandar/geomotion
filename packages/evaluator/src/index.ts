@@ -23,4 +23,5 @@ export {
   type Scene,
 } from './scene.ts';
 export { resolveTracks } from './resolve.ts';
-export { checkProjectGeometry, type GeometryFinding } from './lint.ts';
+export { checkProjectGeometry, type CheckProjectGeometryOptions, type GeometryFinding } from './lint.ts';
+export { checkProjectDocument, type DocumentFinding } from './document-lint.ts';

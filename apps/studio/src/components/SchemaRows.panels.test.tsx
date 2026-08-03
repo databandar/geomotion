@@ -357,11 +357,27 @@ describe('the route panel, generated', () => {
     expect(titles.filter((t) => ours.includes(t))).toEqual(ours);
   });
 
-  it('puts Shape, Glow and Dashed in one Line style section, as the panel did', () => {
+  it('puts Shape, Style and Glow in one Line style section, as the panel did', () => {
     // This table declared separate "Shape" and "Style" headings that never existed.
     render(<Inspector />);
-    expect(labelsIn('Line style')).toEqual(['Shape', 'Colour', 'Width', 'Opacity', 'Glow', 'Dashed']);
+    // "Animate dash" is conditional on lineStyle !== 'solid', the default for a fresh
+    // route, so it doesn't show here — see the dedicated test below.
+    expect(labelsIn('Line style')).toEqual(['Shape', 'Colour', 'Width', 'Opacity', 'Style', 'Glow', 'Comet tail']);
     expect(control('Width').getAttribute('step')).toBe('0.1');
+  });
+
+  it('shows Animate dash once a dashed-family style is picked, not for solid or rail', async () => {
+    render(<Inspector />);
+    expect(has('Animate dash'), 'solid is the default').toBe(false);
+
+    await userEvent.selectOptions(control('Style'), 'dashed');
+    expect(has('Animate dash')).toBe(true);
+
+    await userEvent.selectOptions(control('Style'), 'rail');
+    expect(has('Animate dash'), 'rail still animates its ties').toBe(true);
+
+    await userEvent.selectOptions(control('Style'), 'solid');
+    expect(has('Animate dash')).toBe(false);
   });
 
   it('writes a grouped sub-object field without flattening the object', async () => {

@@ -95,3 +95,59 @@ describe('checkProjectGeometry', () => {
     expect(checkProjectGeometry(projectWithLayers(fixed))).toEqual([]);
   });
 });
+
+describe('checkProjectGeometry — land crossing', () => {
+  const SQUARE_LAND: GeoJSON.FeatureCollection = {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: { name: 'Squareland' },
+      geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] },
+    }],
+  };
+
+  it('is silent without a `land` option, even for an overWater route crossing land', () => {
+    const route = createLayer('route', 0, {
+      name: 'Ferry', coords: [[-5, 5], [15, 5]], curve: 'straight', overWater: true,
+    }) as RouteLayer;
+    expect(checkProjectGeometry(projectWithLayers(route))).toEqual([]);
+  });
+
+  it('is silent for a route crossing land when overWater is not set, land or no land', () => {
+    const route = createLayer('route', 0, {
+      name: 'Pipeline', coords: [[-5, 5], [15, 5]], curve: 'straight',
+    }) as RouteLayer;
+    expect(checkProjectGeometry(projectWithLayers(route), { land: SQUARE_LAND })).toEqual([]);
+  });
+
+  it('flags an overWater route that crosses land once land data is given', () => {
+    const route = createLayer('route', 0, {
+      name: 'Ferry', coords: [[-5, 5], [15, 5]], curve: 'straight', overWater: true,
+    }) as RouteLayer;
+    const findings = checkProjectGeometry(projectWithLayers(route), { land: SQUARE_LAND });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ layerName: 'Ferry', kind: 'land-crossing' });
+    expect(findings[0]!.detail).toContain('Squareland');
+  });
+
+  it('does not flag an overWater route that stays offshore', () => {
+    const route = createLayer('route', 0, {
+      name: 'Ferry', coords: [[-5, -5], [-5, 15]], curve: 'straight', overWater: true,
+    }) as RouteLayer;
+    expect(checkProjectGeometry(projectWithLayers(route), { land: SQUARE_LAND })).toEqual([]);
+  });
+
+  it('checks the route\'s own curve type, not a straight line between its points', () => {
+    // `@geomotion/geometry`'s own test suite (geo.test.ts) proves `landCrossingRisks`
+    // sees things a control-points-only check misses, using the real Hormuz route.
+    // This test is narrower: it confirms `checkProjectGeometry` actually calls
+    // `buildPath(layer.coords, layer.curve)` — the layer's *own* curve — rather than,
+    // say, always checking the raw coordinates regardless of `curve`.
+    const route = createLayer('route', 0, {
+      name: 'Cape detour', curve: 'smooth', overWater: true,
+      coords: [[-5, 5], [5, -2], [15, 5]],
+    }) as RouteLayer;
+    const findings = checkProjectGeometry(projectWithLayers(route), { land: SQUARE_LAND });
+    expect(findings.some((f) => f.kind === 'land-crossing')).toBe(true);
+  });
+});

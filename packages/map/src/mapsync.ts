@@ -27,6 +27,80 @@ function measuredRing(ring: LngLat[]): MeasuredPath {
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 /**
+ * Base dash patterns, in multiples of line width — `line-dasharray` units, not px.
+ *
+ * `dotted`'s "on" length has to clear `DASH_PHASE_STEPS`' own step size (cycle /
+ * steps) with real margin, or `animateDash` quantizing the phase can land on a
+ * step where almost all of that frame's dot has already been consumed and what's
+ * left rounds away to nothing — found rendering it animated at 0.1 (a fifth of a
+ * 1.6-unit cycle's 24 steps, ~0.067 each): it looked completely solid, no visible
+ * dots at all, on a route this session shipped with exactly that combination.
+ * 0.3 stays a dot rather than reading as a dash, and survives every step.
+ */
+const DASH_PATTERNS: Record<'dashed' | 'dotted' | 'longdash', number[]> = {
+  dashed: [2, 1.6],
+  dotted: [0.3, 1.5],
+  longdash: [4, 1.8],
+};
+
+/** How many distinct phase positions `dashArrayFor` cycles through per pattern
+ * repeat. See the function's own comment for why this exists at all. */
+const DASH_PHASE_STEPS = 24;
+
+/**
+ * The dasharray for a line style, optionally animated.
+ *
+ * `line-dasharray` has no phase/offset property of its own — the only way to make a
+ * dash pattern crawl is to hand MapLibre a *different array* each frame, one whose
+ * first entry is the previous first entry shortened by however far the pattern has
+ * travelled.
+ *
+ * The phase is quantised to `DASH_PHASE_STEPS` positions per cycle rather than
+ * computed as a true continuous value. A first version did exactly that — a fresh
+ * float-precision offset every frame, meaning a genuinely unique array on every
+ * single call — and it rendered correctly for a handful of frames but reliably
+ * crashed MapLibre's internal dash renderer (`setConstantDashPositions`, reading
+ * `.y` off `null`) after roughly 30+ seconds of continuous playback on the same
+ * layer: found rendering a real episode (`docs/brand/hormuz`) whose main route
+ * animates for the video's full length, not in any unit test, because nothing
+ * before this exercised the same layer's dasharray changing every frame for that
+ * long. MapLibre's dash rendering rasterises each unique pattern into a bounded
+ * atlas; an unbounded stream of never-repeated arrays is not a supported input,
+ * confirmed by the fix — capping the phase to a small reused set stopped the
+ * crash outright over the same 60+ second sequential render that reproduced it
+ * every time beforehand. 24 steps is smooth at any frame rate this renders at
+ * (a full cycle takes ~1.7s, so a step is ~70ms) and keeps the atlas bounded.
+ */
+function dashArrayFor(style: 'solid' | 'dashed' | 'dotted' | 'longdash' | 'rail', animate: boolean | undefined, time: number): number[] | undefined {
+  if (style === 'solid' || style === 'rail') return undefined;
+  const base = DASH_PATTERNS[style];
+  if (!animate) return base;
+
+  const cycle = base.reduce((a, b) => a + b, 0);
+  const speed = cycle * 0.6; // one full pattern cycle every ~1.7s
+  const raw = ((time * speed) % cycle + cycle) % cycle;
+  let offset = (Math.round((raw / cycle) * DASH_PHASE_STEPS) / DASH_PHASE_STEPS) * cycle;
+  if (offset >= cycle) offset -= cycle; // the round can land exactly on the next cycle's 0
+
+  // Enough repeats that consuming `offset` (< one cycle) never runs off the end.
+  const repeated = [...base, ...base, ...base];
+  let i = 0;
+  while (offset >= repeated[i]!) {
+    offset -= repeated[i]!;
+    i++;
+  }
+  return [repeated[i]! - offset, ...repeated.slice(i + 1)];
+}
+
+/** The last `fraction` of a path's length, in original point order — used for the
+ * comet tail, which needs the stretch just behind the head, not just ahead of it. */
+function tailOf(coords: LngLat[], fraction: number): LngLat[] {
+  if (coords.length < 2) return coords;
+  const reversed = measure([...coords].reverse());
+  return sliceAt(reversed, fraction).slice().reverse();
+}
+
+/**
  * What each map has already been told, so a still frame re-sends nothing.
  *
  * Keyed by the map itself rather than held in one module-level Map. The cache mirrors
@@ -316,10 +390,18 @@ export function syncScene(map: MLMap, scene: Scene) {
     ensureSource(map, src, EMPTY);
     (map.getSource(src) as GeoJSONSource | undefined)?.setData(lineFeature(r.drawn));
 
+    const lineStyle = style.lineStyle ?? (style.dashed ? 'dashed' : 'solid');
+    const isRail = lineStyle === 'rail';
+    const dash = dashArrayFor(lineStyle, style.animateDash, scene.time);
+
     const glowId = `${src}-glow`;
     const lineId = `${src}-line`;
+    const railAId = `${src}-rail-a`;
+    const railBId = `${src}-rail-b`;
+    const cometSrc = `${src}-comet-src`;
+    const cometId = `${cometSrc}-line`;
 
-    if (style.glow) {
+    if (style.glow && !isRail) {
       ensureLayer(map, { id: glowId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} }, lineId);
       setPaint(map, glowId, 'line-color', style.color);
       setPaint(map, glowId, 'line-width', style.width * 3.2);
@@ -329,22 +411,58 @@ export function syncScene(map: MLMap, scene: Scene) {
       removeLayer(map, glowId);
     }
 
-    ensureLayer(map, { id: lineId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
-    setPaint(map, lineId, 'line-color', style.color);
-    setPaint(map, lineId, 'line-width', style.width);
-    setPaint(map, lineId, 'line-opacity', r.alpha * style.opacity);
-    // `line-dasharray` is a *paint* property; MapLibre throws if it arrives through
-    // setLayoutProperty. This went unnoticed because the cache used to skip the very
-    // first `undefined`, so an undashed route never made the call — and a dashed one
-    // threw inside the render loop every time.
-    setPaint(map, lineId, 'line-dasharray', style.dashed ? [2, 1.6] : undefined);
+    if (isRail) {
+      // Two parallel offset lines with tick-mark dashing — a railway/shipping-lane
+      // mark, not a route someone walked. `line-offset` is perpendicular, in px,
+      // so it tracks `width` the same way the glow's own width multiple does.
+      removeLayer(map, lineId);
+      for (const [id, sign] of [[railAId, 1], [railBId, -1]] as const) {
+        ensureLayer(map, { id, type: 'line', source: src, layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: {} });
+        setPaint(map, id, 'line-color', style.color);
+        setPaint(map, id, 'line-width', Math.max(1, style.width * 0.55));
+        setPaint(map, id, 'line-offset', sign * style.width * 1.15);
+        setPaint(map, id, 'line-opacity', r.alpha * style.opacity);
+        setPaint(map, id, 'line-dasharray', dashArrayFor('longdash', style.animateDash, scene.time));
+      }
+    } else {
+      removeLayer(map, railAId);
+      removeLayer(map, railBId);
+      ensureLayer(map, { id: lineId, type: 'line', source: src, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
+      setPaint(map, lineId, 'line-color', style.color);
+      setPaint(map, lineId, 'line-width', style.width);
+      setPaint(map, lineId, 'line-opacity', r.alpha * style.opacity);
+      // `line-dasharray` is a *paint* property; MapLibre throws if it arrives through
+      // setLayoutProperty. This went unnoticed because the cache used to skip the very
+      // first `undefined`, so an undashed route never made the call — and a dashed one
+      // threw inside the render loop every time.
+      setPaint(map, lineId, 'line-dasharray', dash);
+    }
+
+    /*
+     * Comet tail: a short, brighter, wider re-draw of just the last stretch before
+     * the head — not a `line-gradient` (which needs `lineMetrics` on the source and
+     * fights `line-dasharray` on some GL implementations). A second short line on
+     * top of the first is simpler and composes with every other style here.
+     */
+    if (style.cometTail && r.drawn.length >= 2) {
+      wanted.add(cometSrc);
+      ensureSource(map, cometSrc, EMPTY);
+      (map.getSource(cometSrc) as GeoJSONSource | undefined)?.setData(lineFeature(tailOf(r.drawn, 0.18)));
+      ensureLayer(map, { id: cometId, type: 'line', source: cometSrc, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {} });
+      setPaint(map, cometId, 'line-color', style.color);
+      setPaint(map, cometId, 'line-width', style.width * (isRail ? 0.9 : 1.6));
+      setPaint(map, cometId, 'line-blur', style.width * 0.5);
+      setPaint(map, cometId, 'line-opacity', r.alpha * style.opacity);
+    } else {
+      removeLayer(map, cometId);
+    }
   }
 
   // Drop anything belonging to layers that no longer exist.
   for (const source of Object.keys(map.getStyle()?.sources ?? {})) {
     if (!source.startsWith('gm-')) continue;
     if (wanted.has(source)) continue;
-    for (const suffix of ['-fill', '-line', '-line-casing', '-trace', '-3d', '-glow', '-active-line', '-active-glow', '-intro-line']) removeLayer(map, source + suffix);
+    for (const suffix of ['-fill', '-line', '-line-casing', '-trace', '-3d', '-glow', '-active-line', '-active-glow', '-intro-line', '-rail-a', '-rail-b']) removeLayer(map, source + suffix);
     if (map.getSource(source)) {
       try {
         map.removeSource(source);
@@ -355,9 +473,9 @@ export function syncScene(map: MLMap, scene: Scene) {
   }
 }
 
-function ensureSource(map: MLMap, id: string, data: GeoJSON.FeatureCollection) {
+function ensureSource(map: MLMap, id: string, data: GeoJSON.FeatureCollection, opts?: { lineMetrics?: boolean }) {
   if (map.getSource(id)) return;
-  map.addSource(id, { type: 'geojson', data });
+  map.addSource(id, { type: 'geojson', data, ...(opts?.lineMetrics ? { lineMetrics: true } : {}) });
 }
 
 /**

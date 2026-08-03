@@ -1,0 +1,62 @@
+{
+  "title": "India's Digital Divide",
+  "slug": "india-digital-women",
+  "format": "short",
+  "fps": 30,
+  "basemap": "dark",
+  "dataset": "india-official",
+  "values": "/Users/sugandhkhobragade/Study/geolayer/docs/brand/india-digital/women-internet.json",
+  "ramp": "teal",
+  "credit": "Data: NFHS-6 · Boundaries: Government of India",
+  "voice": { "engine": "voicebox", "vbEngine": "kokoro", "presetVoice": "af_heart", "language": "en", "profileName": "DataBandar digital af_heart" },
+  "metric": {
+    "label": "Women who have used the internet",
+    "unit": "%",
+    "decimals": 1,
+    "legend": "Women who have used internet (%)"
+  },
+  "beatGap": 0.25,
+  "tailOut": 1.4,
+  "beats": [
+    {
+      "kind": "hook",
+      "id": "hook",
+      "say": "India just passed a billion internet users. But the last mile online isn't a map — it's a gender gap.",
+      "onScreen": "INDIA'S DIGITAL DIVIDE",
+      "pad": 0.4
+    },
+    {
+      "kind": "outline",
+      "id": "outline",
+      "say": "Nationally, sixty-four percent of women have used the internet — a doubling since the last survey. Men are at eighty.",
+      "pad": 0.4
+    },
+    {
+      "kind": "overview",
+      "id": "overview",
+      "say": "On this map, darker means more women online. See the pattern.",
+      "onScreen": "Women who've used the internet",
+      "pad": 0.4
+    },
+    {
+      "kind": "tour",
+      "id": "tour",
+      "stopPad": 0.3,
+      "minStop": 2.2,
+      "stops": [
+        { "region": "Goa", "say": "Goa, ninety-four percent — nearly everyone online." },
+        { "region": "Sikkim", "say": "Sikkim, ninety." },
+        { "region": "Kerala", "say": "Kerala, eighty-seven." },
+        { "region": "Tripura", "say": "Now the east. Tripura, just forty-nine percent." },
+        { "region": "Odisha", "say": "Odisha, fifty-two. Half the women here have never been online." }
+      ]
+    },
+    {
+      "kind": "labels",
+      "id": "close",
+      "labelAll": true,
+      "say": "A billion users — and the divide still runs straight through the middle of the map.",
+      "pad": 0.8
+    }
+  ]
+}

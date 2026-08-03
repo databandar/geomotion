@@ -19,8 +19,9 @@
  * property is needed, add it here first and notice that you are doing it.
  */
 
-/** Icon riding the head of a drawing route. Mirrors the document's union. */
-export type RouteIconStyle = 'dot' | 'plane' | 'car' | 'pin' | 'none';
+/** A flat vector glyph, for a route's head marker or a static point marker. Mirrors
+ * the document's `RouteIcon` union. */
+export type RouteIconStyle = 'dot' | 'plane' | 'car' | 'pin' | 'ship' | 'port' | 'factory' | 'flag' | 'oil' | 'mountain' | 'emoji' | 'none';
 
 export interface RouteStyle {
   id: string;
@@ -28,10 +29,16 @@ export interface RouteStyle {
   width: number;
   opacity: number;
   dashed: boolean;
+  /** Absent means `dashed ? 'dashed' : 'solid'` — see the document's `RouteLayer.lineStyle`. */
+  lineStyle?: 'solid' | 'dashed' | 'dotted' | 'longdash' | 'rail';
   glow: boolean;
+  cometTail?: boolean;
+  animateDash?: boolean;
   marker: {
     enabled: boolean;
     icon: RouteIconStyle;
+    /** The character drawn when `icon` is `'emoji'`. */
+    iconEmoji?: string;
     color: string;
     size: number;
     rotate: boolean;
@@ -44,6 +51,10 @@ export interface MarkerStyle {
   id: string;
   coord: [number, number];
   color: string;
+  /** Absent means `dot` — see `RouteIconStyle` and the document's `MarkerLayer.icon`. */
+  icon?: RouteIconStyle;
+  /** The character drawn when `icon` is `'emoji'`. */
+  iconEmoji?: string;
   size: number;
   label: string;
   labelSize: number;

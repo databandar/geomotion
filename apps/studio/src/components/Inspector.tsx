@@ -14,7 +14,7 @@ import type {
 } from '@geomotion/document';
 import { INDIA_STATES, matchNames, regionSet } from '@geomotion/entities';
 import { tourDuration } from '@geomotion/evaluator';
-import { RAMPS, getRamp, rampColor, removeBackground } from '@geomotion/core';
+import { DIVERGING_RAMPS, RAMPS, getRamp, rampColor, removeBackground } from '@geomotion/core';
 import indiaStatesOfficial from '../data/india-states-official.json';
 import indiaStatesNE from '../data/india-states.json';
 import { EASING_NAMES } from '@geomotion/animation';
@@ -426,7 +426,12 @@ function RoutePoints({ layer }: { layer: RouteLayer }) {
 
   return (
     <>
-      {tool === 'route' && <p className="hint">Click the map to append points. Drag the numbered handles to adjust.</p>}
+      {tool === 'route' && (
+        <p className="hint">
+          Click past the end to add a point, or on the line itself to insert one there. Drag a point to move it,
+          double-click it to remove it.
+        </p>
+      )}
       <div className="stat-row">
         <span>{layer.coords.length} points</span>
         <span>{km >= 1 ? km.toFixed(0) : km.toFixed(2)} km</span>
@@ -800,11 +805,14 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
       </Section>
 
       <Section title="Colour scale">
-        <Field label="Ramp" hint="Sequential, one hue, light→dark">
+        <Field label="Ramp" hint="Sequential ranks magnitude; diverging reads either side of a midpoint">
           <Select
             value={layer.ramp}
             onChange={(ramp) => apply({ ramp })}
-            options={RAMPS.map((r) => ({ value: r.id, label: r.name }))}
+            options={[
+              ...RAMPS.map((r) => ({ value: r.id, label: r.name })),
+              ...DIVERGING_RAMPS.map((r) => ({ value: r.id, label: r.name })),
+            ]}
           />
         </Field>
         <div className="ramp-preview">
@@ -841,6 +849,33 @@ function RegionsInspector({ layer }: { layer: RegionsLayer }) {
             Range {set.domain[0].toFixed(layer.decimals)} – {set.domain[1].toFixed(layer.decimals)}
             {layer.unit ? ' ' + layer.unit : ''}
           </p>
+        )}
+        {/*
+          A toggle rather than a nullable number field: `null` means "sequential", and a
+          number input with an empty state is a worse way to say that than a switch. Turning
+          it on seeds the middle of the current domain, which is the only value guaranteed
+          to be inside it.
+        */}
+        <Field label="Diverging" hint="Pin the ramp's neutral to a reference value — a replacement rate, a baseline">
+          <Toggle
+            value={layer.midpoint !== null}
+            onChange={(on) =>
+              apply({ midpoint: on ? Math.round(((set.domain[0] + set.domain[1]) / 2) * 100) / 100 : null })
+            }
+          />
+        </Field>
+        {layer.midpoint !== null && (
+          <>
+            <Field label="Midpoint">
+              <Num value={layer.midpoint} onChange={(midpoint) => apply({ midpoint })} step={0.1} />
+            </Field>
+            {(layer.midpoint <= set.domain[0] || layer.midpoint >= set.domain[1]) && (
+              <p className="hint">
+                Outside the range — ignored, and the scale reads as sequential. One side would
+                have no width.
+              </p>
+            )}
+          </>
         )}
         <TrackedNumber label="Fill opacity" layerId={layer.id} prop="fillOpacity" track={layer.fillOpacity} min={0} max={1} />
         <Field label="Dim others" hint="How far unvisited regions fade back">

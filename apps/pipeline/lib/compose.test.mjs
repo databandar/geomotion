@@ -194,7 +194,9 @@ describe('validateScript', () => {
      * an encode. The only hints were "1 layers" and `undefined` in the beat listing.
      */
     expect(() => validateScript(beats({ say: 'hello' }))).toThrow(/no "kind"/);
-    expect(() => validateScript(beats({ say: 'hello' }))).toThrow(/clouds, hook, outline, overview, tour, labels/);
+    // Against BEAT_KINDS rather than a copy of it: the point is that the message lists
+    // the kinds, and a hardcoded list makes adding one look like a regression.
+    expect(() => validateScript(beats({ say: 'hello' }))).toThrow(BEAT_KINDS.join(', '));
   });
 
   it('rejects a misspelt kind rather than silently skipping it', () => {
@@ -267,6 +269,26 @@ describe('mergeComposed', () => {
     const out = mergeComposed(existing, composed());
     expect(out.story.map((b) => b.id)).toEqual(['mine', 'b1']);
     expect(out.layers.map((l) => l.id)).toContain('hand');
+  });
+
+  it('drops a stamped composer layer even when no surviving block names it', () => {
+    /*
+     * The gap the stamp closes. Ownership used to be inferred from which story block
+     * referenced a layer, so a generated layer whose block no longer exists — a beat
+     * removed from the script — read as handmade and was kept forever, duplicated
+     * against its own replacement on every re-run.
+     */
+    const existing = {
+      layers: [{ id: 'orphan', source: 'composer' }, { id: 'mine' }],
+      story: [],
+    };
+    const out = mergeComposed(existing, composed());
+    expect(out.layers.map((l) => l.id)).toEqual(['mine', 'gen1', 'gen2']);
+  });
+
+  it('keeps an unstamped layer, so projects written before the stamp still merge', () => {
+    const existing = { layers: [{ id: 'legacy' }], story: [] };
+    expect(mergeComposed(existing, composed()).layers.map((l) => l.id)).toContain('legacy');
   });
 
   it('gives a layer both kinds of block claim to the person', () => {
@@ -349,5 +371,22 @@ describe('mergeComposed', () => {
     // Every project composed before this milestone has layers and no story at all.
     const out = mergeComposed({ layers: [{ id: 'old' }] }, composed());
     expect(out.layers.map((l) => l.id)).toEqual(['old', 'gen1', 'gen2']);
+  });
+});
+
+describe('composer provenance', () => {
+  it('stamps every layer it builds, so a later pass can tell them apart by identity', async () => {
+    const script = {
+      format: 'short',
+      dataset: 'india-official',
+      values: { Kerala: 1 },
+      beats: [
+        { kind: 'hook', say: 'hi', onScreen: 'HI', __key: 'b0' },
+        { kind: 'tour', stops: [{ region: 'Kerala', say: 'k', __key: 'b1-s0' }], __key: 'b1' },
+      ],
+    };
+    const { project } = await compose(script, new Map([['b0', 2], ['b1-s0', 2]]));
+    expect(project.layers.length).toBeGreaterThan(0);
+    for (const l of project.layers) expect(l.source).toBe('composer');
   });
 });

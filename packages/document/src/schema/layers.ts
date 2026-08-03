@@ -110,13 +110,17 @@ export const routeType: NodeTypeDef = {
       name: 'Route',
       coords: [],
       curve: 'geodesic',
+      overWater: false,
       color: nextColor(),
       width: staticTrack(3.5),
       opacity: staticTrack(1),
       dashed: false,
+      lineStyle: 'solid',
       glow: true,
+      cometTail: false,
+      animateDash: false,
       progress: windowTrack(Math.max(0, at), Math.max(0, at) + 4, 'easeInOutCubic'),
-      marker: { enabled: true, icon: 'dot', color: '#ffffff', size: staticTrack(6), rotate: true },
+      marker: { enabled: true, icon: 'dot', iconEmoji: '', color: '#ffffff', size: staticTrack(6), rotate: true },
       follow: { enabled: false, zoom: staticTrack(9), pitch: staticTrack(55), faceHeading: true },
     }) as Layer,
   /*
@@ -135,6 +139,13 @@ export const routeType: NodeTypeDef = {
     // Points are placed on the map, not typed — the canvas is the editor for a coordinate.
     { prop: 'coords', label: 'Points', section: 'Route', custom: true, row: { kind: 'text' } },
     {
+      prop: 'overWater',
+      label: 'Sea lane',
+      section: 'Route',
+      help: 'Checked by the land-crossing lint (a pipeline, a flight path, or a drive should stay off).',
+      row: { kind: 'toggle' },
+    },
+    {
       prop: 'curve',
       label: 'Shape',
       section: 'Line style',
@@ -142,14 +153,46 @@ export const routeType: NodeTypeDef = {
       row: { kind: 'select', options: [
         { value: 'geodesic', label: 'Geodesic (great circle)' },
         { value: 'arc', label: 'Arc (flight path)' },
+        { value: 'smooth', label: 'Smooth (curves through every point)' },
         { value: 'straight', label: 'Straight' },
       ] },
     },
     { prop: 'color', label: 'Colour', section: 'Line style', row: { kind: 'color' } },
     { prop: 'width', label: 'Width', section: 'Line style', row: { kind: 'track', min: 0.5, max: 20, step: 0.1, precision: 1 } },
     { prop: 'opacity', label: 'Opacity', section: 'Line style', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
+    // Not drawn — `lineStyle` superseded the toggle this used to be. Kept described
+    // (rather than removed from the layer) so a route saved before `lineStyle`
+    // existed still has something for the fallback in `mapsync.ts` to read.
+    { prop: 'dashed', label: 'Dashed (legacy)', section: 'Line style', custom: true, row: { kind: 'toggle' } },
+    {
+      prop: 'lineStyle',
+      label: 'Style',
+      section: 'Line style',
+      help: 'Rail draws two parallel lines with tick marks — a railway or shipping lane, not a path someone walked.',
+      row: { kind: 'select', options: [
+        { value: 'solid', label: 'Solid' },
+        { value: 'dashed', label: 'Dashed' },
+        { value: 'dotted', label: 'Dotted' },
+        { value: 'longdash', label: 'Long dash' },
+        { value: 'rail', label: 'Rail' },
+      ] },
+    },
     { prop: 'glow', label: 'Glow', section: 'Line style', row: { kind: 'toggle' } },
-    { prop: 'dashed', label: 'Dashed', section: 'Line style', row: { kind: 'toggle' } },
+    {
+      prop: 'animateDash',
+      label: 'Animate dash',
+      section: 'Line style',
+      help: 'The dash pattern creeps forward continuously, so the line still reads as moving after it finishes drawing.',
+      when: { prop: 'lineStyle', not: 'solid' },
+      row: { kind: 'toggle' },
+    },
+    {
+      prop: 'cometTail',
+      label: 'Comet tail',
+      section: 'Line style',
+      help: 'The stretch just behind the head glows brighter than the rest of the line.',
+      row: { kind: 'toggle' },
+    },
     {
       prop: 'progress',
       label: 'Reveal',
@@ -161,7 +204,15 @@ export const routeType: NodeTypeDef = {
      * `marker.icon` stays bespoke: picking "none" also clears `marker.enabled`, and a row
      * that writes one field cannot write two. The rest of the object is ordinary rows.
      */
-    { prop: 'marker.icon', label: 'Icon', section: 'Travelling marker', custom: true, row: { kind: 'select', options: ['dot', 'plane', 'car', 'pin', 'none'] } },
+    { prop: 'marker.icon', label: 'Icon', section: 'Travelling marker', custom: true, row: { kind: 'select', options: ['dot', 'plane', 'car', 'ship', 'pin', 'port', 'factory', 'flag', 'oil', 'mountain', 'emoji', 'none'] } },
+    {
+      prop: 'marker.iconEmoji',
+      label: 'Emoji',
+      section: 'Travelling marker',
+      help: 'Any emoji — not a fixed set. ✈️ 🚌 🚂 🚢 ⛵ 🚀 🐫, whatever the story needs.',
+      when: { prop: 'marker.icon', equals: 'emoji' },
+      row: { kind: 'text' },
+    },
     // Derived from the icon, never shown; it must carry the same section or it breaks the
     // run and the panel grows a second "Travelling marker" heading.
     { prop: 'marker.enabled', label: 'Marker on', section: 'Travelling marker', custom: true, row: { kind: 'toggle' } },
@@ -186,6 +237,8 @@ export const markerType: NodeTypeDef = {
       name: 'Marker',
       coord: [0, 0],
       color: nextColor(),
+      icon: 'dot',
+      iconEmoji: '',
       size: staticTrack(8),
       label: 'Label',
       labelSize: staticTrack(14),
@@ -208,6 +261,21 @@ export const markerType: NodeTypeDef = {
     // A [lng, lat] pair with "use map centre" and "go to" beside it — not two number rows.
     { prop: 'coord', label: 'Position', section: 'Marker', custom: true, row: { kind: 'text' } },
     { prop: 'color', label: 'Colour', section: 'Style', row: { kind: 'color' } },
+    {
+      prop: 'icon',
+      label: 'Icon',
+      section: 'Style',
+      help: 'A flat glyph in place of the plain dot — a ship, a port, a factory — drawn in this marker\'s own colour.',
+      row: { kind: 'select', options: ['dot', 'ship', 'port', 'factory', 'flag', 'oil', 'mountain', 'pin', 'car', 'plane', 'emoji'] },
+    },
+    {
+      prop: 'iconEmoji',
+      label: 'Emoji',
+      section: 'Style',
+      help: 'Any emoji — not a fixed set. ✈️ 🚌 🚂 🚢 ⛵ 🚀 🐫, whatever the story needs.',
+      when: { prop: 'icon', equals: 'emoji' },
+      row: { kind: 'text' },
+    },
     { prop: 'size', label: 'Size', section: 'Style', row: { kind: 'track', min: 2, max: 40, step: 0.5, precision: 1 } },
     { prop: 'halo', label: 'Halo', section: 'Style', help: 'A dark outline, so the label reads over imagery.', row: { kind: 'toggle' } },
     // The stack is a document sub-structure, listed and toggled in order (§06).
@@ -368,6 +436,7 @@ export const regionsType: NodeTypeDef = {
       autoDomain: true,
       min: 0,
       max: 100,
+      midpoint: null,
       fillOpacity: staticTrack(0.82),
       noDataColor: '#4b5563',
       borderColor: '#ffffff',
@@ -405,6 +474,14 @@ export const regionsType: NodeTypeDef = {
     { prop: 'autoDomain', label: 'Auto domain', section: 'Colour', row: { kind: 'toggle' } },
     { prop: 'min', label: 'Min', section: 'Colour', row: { kind: 'number', step: 1, precision: 2 } },
     { prop: 'max', label: 'Max', section: 'Colour', row: { kind: 'number', step: 1, precision: 2 } },
+    {
+      prop: 'midpoint',
+      label: 'Midpoint',
+      section: 'Colour',
+      help: 'Reference value for a diverging ramp — the ramp\'s neutral is pinned here and each side gets half the scale. Blank for a sequential scale.',
+      custom: true,
+      row: { kind: 'number', step: 0.1, precision: 2 },
+    },
     { prop: 'fillOpacity', label: 'Fill opacity', section: 'Colour', row: { kind: 'track', min: 0, max: 1, step: 0.01, precision: 2 } },
     { prop: 'noDataColor', label: 'No data', section: 'Colour', row: { kind: 'color' } },
     { prop: 'borderColor', label: 'Border', section: 'Borders', row: { kind: 'color' } },
